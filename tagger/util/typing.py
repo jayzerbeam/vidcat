@@ -1,10 +1,8 @@
 import functools
 import inspect
+from warnings import dprecated
 
-# use to explicity enforce types
-# eg.
-# @param_types(int, str)
-# def func(number, string)
+@deprecated("use enforce_types instead")
 def param_types(*types, **kwtypes):
 	def check_types(func):
 		@functools.wraps(func)
@@ -44,12 +42,3 @@ def enforce_types(func):
 						raise TypeError(f"named parameter '{name}' ({type(v).__name__}) is not of type {param.annotation.__name__}")
 		return func(*args, **kw)
 	return wrapper
-
-if __name__ == '__main__':
-	#@param_types(str, named = int)
-	@enforce_types
-	def say(string:str, misc:callable, named = None):
-		print(string, named)
-		
-	#say('first test', 3)
-	say('second test', misc = lambda i, s: i, named = 1)
