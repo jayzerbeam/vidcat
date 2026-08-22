@@ -1,85 +1,114 @@
-import sys
 import cv2
+import numpy
+
 
 class VideoThumbnailer:
-	_DEFAULT_FPS = 30 # incase it's unknown
+    _DEFAULT_FPS = 30  # incase it's unknown
 
-	def __init__(self, filename:str = None):
-		self.filename = filename
-		self.frames = None
-		self.cap = cv2.VideoCapture(self.filename)
+    # TODO use pathlib.Path
+    def __init__(self, filename: str = ""):
+        self._filename: str = filename
+        self._frames: list[tuple[numpy.ndarray, int, int]]
+        self._cap = cv2.VideoCapture(filename)
 
-	def get_dimensions(self):
-		return (round(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)), round(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-	
-	def get_fps(self):
-		return self.cap.get(cv2.CAP_PROP_FPS)
+    def get_dimensions(self):
+        return (
+            round(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            round(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        )
 
-	def get_frame_count(self):
-		return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    def get_fps(self):
+        return self._cap.get(cv2.CAP_PROP_FPS)
 
-	# interval
-	#	positive is seconds
-	#	negative is divisions
-	def extract_frames(self, interval:int = 30):
-		if interval == 0:
-			raise ValueError(f"invalid interval ({interval})")
-		video_fps = self.cap.get(cv2.CAP_PROP_FPS) or __class__._DEFAULT_FPS
-		video_length = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) - 1
-		print(f"video: {video_length} frames, {video_fps} fps, {round(video_length / video_fps)}s")
+    def get_frame_count(self):
+        return int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-		if interval < 0:
-			interval = video_length / (-interval + 1)
-		else:
-			interval = video_fps * interval
-		print(f"interval {interval}")
+    # interval
+    # 	positive is seconds
+    # 	negative is divisions
+    def extract_frames(self, interval: float = 30.0) -> None:
+        if interval == 0:
+            raise ValueError(f"invalid interval ({interval})")
+        video_fps = self._cap.get(cv2.CAP_PROP_FPS) or __class__._DEFAULT_FPS
+        video_length = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT)) - 1
 
-		frames = []
-		if self.cap.isOpened() and video_length > 0:
-			frameno = interval
-			while round(frameno) < video_length:
-				rfn = round(frameno)
-				self.cap.set(cv2.CAP_PROP_POS_FRAMES, rfn)
-				success, image = self.cap.read()
-				if success:
-					frames.append((image, rfn, round(frameno / video_fps * 1000)))
-					print(f"+{rfn}", end = " ")
-				else:
-					print(f"-{rfn}", end = " ")
-				frameno += interval
-			print("")
-		self.frames = frames
-		return frames
+        if interval < 0:
+            interval = video_length / (-interval + 1)
+        else:
+            interval = video_fps * interval
 
-	# this is a destructive operation
-	def resize_frames(self, resize_height:int = 240):
-		if not self.frames:
-			return
+        print(
+            f"{video_length} frames, {round(video_length / video_fps)}s, {video_fps:.2f}fps, interval {interval:.0f} ",
+            end="",
+        )
 
-		print("resizing frames...")
-		resized_frames = []
-		for fdata in self.frames:
-			h,w,bpp = fdata[0].shape
-			newwh = (int(resize_height / h * w), resize_height)
-			rimage = cv2.resize(fdata[0], newwh, interpolation = (cv2.INTER_AREA if resize_height <= h else cv2.INTER_CUBIC))
-			print(f"{fdata[1]}", end = " ")
-			resized_frames.append((rimage,) + fdata[1:])
-		print(f"\nresized {w}x{h} -> {newwh[0]}x{newwh[1]}")
-		self.frames = resized_frames
-		return resized_frames
+        frames = []
+        s = 0
+        if self._cap.isOpened() and video_length > 0:
+            frameno = interval
+            while round(frameno) < video_length:
+                rfn = round(frameno)
+                self._cap.set(cv2.CAP_PROP_POS_FRAMES, rfn)
+                success, image = self._cap.read()
+                if success:
+                    frames.append((image, rfn, round(frameno / video_fps * 1000)))
+                    s += 1
+                    print(".", end="", flush=True)
+                else:
+                    print("x", end="", flush=True)
+                frameno += interval
+            print(f" {s}/{len(frames)}")
 
-	def get_jpgs(self, jpgq:int = 70):
-		if not self.frames:
-			return
+        self.frames = frames
 
-		jpgs = []
-		for fdata in self.frames:
-			success, jpg = cv2.imencode(".jpg", fdata[0], [cv2.IMWRITE_JPEG_QUALITY, jpgq])
-			#cv2.imwrite(f"{sys.argv[1]}_{frameno}.jpg", image, [cv2.IMWRITE_JPEG_QUALITY, jpgq])
-			if success:
-				print(f"{fdata[1]} ({len(jpg)}b)", end = " ")
-				jpgs.append((jpg,) + fdata[1:])
-			else:
-				print(f"{fdata[1]} (failed)", end = " ")
-		print("")
-		return jpgs
+    # this is a destructive operation
+    def resize_frames(self, resize_height: int = 240) -> None:
+        if not self.frames:
+            return
+
+        resized_frames = []
+
+        # all frames should have the same dimentions so only calc off the first
+        oldh, oldw, _ = self.frames[0][0].shape
+        (neww, newh) = (int(resize_height / oldh * oldw), resize_height)
+        s = 0
+        print(f"resizing {oldw}x{oldh} -> {neww}x{newh} ", end="")
+
+        for fdata in self.frames:
+            try:
+                rimage = cv2.resize(
+                    fdata[0],
+                    [neww, newh],
+                    interpolation=(
+                        cv2.INTER_AREA if resize_height <= oldh else cv2.INTER_CUBIC
+                    ),
+                )
+                resized_frames.append((rimage,) + fdata[1:])
+                print(".", end="", flush=True)
+                s += 1
+            except cv2.error:
+                print("x", end="", flush=True)
+        print(f" {s}/{len(self.frames)}")
+
+        self.frames = resized_frames
+
+    def gen_jpgs(self, jpgq: int = 70) -> list | None:
+        if not self.frames:
+            return
+
+        print("generating jpgs ", end="")
+        jpgs = []
+        s = 0  # success
+        for fdata in self.frames:
+            success, jpg = cv2.imencode(
+                ".jpg", fdata[0], [cv2.IMWRITE_JPEG_QUALITY, jpgq]
+            )
+            # cv2.imwrite(f"{sys.argv[1]}_{frameno}.jpg", image, [cv2.IMWRITE_JPEG_QUALITY, jpgq])
+            if success:
+                jpgs.append((jpg,) + fdata[1:])
+                s += 1
+                print(".", end="", flush=True)
+            else:
+                print("x", end="", flush=True)
+        print(f" {s}/{len(self.frames)}")
+        return jpgs

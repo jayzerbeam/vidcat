@@ -1,4 +1,5 @@
-import os, sys
+import os
+
 import win32file
 
 #TODO change exceptions to return codes where 

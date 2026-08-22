@@ -1,6 +1,9 @@
-import pickle, os, sys
-from glob import glob, iglob
+import os
+import pickle
+import sys
 from argparse import ArgumentParser
+from glob import glob, iglob
+
 from lib.alternate_data_streams import ADSFile
 
 VID_EXTS = ('.avi', '.mp4', '.m4v', '.mkv', '.mpg', '.mpeg', '.wmv', '.flv', '.f4v', '.mov')
