@@ -1,0 +1,105 @@
+from util.typing import StringListy
+from util.ui.better_widgets import FileTreeview
+
+
+def any_in_list(list1: list | tuple, list2: list | tuple):
+    return len(list1) > 0 and len(list2) > 0 and len(set(list1) & set(list2)) > 0
+
+
+class FileMetaTreeview(FileTreeview):
+    def __init__(self, parent, *args, **kw):
+        super().__init__(parent, *args, columns=("actors", "tags"), **kw)
+        self.heading("#1", text="Actors")
+        self.heading("#2", text="Tags")
+        self.extra_columns_active(False)
+        # self.tag_configure('dir', background = '#EEE')
+        self.tag_configure("highlight", background="#DFD")
+
+    def extra_columns_active(self, state):
+        if state:
+            self.column("#1", minwidth=10, width=100)
+            self.column("#2", minwidth=10, width=250)
+        else:
+            self.column("#1", minwidth=0, width=0, stretch=False)
+            self.column("#2", minwidth=0, width=0, stretch=False)
+
+    def set_meta_columns(self, item: str, actors: list, tags: list):
+        self.item(item, values=(", ".join(actors), ", ".join(tags)))
+
+    def collapse_all(self) -> None:
+        def _recurse(item: str):
+            child = None
+            for child in self.get_children(item):
+                _recurse(child)
+            if child:
+                self.item(item, open=False)
+
+        _recurse("")
+
+    def apply_filters(
+        self, actors: StringListy, tags: StringListy, operator: str = "AND"
+    ):
+        def _recurse(item):
+            if self.tag_has("file", item):
+                itemconfig = self.item(item)
+                (item_actors, item_tags) = (
+                    (
+                        itemconfig["values"][0].split(", "),
+                        itemconfig["values"][1].split(", "),
+                    )
+                    if len(itemconfig["values"])
+                    else ([], [])
+                )
+                if operator == "AND":
+                    if (
+                        actors and len(set(actors) & set(item_actors)) != len(actors)
+                    ) or (tags and len(set(tags) & set(item_tags)) != len(tags)):
+                        self.hide(item)
+                else:
+                    if (actors and len(set(actors) & set(item_actors)) == 0) or (
+                        tags and len(set(tags) & set(item_tags)) == 0
+                    ):
+                        self.hide(item)
+            for child in self.get_children(item):
+                _recurse(child)
+
+        _recurse("")
+
+    def apply_highlight(self, actors: StringListy, tags: StringListy):
+        def _highlight_item(item: str, highlighted: bool, see: bool = False):
+            itemconfig = self.item(item)
+            if "highlight" in itemconfig["tags"] and not highlighted:
+                itemconfig["tags"].remove("highlight")
+
+            if "highlight" not in itemconfig["tags"] and highlighted:
+                if isinstance(itemconfig["tags"], list):
+                    itemconfig["tags"].append("highlight")
+                else:
+                    itemconfig["tags"] = ["highlight"]
+
+            self.item(item, tags=itemconfig["tags"])
+
+            if highlighted and see:
+                self.see(item)
+
+        def _recurse(item: str):
+            highlighted = False
+            if self.tag_has("file", item):
+                itemconfig = self.item(item)
+                (item_actors, item_tags) = (
+                    (
+                        itemconfig["values"][0].split(", "),
+                        itemconfig["values"][1].split(", "),
+                    )
+                    if len(itemconfig["values"])
+                    else ([], [])
+                )
+                highlighted = any_in_list(actors, item_actors) or any_in_list(
+                    tags, item_tags
+                )
+                _highlight_item(item, highlighted, see=True)
+            for child in self.get_children(item):
+                _recurse(child)
+
+        self.collapse_all()
+        _recurse("")

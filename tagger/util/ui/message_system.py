@@ -1,18 +1,21 @@
 import tkinter as tk
 from collections.abc import Callable
+from typing import Any
 
 
 class MessageSystem:
+    _subscribers: dict[str, Any]
+
     def __init__(self):
-        self.subscribers = {}
+        self._subscribers = {}
 
     def subscribe(self, msg_name: str, func: Callable) -> None:
-        if msg_name not in self.subscribers:
-            self.subscribers[msg_name] = []
-        self.subscribers[msg_name].append(func)
+        if msg_name not in self._subscribers:
+            self._subscribers[msg_name] = []
+        self._subscribers[msg_name].append(func)
 
     def send(self, message_name: str, *args, **kw) -> None:
-        for func in self.subscribers.get(message_name, []):
+        for func in self._subscribers.get(message_name, []):
             func(*args, **kw)
 
 

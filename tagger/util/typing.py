@@ -2,6 +2,8 @@ import functools
 import inspect
 from warnings import deprecated
 
+type StringListy = list[str] | tuple[str, ...]
+
 
 @deprecated("use enforce_types instead")
 def param_types(*types, **kwtypes):

@@ -1,15 +1,18 @@
+from pathlib import Path
+
 import cv2
 import numpy
 
 
 class VideoThumbnailer:
     _DEFAULT_FPS = 30  # incase it's unknown
+    _frames: list[tuple[numpy.ndarray, int, int]]
+    _cap: cv2.VideoCapture
 
     # TODO use pathlib.Path
-    def __init__(self, filename: str = ""):
-        self._filename: str = filename
-        self._frames: list[tuple[numpy.ndarray, int, int]]
-        self._cap = cv2.VideoCapture(filename)
+    def __init__(self, path: Path):
+        self._frames = []
+        self._cap = cv2.VideoCapture(path)
 
     def get_dimensions(self):
         return (
@@ -59,22 +62,22 @@ class VideoThumbnailer:
                 frameno += interval
             print(f" {s}/{len(frames)}")
 
-        self.frames = frames
+        self._frames = frames
 
     # this is a destructive operation
     def resize_frames(self, resize_height: int = 240) -> None:
-        if not self.frames:
+        if not self._frames:
             return
 
         resized_frames = []
 
         # all frames should have the same dimentions so only calc off the first
-        oldh, oldw, _ = self.frames[0][0].shape
+        oldh, oldw, _ = self._frames[0][0].shape
         (neww, newh) = (int(resize_height / oldh * oldw), resize_height)
         s = 0
         print(f"resizing {oldw}x{oldh} -> {neww}x{newh} ", end="")
 
-        for fdata in self.frames:
+        for fdata in self._frames:
             try:
                 rimage = cv2.resize(
                     fdata[0],
@@ -88,18 +91,18 @@ class VideoThumbnailer:
                 s += 1
             except cv2.error:
                 print("x", end="", flush=True)
-        print(f" {s}/{len(self.frames)}")
+        print(f" {s}/{len(self._frames)}")
 
-        self.frames = resized_frames
+        self._frames = resized_frames
 
     def gen_jpgs(self, jpgq: int = 70) -> list | None:
-        if not self.frames:
+        if not self._frames:
             return
 
         print("generating jpgs ", end="")
         jpgs = []
         s = 0  # success
-        for fdata in self.frames:
+        for fdata in self._frames:
             success, jpg = cv2.imencode(
                 ".jpg", fdata[0], [cv2.IMWRITE_JPEG_QUALITY, jpgq]
             )
@@ -110,5 +113,5 @@ class VideoThumbnailer:
                 print(".", end="", flush=True)
             else:
                 print("x", end="", flush=True)
-        print(f" {s}/{len(self.frames)}")
+        print(f" {s}/{len(self._frames)}")
         return jpgs
