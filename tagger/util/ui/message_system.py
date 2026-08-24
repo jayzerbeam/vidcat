@@ -34,5 +34,5 @@ class MessageWidget:
             self.winfo_toplevel().messenger.send(message_name, *args, **kw)
 
     def message_subscribe(self, message_name: str, func: callable):
-        if isinstance(self.winfo_toplevel(), EventWindow):
+        if isinstance(self.message_sendwinfo_toplevel(), EventWindow):
             self.winfo_toplevel().messenger.subscribe(message_name, func)

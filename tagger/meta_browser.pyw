@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 import os
 import pickle
@@ -6,10 +8,11 @@ import threading
 import tkinter as tk
 from copy import deepcopy
 from tkinter import StringVar, ttk
-from typing import Any, Final
+from typing import Any, Final, NamedTuple
 
 from PIL import Image, ImageTk
 
+# from meta_editor import ThumbGen, VideoProperties
 import util.file.alternate_data_streams as ADS
 from util.file.alternate_data_streams import ADSFile
 from util.ui.better_frames import ImagesFrame
@@ -47,19 +50,22 @@ class MainFrame(ttk.Frame, MessageWidget):
         self._p = {}
         self._p["basepath"] = basepath
 
-        self.ui = {}
-        self.ui["pane"] = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
-        self.ui["filetree"] = __class__.FileMetaTreeview(self.ui["pane"])
-        self.ui["filetree"].add_extensions(App.VID_EXTS)
-        self.ui["pane"].add(self.ui["filetree"].container)
-        self.ui["tabs"] = ttk.Notebook(self)
-        self.ui["vidinfo"] = __class__.VideoInfoFrame(self.ui["tabs"])
-        self.ui["filters"] = __class__.FilterFrame(self.ui["tabs"])
-        self.ui["tabs"].add(self.ui["filters"], text="Filters")
-        self.ui["tabs"].add(self.ui["vidinfo"], text="Video Info")
-        self.ui["tabs"].select(1)
-        self.ui["pane"].add(self.ui["tabs"])
-        self.ui["pane"].grid(column=0, row=1, padx=2, pady=2, sticky="NSEW")
+        pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
+        tabs = ttk.Notebook(self)
+        self._ui = __class__._UI(
+            pane=pane,
+            filetree=__class__.FileMetaTreeview(pane),
+            tabs=tabs,
+            vidinfo=__class__.VideoInfoFrame(tabs),
+            filters=__class__.FilterFrame(tabs),
+        )
+        self._ui.filetree.add_extensions(App.VID_EXTS)
+        self._ui.pane.add(self._ui.filetree.container)
+        self._ui.tabs.add(self._ui.filters, text="Filters")
+        self._ui.tabs.add(self._ui.vidinfo, text="Video Info")
+        self._ui.tabs.select(1)
+        self._ui.pane.add(self._ui.tabs)
+        self._ui.pane.grid(column=0, row=1, padx=2, pady=2, sticky="NSEW")
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
@@ -71,14 +77,14 @@ class MainFrame(ttk.Frame, MessageWidget):
 
         self.bind_all("<Control-KeyPress>", _ctrlkey)
 
-        self.ui["filters"].bind(
+        self._ui.filters.bind(
             "<<ApplyFiltersAnd>>", lambda event: self.apply_filters(operator="AND")
         )
-        self.ui["filters"].bind(
+        self._ui.filters.bind(
             "<<ApplyFiltersOr>>", lambda event: self.apply_filters(operator="OR")
         )
-        self.ui["filters"].bind("<<ClearFilters>>", self.clear_filters)
-        self.ui["filters"].bind("<<ApplyHighlight>>", self.apply_highlight)
+        self._ui.filters.bind("<<ClearFilters>>", self.clear_filters)
+        self._ui.filters.bind("<<ApplyHighlight>>", self.apply_highlight)
 
     @property
     def basepath(self):
@@ -88,20 +94,20 @@ class MainFrame(ttk.Frame, MessageWidget):
     def basepath(self, value: str) -> None:
         if os.path.isdir(value):
             self._p["basepath"] = value
-            self.ui["filetree"].root_path = value
-            self.ui["filetree"].update()
+            self._ui.filetree.root_path = value
+            self._ui.filetree.update()
 
     @property
     def metadata(self):
-        return self.ui["vidinfo"].metadata
+        return self._ui.vidinfo.metadata
 
     @metadata.setter
     def metadata(self, value: dict) -> None:
-        self.ui["vidinfo"].metadata = value
+        self._ui.vidinfo.metadata = value
 
     @property
     def selected_file(self) -> str | None:  # TODO user Path
-        filename = self.ui["filetree"].selection()
+        filename = self._ui.filetree.selection()
         if len(filename) > 0 and os.path.isfile(filename[0]):
             return os.path.abspath(filename[0])
 
@@ -111,10 +117,10 @@ class MainFrame(ttk.Frame, MessageWidget):
 
     @actors_list.setter
     def actors_list(self, items: dict):
-        self.ui["filetree"].extra_columns_active(True)
-        self.ui["filters"].ui["actors"].clear()
+        self._ui.filetree.extra_columns_active(True)
+        self._ui.filters.ui.actors.clear()
         for i in sorted(items.keys()):
-            self.ui["filters"].ui["actors"].insert(
+            self._ui.filters.ui.actors.insert(
                 "", tk.END, i, text=str(i), values=(items[i])
             )
 
@@ -124,40 +130,47 @@ class MainFrame(ttk.Frame, MessageWidget):
 
     @tags_list.setter
     def tags_list(self, items: dict) -> None:
-        self.ui["filetree"].extra_columns_active(True)
-        self.ui["filters"].ui["tags"].clear()
+        self._ui.filetree.extra_columns_active(True)
+        self._ui.filters.ui.tags.clear()
         for i in sorted(items.keys()):
-            self.ui["filters"].ui["tags"].insert(
+            self._ui.filters.ui.tags.insert(
                 "", tk.END, i, text=str(i), values=(items[i])
             )
 
     def apply_filters(self, operator: str = "OR") -> None:
-        self.ui["filetree"].apply_filters(
-            self.ui["filters"].ui["actors"].selection(),
-            self.ui["filters"].ui["tags"].selection(),
+        self._ui.filetree.apply_filters(
+            self._ui.filters.ui.actors.selection(),
+            self._ui.filters.ui.tags.selection(),
             operator=operator,
         )
 
     def clear_filters(self, event: tk.Event) -> None:
-        self.ui["filetree"].unhide_all()
+        self._ui.filetree.unhide_all()
 
     def apply_highlight(self, event: tk.Event) -> None:
-        self.ui["filetree"].apply_highlight(
-            self.ui["filters"].ui["actors"].selection(),
-            self.ui["filters"].ui["tags"].selection(),
+        self._ui.filetree.apply_highlight(
+            self._ui.filters.ui.actors.selection(),
+            self._ui.filters.ui.tags.selection(),
         )
 
     @property
     def play_ms(self):
-        return self.ui["vidinfo"].play_ms
+        return self._ui.vidinfo.play_ms
 
     @property
     def thumb_interval(self):
-        return int(self.ui["vidinfo"].ui["generate"].ui["interval"].get())
+        return int(self._ui.vidinfo.ui.generate._ui.interval.get())
 
     @property
     def video_info_frame(self):
-        return self.ui["vidinfo"]
+        return self._ui.vidinfo
+
+    class _UI(NamedTuple):
+        pane: ttk.PanedWindow
+        filetree: MainFrame.FileMetaTreeview
+        tabs: ttk.Notebook
+        vidinfo: MainFrame.VideoInfoFrame
+        filters: MainFrame.FilterFrame
 
     class FileMetaTreeview(FileTreeview):
         def __init__(self, parent, *args, **kw):
@@ -256,37 +269,44 @@ class MainFrame(ttk.Frame, MessageWidget):
             _recurse("")
 
     class FilterFrame(ttk.Frame):
+        class _UI(NamedTuple):
+            actions: ttk.Frame
+            scan: ttk.Button
+            filter_and: ttk.Button
+            filter_or: ttk.Button
+            filter_clear: ttk.Button
+            actors: ScrolledTreeview
+            tags: ScrolledTreeview
+
         def __init__(self, parent, *args, **kw):
             super().__init__(parent, *args, **kw)
-            self.ui: dict[str, Any] = {}
 
-            self.ui["actions"] = ttk.Frame(self)
-            self.ui["actions"].grid(column=0, row=0, columnspan=2)
-            self.ui["scan"] = ttk.Button(self.ui["actions"], text="Scan")
-            self.ui["scan"].grid(column=0, row=0, sticky="W", padx=2, pady=2)
-            self.ui["filter_and"] = ttk.Button(self.ui["actions"], text="Filter AND")
-            self.ui["filter_and"].grid(column=1, row=0, sticky="E", padx=2, pady=2)
-            self.ui["filter_or"] = ttk.Button(self.ui["actions"], text="Filter OR")
-            self.ui["filter_or"].grid(column=2, row=0, sticky="E", padx=2, pady=2)
-            self.ui["filter_clear"] = ttk.Button(
-                self.ui["actions"], text="Clear Filters"
+            actions = ttk.Frame(self)
+            self.ui: __class__._UI = __class__._UI(
+                actions=actions,
+                scan=ttk.Button(actions, text="Scan"),
+                filter_and=ttk.Button(actions, text="Filter AND"),
+                filter_or=ttk.Button(actions, text="Filter OR"),
+                filter_clear=ttk.Button(actions, text="Clear Filters"),
+                actors=ScrolledTreeview(self, columns=("count"), sortable=True),
+                tags=ScrolledTreeview(self, columns=("count"), sortable=True),
             )
-            self.ui["filter_clear"].grid(column=3, row=0, sticky="E", padx=2, pady=2)
-            # self.ui["actions"].grid
-            self.ui["actors"] = ScrolledTreeview(self, columns=("count"), sortable=True)
-            self.ui["actors"].heading("#0", text="Actors")
-            self.ui["actors"].heading("#1", text="#")
-            self.ui["actors"].column("#1", minwidth=10, width=50, stretch=False)
-            self.ui["actors"].container.grid(
+
+            self.ui.actions.grid(column=0, row=0, columnspan=2)
+            self.ui.scan.grid(column=0, row=0, sticky="W", padx=2, pady=2)
+            self.ui.filter_and.grid(column=1, row=0, sticky="E", padx=2, pady=2)
+            self.ui.filter_or.grid(column=2, row=0, sticky="E", padx=2, pady=2)
+            self.ui.filter_clear.grid(column=3, row=0, sticky="E", padx=2, pady=2)
+            self.ui.actors.heading("#0", text="Actors")
+            self.ui.actors.heading("#1", text="#")
+            self.ui.actors.column("#1", minwidth=10, width=50, stretch=False)
+            self.ui.actors.container.grid(
                 column=0, row=1, sticky="NSEW", padx=2, pady=2
             )
-            self.ui["tags"] = ScrolledTreeview(self, columns=("count"), sortable=True)
-            self.ui["tags"].heading("#0", text="Tags")
-            self.ui["tags"].heading("#1", text="#")
-            self.ui["tags"].column("#1", minwidth=10, width=50, stretch=False)
-            self.ui["tags"].container.grid(
-                column=1, row=1, sticky="NSEW", padx=2, pady=2
-            )
+            self.ui.tags.heading("#0", text="Tags")
+            self.ui.tags.heading("#1", text="#")
+            self.ui.tags.column("#1", minwidth=10, width=50, stretch=False)
+            self.ui.tags.container.grid(column=1, row=1, sticky="NSEW", padx=2, pady=2)
 
             self.columnconfigure(0, weight=1)
             self.columnconfigure(1, weight=1)
@@ -295,22 +315,30 @@ class MainFrame(ttk.Frame, MessageWidget):
             def _apply_highlight(event):
                 self.event_generate("<<ApplyHighlight>>")
 
-            self.ui["scan"].config(
-                command=lambda: self.event_generate("<<ScanMetadata>>")
-            )
-            self.ui["filter_and"].config(
+            self.ui.scan.config(command=lambda: self.event_generate("<<ScanMetadata>>"))
+            self.ui.filter_and.config(
                 command=lambda: self.event_generate("<<ApplyFiltersAnd>>")
             )
-            self.ui["filter_or"].config(
+            self.ui.filter_or.config(
                 command=lambda: self.event_generate("<<ApplyFiltersOr>>")
             )
-            self.ui["filter_clear"].config(
+            self.ui.filter_clear.config(
                 command=lambda: self.event_generate("<<ClearFilters>>")
             )
-            self.ui["actors"].bind("<<TreeviewSelect>>", _apply_highlight)
-            self.ui["tags"].bind("<<TreeviewSelect>>", _apply_highlight)
+            self.ui.actors.bind("<<TreeviewSelect>>", _apply_highlight)
+            self.ui.tags.bind("<<TreeviewSelect>>", _apply_highlight)
 
     class VideoInfoFrame(ttk.Frame, MessageWidget):
+        class _UI(NamedTuple):
+            props: MainFrame.VideoInfoFrame.VideoProperties
+            title: LabeledEntry
+            lists: MainFrame.VideoInfoFrame.ActorTagPane
+            pane: ttk.PanedWindow
+            panes: dict[str, ttk.PanedWindow]
+            thumbnails: ImagesFrame
+            generate: MainFrame.VideoInfoFrame.ThumbGen
+            save: ttk.Button
+
         def __init__(self, parent, *args, **kw):
             super().__init__(parent, *args, **kw)
             self.thumbs = []
@@ -325,27 +353,29 @@ class MainFrame(ttk.Frame, MessageWidget):
                 "write", lambda *args: _set_metadata("title", self.vars["title"].get())
             )
 
-            self.ui: dict[str, Any] = {"panes": {}}
-            self.ui["props"] = __class__.VideoProperties(self)
-            self.ui["props"].grid(row=0, sticky="EW")
-            self.ui["title"] = LabeledEntry(self, "Title", self.vars["title"])
-            self.ui["title"].grid(row=1, sticky="EW")
-            self.ui["pane"] = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
-            self.ui["lists"] = __class__.ActorTagPane(
-                self.ui["pane"], orient=tk.VERTICAL, width=200
+            pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
+            self.ui = __class__._UI(
+                props=__class__.VideoProperties(self),
+                title=LabeledEntry(self, "Title", self.vars["title"]),
+                lists=__class__.ActorTagPane(pane, orient=tk.VERTICAL, width=200),
+                pane=pane,
+                panes={},
+                thumbnails=ImagesFrame(self, per_row=0),
+                generate=__class__.ThumbGen(self),
+                save=ttk.Button(
+                    self,
+                    text="Save",
+                    command=lambda self=self: self.event_generate("<<SaveMetadata>>"),
+                ),
             )
-            self.ui["thumbnails"] = ImagesFrame(self, per_row=0)
-            self.ui["pane"].add(self.ui["lists"])
-            self.ui["pane"].add(self.ui["thumbnails"])
-            self.ui["pane"].grid(row=2, column=0, sticky="NSEW", pady=4, padx=4)
-            self.ui["generate"] = __class__.ThumbGen(self)
-            self.ui["generate"].grid(row=3, column=0, sticky="EW", pady=4, padx=4)
-            self.ui["save"] = ttk.Button(
-                self,
-                text="Save",
-                command=lambda self=self: self.event_generate("<<SaveMetadata>>"),
-            )
-            self.ui["save"].grid(row=3, column=0, sticky="E", pady=4, padx=4, ipadx=4)
+
+            self.ui.props.grid(row=0, sticky="EW")
+            self.ui.title.grid(row=1, sticky="EW")
+            self.ui.pane.add(self.ui.lists)
+            self.ui.pane.add(self.ui.thumbnails)
+            self.ui.pane.grid(row=2, column=0, sticky="NSEW", pady=4, padx=4)
+            self.ui.generate.grid(row=3, column=0, sticky="EW", pady=4, padx=4)
+            self.ui.save.grid(row=3, column=0, sticky="E", pady=4, padx=4, ipadx=4)
 
             self.columnconfigure(0, weight=1)
             self.rowconfigure(2, weight=1)
@@ -361,13 +391,12 @@ class MainFrame(ttk.Frame, MessageWidget):
                         self.event_generate("<<PlayFileAt>>")
                         break
 
-            self.ui["thumbnails"].set_image_click_handler(_play_from_image)
+            self.ui.thumbnails.set_image_click_handler(_play_from_image)
 
         @property
         def metadata(self):
-            # self._['metadata']['title']  = self.ui['title'].get_text()
-            self._p["metadata"]["actors"] = self.ui["lists"].actors
-            self._p["metadata"]["tags"] = self.ui["lists"].tags
+            self._p["metadata"]["actors"] = self.ui.lists.actors
+            self._p["metadata"]["tags"] = self.ui.lists.tags
             return self._p["metadata"]
 
         @metadata.setter
@@ -381,19 +410,19 @@ class MainFrame(ttk.Frame, MessageWidget):
             )
             viddur = vp.get("duration", 0)
             self.vars["title"].set(metadata["title"])
-            self.ui["lists"].actor_listbox.clear_items()
-            self.ui["lists"].actor_listbox.add_items(metadata["actors"])
-            self.ui["lists"].tag_listbox.clear_items()
-            self.ui["lists"].tag_listbox.add_items(metadata["tags"])
-            self.ui["props"].set_properties(vidw, vidh, viddur)
+            self.ui.lists.actor_listbox.clear_items()
+            self.ui.lists.actor_listbox.add_items(metadata["actors"])
+            self.ui.lists.tag_listbox.clear_items()
+            self.ui.lists.tag_listbox.add_items(metadata["tags"])
+            self.ui.props.set_properties(vidw, vidh, viddur)
             for t in self.thumbs:
                 del t
             self.thumbs = [
                 (ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), t)
                 for t in metadata["thumbnails"]
             ]
-            self.ui["thumbnails"].clear_images()
-            self.ui["thumbnails"].add_images([i[0] for i in self.thumbs])
+            self.ui.thumbnails.clear_images()
+            self.ui.thumbnails.add_images([i[0] for i in self.thumbs])
 
         @property
         def video_path(self):
@@ -408,29 +437,37 @@ class MainFrame(ttk.Frame, MessageWidget):
             return self.vars["interval"].get()
 
         def reload_thumbs(self):
-            self.ui["thumbnails"].clear_images()
-            self.ui["thumbnails"].add_images(
+            self.ui.thumbnails.clear_images()
+            self.ui.thumbnails.add_images(
                 [
                     ImageTk.PhotoImage(Image.open(io.BytesIO(t[0])))
                     for t in self._p["metadata"]["thumbnails"]
                 ]
             )
-            self.ui["generate"].ui["button"].config(state=tk.NORMAL)
+            self.ui.generate.busy = False
 
         class VideoProperties(ttk.Frame, MessageWidget):
+            class _UI(NamedTuple):
+                dimensions: ttk.Label
+                duration: ttk.Label
+
             def __init__(self, parent, *args, **kw):
                 super().__init__(parent, *args, **kw)
-                self.ui = {}
-                self.ui["dimensions"] = ttk.Label(self)
-                self.ui["dimensions"].pack(ipadx=4, side=tk.LEFT)
-                self.ui["duration"] = ttk.Label(self)
-                self.ui["duration"].pack(ipadx=4, side=tk.LEFT)
+                self._ui = __class__._UI(
+                    dimensions=ttk.Label(self), duration=ttk.Label(self)
+                )
+                self._ui.dimensions.pack(ipadx=4, side=tk.LEFT)
+                self._ui.duration.pack(ipadx=4, side=tk.LEFT)
 
             def set_properties(self, width, height, duration):
-                self.ui["dimensions"].config(text=f"dimensions: {width}x{height}")
-                self.ui["duration"].config(text=f"duration: {nice_duration(duration)}")
+                self._ui.dimensions.config(text=f"dimensions: {width}x{height}")
+                self._ui.duration.config(text=f"duration: {nice_duration(duration)}")
 
         class ActorTagPane(ttk.PanedWindow, MessageWidget):
+            class _UI(NamedTuple):
+                actors: EditableList
+                tags: EditableList
+
             def __init__(self, parent, *args, **kw):
                 super().__init__(parent, *args, **kw)
 
@@ -440,73 +477,100 @@ class MainFrame(ttk.Frame, MessageWidget):
                     else:
                         return entry
 
-                self.ui = {}
-                self.ui["actors"] = EditableList(self, "Actors", width=1)
-                self.ui["actors"].list_height(10)
-                self.ui["actors"].on_add_handler(_on_add)
-                self.add(self.ui["actors"])
-                self.ui["tags"] = EditableList(self, "Tags", width=1)
-                self.ui["tags"].on_add_handler(_on_add)
-                self.add(self.ui["tags"])
+                self._ui = __class__._UI(
+                    actors=EditableList(self, "Actors", width=1),
+                    tags=EditableList(self, "Tags", width=1),
+                )
+                self._ui.actors.list_height(10)
+                self._ui.actors.on_add_handler(_on_add)
+                self.add(self._ui.actors)
+                self._ui.tags.on_add_handler(_on_add)
+                self.add(self._ui.tags)
 
             @property
             def actors(self):
-                return self.ui["actors"].items
+                return self._ui.actors.items
 
             @property
             def actor_listbox(self):
-                return self.ui["actors"]
+                return self._ui.actors
 
             @property
             def tags(self):
-                return self.ui["tags"].items
+                return self._ui.tags.items
 
             @property
             def tag_listbox(self):
-                return self.ui["tags"]
+                return self._ui.tags
 
         class ThumbGen(ttk.Frame, MessageWidget):
+            class _UI(NamedTuple):
+                label: ttk.Label
+                interval: ttk.Entry
+                button: ttk.Button
+
             def __init__(self, parent, *args, **kw):
                 def _gen_thumbs():
                     self.event_generate("<<GenerateThumbs>>")
-                    self.ui["button"].config(state=tk.DISABLED)
+                    self._ui.button.config(state=tk.DISABLED)
 
                 super().__init__(parent, *args, **kw)
-                self.ui = {}
-                self.ui["label"] = ttk.Label(self, text="interval")
-                self.ui["label"].grid(column=0, row=0)
-                self.ui["interval"] = ttk.Entry(self, width=5)
-                self.ui["interval"].insert(0, "-30")
-                self.ui["interval"].grid(column=1, row=0, padx=4)
-                self.ui["button"] = ttk.Button(
-                    self, text="Generate", command=_gen_thumbs
+                self._ui = __class__._UI(
+                    label=ttk.Label(self, text="interval"),
+                    interval=ttk.Entry(self, width=5),
+                    button=ttk.Button(self, text="Generate", command=_gen_thumbs),
                 )
-                self.ui["button"].grid(column=2, row=0)
+                self._ui.label.grid(column=0, row=0)
+                self._ui.interval.insert(0, "-30")
+                self._ui.interval.grid(column=1, row=0, padx=4)
+                self._ui.button.grid(column=2, row=0)
                 self.bind_all(
                     "<<GenerateThumbsComplete>>",
-                    lambda event: self.ui["button"].config(state=tk.ACTIVE),
+                    lambda event: self._ui.button.config(state=tk.ACTIVE),
                 )
 
+                self.is_busy: bool = False
+
             @property
-            def interval(self):
-                return int(self.ui["interval"].get())
+            def interval(self) -> int:
+                return int(self._ui.interval.get())
+
+            @property
+            def busy(self) -> bool:
+                return self.is_busy
+
+            @busy.setter
+            def busy(self, state: bool) -> None:
+                self.is_busy = state
+                if state:
+                    self._ui.button.config(state=tk.DISABLED)
+                else:
+                    self._ui.button.config(state=tk.NORMAL)
 
 
 class StatusWindow(tk.Toplevel):
+    class _UI(NamedTuple):
+        frame: ttk.Frame
+        progress: ttk.Progressbar
+        status: ttk.Label
+
     def __init__(self, parent, *args, **kw):
+
         super().__init__(parent, *args, **kw)
         self.resizable(False, False)
         self.title("Status")
         self.group(parent)
 
-        self.ui = {}
         self.status_text = StringVar()
-        self.ui["frame"] = ttk.Frame(self)
-        self.ui["progress"] = ttk.Progressbar(self.ui["frame"], length=500)
-        self.ui["progress"].grid(column=0, row=0, padx=2, pady=2)
-        self.ui["status"] = ttk.Label(self.ui["frame"], textvariable=self.status_text)
-        self.ui["status"].grid(column=0, row=1, padx=2, pady=2)
-        self.ui["frame"].pack(padx=10, pady=10)
+        frame = ttk.Frame(self)
+        self._ui = __class__._UI(
+            frame=frame,
+            progress=ttk.Progressbar(frame, length=500),
+            status=ttk.Label(frame, textvariable=self.status_text),
+        )
+        self._ui.progress.grid(column=0, row=0, padx=2, pady=2)
+        self._ui.status.grid(column=0, row=1, padx=2, pady=2)
+        self._ui.frame.pack(padx=10, pady=10)
 
     @property
     def info(self):
@@ -518,11 +582,11 @@ class StatusWindow(tk.Toplevel):
 
     @property
     def progress(self):
-        return self.ui["progress"]["value"]
+        return self._ui.progress["value"]
 
     @progress.setter
     def progress(self, val):
-        self.ui["progress"].config(value=val)
+        self._ui.progress.config(value=val)
 
 
 class App:
@@ -540,7 +604,7 @@ class App:
         ".mov",
     )
     METADATA_STREAM: Final[str] = "video_metadata"
-    EMPTY_METADATA: Final[dict[str, Any]] = {
+    _EMPTY_METADATA: Final[dict[str, Any]] = {
         "title": "",
         "video_properties": {"dimensions": (0, 0), "duration": 0},
         "actors": [],
@@ -548,64 +612,70 @@ class App:
         "thumbnails": [],
     }
 
+    class _UI(NamedTuple):
+        mainframe: MainFrame
+        status: StatusWindow
+
     def __init__(self, basepath, root):
         self.basepath = basepath
         self.root = root
-        self.metadata = __class__.EMPTY_METADATA
+        self.metadata = deepcopy(__class__._EMPTY_METADATA)
         self.file_meta_filters = {}
         self.all_tags = []
         self.all_actors = []
 
-        self.win = {}
-        main_window = self.win["main"] = MainFrame(root)
-        main_window.pack(expand=True, fill=tk.BOTH)
-        main_window.basepath = basepath
+        self._ui = __class__._UI(mainframe=MainFrame(root), status=StatusWindow(root))
+        self._ui.mainframe.pack(expand=True, fill=tk.BOTH)
+        self._ui.mainframe.basepath = basepath
 
-        main_window.bind_all("<<FileSelect>>", lambda event: self.load_metadata())
-        main_window.bind_all(
-            "<<FileExec>>", lambda event: self.play_file(main_window.selected_file)
+        self._ui.mainframe.bind_all(
+            "<<FileSelect>>", lambda event: self.load_metadata()
         )
-        main_window.bind_all(
+        self._ui.mainframe.bind_all(
+            "<<FileExec>>",
+            lambda event: self.play_file(self._ui.mainframe.selected_file),
+        )
+        self._ui.mainframe.bind_all(
             "<<PlayFileAt>>",
             lambda event: self.play_file(
-                main_window.selected_file, main_window.play_ms
+                self._ui.mainframe.selected_file, self._ui.mainframe.play_ms
             ),
         )
-        main_window.bind_all(
+        self._ui.mainframe.bind_all(
             "<<GenerateThumbs>>", lambda event: self.generate_thumbnails()
         )
-        main_window.bind_all("<<SaveMetadata>>", lambda event: self.save_metadata())
-        main_window.bind_all(
+        self._ui.mainframe.bind_all(
+            "<<SaveMetadata>>", lambda event: self.save_metadata()
+        )
+        self._ui.mainframe.bind_all(
             "<<ScanMetadata>>", lambda event: self.scan_files_metadata()
         )
         # self.frame.bind_all('<<SaveMetadata>>', lambda event: adsfile.write_stream('video_metadata', pickle.dumps(metadata)))
 
-        self.win["status"] = StatusWindow(self.root)
-        self.win["status"].transient(self.win["main"])
-        self.win["status"].overrideredirect(True)
-        self.win["status"].withdraw()
+        self._ui.status.transient(self._ui.mainframe)
+        self._ui.status.overrideredirect(True)
+        self._ui.status.withdraw()
 
     def load_metadata(self):
-        print(f"loading metadata for {self.win['main'].selected_file}")
-        METADATA_STREAM = "video_metadata"
-        filepath = self.win["main"].selected_file
+        print(f"loading metadata for {self._ui.mainframe.selected_file}")
+        filepath = self._ui.mainframe.selected_file
         try:
             adsfile = ADSFile(filepath)
             if not adsfile.has_stream(__class__.METADATA_STREAM):
                 adsfile.write_stream(
-                    __class__.METADATA_STREAM, pickle.dumps(__class__.EMPTY_METADATA)
+                    __class__.METADATA_STREAM, pickle.dumps(__class__._EMPTY_METADATA)
                 )
             self.metadata = pickle.loads(adsfile.read_stream(__class__.METADATA_STREAM))
-        except Exception:
-            self.metadata = deepcopy(__class__.EMPTY_METADATA)
-        self.win["main"].metadata = self.metadata
+        except FileNotFoundError:
+            self.metadata = deepcopy(__class__._EMPTY_METADATA)
+        self._ui.mainframe.metadata = self.metadata
 
     def save_metadata(self):
-        print(f"saving metadata for {self.win['main'].selected_file}")
-        if not self.win["main"].selected_file:
+        print(f"saving metadata for {self._ui.mainframe.selected_file}")
+        if not self._ui.mainframe.selected_file:
             return
-        self.metadata = self.win["main"].metadata
-        adsfile = ADSFile(self.win["main"].selected_file)
+        self.metadata = self._ui.mainframe.metadata
+        adsfile = ADSFile(self._ui.mainframe.selected_file)
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self.metadata))
 
     def scan_files_metadata(self):
@@ -620,7 +690,7 @@ class App:
 
             actors = {}
             tags = {}
-            items = self.win["main"].ui["filetree"].get_items(with_tags=["file"])
+            items = self._ui.mainframe._ui.filetree.get_items(with_tags=["file"])
             item_count = len(items)
             steps = 200  # bar updates steps, so it's not updating with every file
             for c, item in enumerate(items):
@@ -629,8 +699,8 @@ class App:
                     or c % int(item_count / steps) == 0
                     or c + 1 == item_count
                 ):
-                    self.win["status"].progress = (c + 1) / item_count * 100.0
-                    self.win["status"].info = item
+                    self._ui.status.progress = (c + 1) / item_count * 100.0
+                    self._ui.status.info = item
                     self.root.update()
                 filename = os.path.join(self.basepath, item)
                 if os.path.isfile(filename) and ADS.has_stream(
@@ -643,27 +713,27 @@ class App:
                     except pickle.UnpicklingError:
                         print(f"failed to unpickle metadata for {filename}")
                     else:
-                        self.win["main"].ui["filetree"].set_meta_columns(
+                        self._ui.mainframe._ui.filetree.set_meta_columns(
                             item, metadata["actors"], metadata["tags"]
                         )
                         _inc(actors, metadata["actors"])
                         _inc(tags, metadata["tags"])
-            self.win["main"].actors_list = actors
-            self.win["main"].tags_list = tags
-            self.win["status"].withdraw()
+            self._ui.mainframe.actors_list = actors
+            self._ui.mainframe.tags_list = tags
+            self._ui.status.withdraw()
 
-        self.win["status"].geometry(
-            f"+{round(self.root.winfo_x() + self.root.winfo_width() / 2 - self.win['status'].winfo_reqwidth() / 2)}+{round(self.root.winfo_y() + self.root.winfo_height() / 2 - self.win['status'].winfo_reqheight() / 2)}"
+        self._ui.status.geometry(
+            f"+{round(self.root.winfo_x() + self.root.winfo_width() / 2 - self._ui.status.winfo_reqwidth() / 2)}+{round(self.root.winfo_y() + self.root.winfo_height() / 2 - self._ui.status.winfo_reqheight() / 2)}"
         )
-        self.win["status"].deiconify()
-        self.win["status"].lift(self.win["main"])
-        self.win["main"].ui["filetree"].unhide_all()
+        self._ui.status.deiconify()
+        self._ui.status.lift(self._ui.mainframe)
+        self._ui.mainframe._ui.filetree.unhide_all()
         # threading.Thread(target = _thread_entry).start()
         _thread_entry()
 
     # so not thread-safe
     def generate_thumbnails(self):
-        filename = self.win["main"].selected_file
+        filename = self._ui.mainframe.selected_file
         if not filename:
             return
 
@@ -674,12 +744,12 @@ class App:
             self.metadata["video_properties"]["duration"] = round(
                 vt.get_frame_count() / (vt.get_fps() or 30.0), 2
             )
-            vt.extract_frames(interval=self.win["main"].thumb_interval)
+            vt.extract_frames(interval=self._ui.mainframe.thumb_interval)
             vt.resize_frames(resize_height=200)
             jpgs = vt.gen_jpgs(jpgq=70)
             self.metadata["thumbnails"] = jpgs
-            self.win["main"].metadata = self.metadata
-            self.win["main"].event_generate("<<GenerateThumbsComplete>>")
+            self._ui.mainframe.metadata = self.metadata
+            self._ui.mainframe.event_generate("<<GenerateThumbsComplete>>")
 
         threading.Thread(target=thread_entry).start()
 
