@@ -54,7 +54,7 @@ class VideoMetadataer:
         if not overwrite and self.metadata["thumbnails"]:
             return
 
-        vt = VideoThumbnailer(self.path.name)
+        vt = VideoThumbnailer(self.path)
         dimensions = vt.get_dimensions()
         self.metadata["video_properties"] = {}
         self.metadata["video_properties"]["dimensions"] = dimensions
