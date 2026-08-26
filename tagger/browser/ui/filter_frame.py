@@ -1,9 +1,7 @@
 from tkinter import ttk
 from typing import NamedTuple
 
-from util.ui.better_widgets import (
-    ScrollableTreeview,
-)
+from util.ui.better_treeview import ScrollableTreeview
 
 
 class FilterFrame(ttk.Frame):

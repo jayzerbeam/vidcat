@@ -1,5 +1,5 @@
 from util.typing import StringListy
-from util.ui.better_widgets import FileTreeview
+from util.ui.better_treeview import FileTreeview
 
 
 def any_in_list(list1: list | tuple, list2: list | tuple):

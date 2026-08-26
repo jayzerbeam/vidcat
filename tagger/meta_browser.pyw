@@ -120,7 +120,7 @@ class App:
             ),
         )
         self._widgets.mainframe.bind_all(
-            "<<GenerateThumbs>>", lambda event: self.generate_thumbnails()
+            "<<GenerateThumbs>>", self.handle_generate_thumbnails
         )
         self._widgets.mainframe.bind_all(
             "<<SaveMetadata>>", lambda event: self.save_metadata()
@@ -133,6 +133,10 @@ class App:
         self._widgets.status.transient(self._widgets.mainframe)
         self._widgets.status.overrideredirect(True)
         self._widgets.status.withdraw()
+
+    def handle_generate_thumbnails(self, ev: tk.Event) -> None:
+        print(ev.widget)
+        print(ev)
 
     def load_metadata(self):
         print(f"loading metadata for {self._widgets.mainframe.selected_file}")
