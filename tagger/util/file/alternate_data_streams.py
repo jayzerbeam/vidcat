@@ -74,6 +74,6 @@ class ADSFile:
 
     def delete_stream(self, stream):
         try:
-            return remove_stream(self.filepath, stream)
+            return delete_stream(self.filepath, stream)
         finally:
             self.stream_names = get_stream_names(self.filepath)

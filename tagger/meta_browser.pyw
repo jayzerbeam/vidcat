@@ -102,9 +102,7 @@ class App:
         self._all_actors = []
         self._selected_path = Path()
 
-        self._widgets = __class__._Widgets(
-            mainframe=MainFrame(root), status=StatusWindow(root)
-        )
+        self._widgets = __class__._Widgets(mainframe=MainFrame(root), status=StatusWindow(root))
         self._widgets.mainframe.extensions(*App.VID_EXTS)
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
         self._widgets.mainframe.basepath = basepath
@@ -112,16 +110,10 @@ class App:
         self._widgets.mainframe.bind_all("<<FileSelect>>", self.handle_file_selected)
         self._widgets.mainframe.bind_all("<<FileExec>>", self.handle_file_exec)
         self._widgets.mainframe.bind_all("<<PlayFromMs>>", self.handle_play_from_ms)
-        self._widgets.mainframe.bind_all(
-            "<<IntervalChanged>>", self.handle_interval_changed
-        )
-        self._widgets.mainframe.bind_all(
-            "<<GenerateThumbs>>", self.handle_generate_thumbnails
-        )
+        self._widgets.mainframe.bind_all("<<IntervalChanged>>", self.handle_interval_changed)
+        self._widgets.mainframe.bind_all("<<GenerateThumbs>>", self.handle_generate_thumbnails)
         self._widgets.mainframe.bind_all("<<SaveMetadata>>", self.handle_save_metadata)
-        self._widgets.mainframe.bind_all(
-            "<<ScanMetadata>>", lambda ev: self.scan_files_metadata()
-        )
+        self._widgets.mainframe.bind_all("<<ScanMetadata>>", lambda ev: self.scan_files_metadata())
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.status.overrideredirect(True)
@@ -140,9 +132,7 @@ class App:
                             __class__.METADATA_STREAM,
                             pickle.dumps(__class__._EMPTY_METADATA),
                         )
-                    self._metadata = pickle.loads(
-                        adsfile.read_stream(__class__.METADATA_STREAM)
-                    )
+                    self._metadata = pickle.loads(adsfile.read_stream(__class__.METADATA_STREAM))
                 except FileNotFoundError:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
                 self._widgets.mainframe.metadata = self._metadata
@@ -170,15 +160,9 @@ class App:
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
 
     def scan_files_metadata(self):
-        xoffset = round(
-            self._root.winfo_x()
-            + self._root.winfo_width() / 2
-            - self._widgets.status.winfo_reqwidth() / 2
-        )
+        xoffset = round(self._root.winfo_x() + self._root.winfo_width() / 2 - self._widgets.status.winfo_reqwidth() / 2)
         yoffset = round(
-            self._root.winfo_y()
-            + self._root.winfo_height() / 2
-            - self._widgets.status.winfo_reqheight() / 2
+            self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_reqheight() / 2
         )
         self._widgets.status.geometry(f"+{xoffset}+{yoffset}")
         self._widgets.status.deiconify()
@@ -200,22 +184,14 @@ class App:
         item_count = len(items)
         steps = 200  # bar updates steps, so it's not updating with every file
         for c, item in enumerate(items):
-            if (
-                item_count <= steps
-                or c % int(item_count / steps) == 0
-                or c + 1 == item_count
-            ):
+            if item_count <= steps or c % int(item_count / steps) == 0 or c + 1 == item_count:
                 self._widgets.status.progress = (c + 1) / item_count * 100.0
                 self._widgets.status.info = item
                 self._root.update()
             filename = os.path.join(self._basepath, item)
-            if os.path.isfile(filename) and ADS.has_stream(
-                filename, __class__.METADATA_STREAM
-            ):
+            if os.path.isfile(filename) and ADS.has_stream(filename, __class__.METADATA_STREAM):
                 try:
-                    metadata = pickle.loads(
-                        ADS.read_stream(filename, __class__.METADATA_STREAM)
-                    )
+                    metadata = pickle.loads(ADS.read_stream(filename, __class__.METADATA_STREAM))
                 except pickle.UnpicklingError:
                     print(f"failed to unpickle metadata for {filename}")
                 else:
@@ -237,9 +213,7 @@ class App:
             vt = VideoThumbnailer(path)
             self._metadata["video_properties"] = {}
             self._metadata["video_properties"]["dimensions"] = vt.get_dimensions()
-            self._metadata["video_properties"]["duration"] = round(
-                vt.get_frame_count() / (vt.get_fps() or 30.0), 2
-            )
+            self._metadata["video_properties"]["duration"] = round(vt.get_frame_count() / (vt.get_fps() or 30.0), 2)
             vt.extract_frames(interval=interval)
             vt.resize_frames(resize_height=200)
             jpgs = vt.gen_jpgs(jpgq=70)

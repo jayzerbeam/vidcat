@@ -82,9 +82,7 @@ class VideoThumbnailer:
                 rimage = cv2.resize(
                     fdata[0],
                     [neww, newh],
-                    interpolation=(
-                        cv2.INTER_AREA if resize_height <= oldh else cv2.INTER_CUBIC
-                    ),
+                    interpolation=(cv2.INTER_AREA if resize_height <= oldh else cv2.INTER_CUBIC),
                 )
                 resized_frames.append((rimage,) + fdata[1:])
                 print(".", end="", flush=True)
@@ -103,9 +101,7 @@ class VideoThumbnailer:
         jpgs = []
         s = 0  # success
         for fdata in self._frames:
-            success, jpg = cv2.imencode(
-                ".jpg", fdata[0], [cv2.IMWRITE_JPEG_QUALITY, jpgq]
-            )
+            success, jpg = cv2.imencode(".jpg", fdata[0], [cv2.IMWRITE_JPEG_QUALITY, jpgq])
             # cv2.imwrite(f"{sys.argv[1]}_{frameno}.jpg", image, [cv2.IMWRITE_JPEG_QUALITY, jpgq])
             if success:
                 jpgs.append((jpg,) + fdata[1:])

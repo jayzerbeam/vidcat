@@ -12,14 +12,10 @@ def param_types(*types, **kwtypes):
         def wrapper(*args, **kw):
             for idx, t in enumerate(types):
                 if not isinstance(args[idx], t):
-                    raise TypeError(
-                        f"argument {idx} ({type(args[idx]).__name__}) is not of type {t.__name__}"
-                    )
+                    raise TypeError(f"argument {idx} ({type(args[idx]).__name__}) is not of type {t.__name__}")
             for k, t in kwtypes.items():
                 if k in kw and not isinstance(kw[k], t):
-                    raise TypeError(
-                        f"argument {k} ({type(kw[k]).__name__}) is not of type {t.__name__}"
-                    )
+                    raise TypeError(f"argument {k} ({type(kw[k]).__name__}) is not of type {t.__name__}")
             return func(*args, **kw)
 
         return wrapper
@@ -37,9 +33,7 @@ def enforce_types(func):
         for idx, (name, param) in enumerate(sig.parameters.items()):
             if idx >= len(args):
                 break
-            if param.annotation != inspect._empty and not isinstance(
-                args[idx], param.annotation
-            ):
+            if param.annotation != inspect._empty and not isinstance(args[idx], param.annotation):
                 raise TypeError(
                     f"parameter '{name}' ({type(args[idx]).__name__}) is not of type {param.annotation.__name__}"
                 )

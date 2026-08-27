@@ -81,9 +81,7 @@ class ScrollableTreeview(ttk.Treeview):
     def sort_on_column(self, column: str) -> None:
         items = []
         column = column.strip("#")
-        self.sort_direction = (
-            SortDir.DESC if self.sort_direction == SortDir.ASC else SortDir.ASC
-        )
+        self.sort_direction = SortDir.DESC if self.sort_direction == SortDir.ASC else SortDir.ASC
         for item in self.get_children(""):
             itemconfig = self.item(item)
             items.append((item, itemconfig["text"], *itemconfig["values"]))

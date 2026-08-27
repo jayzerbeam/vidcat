@@ -82,9 +82,7 @@ class EditableList(tk.Frame):
         self._on_add_func = None
         self._widgets.label.grid(column=0, row=0, columnspan=2, sticky="W")
         self._widgets.entry.grid(column=0, row=1, sticky="EW", padx=3)
-        self._widgets.list.grid(
-            column=0, row=2, columnspan=2, sticky="NSEW", padx=2, pady=2
-        )
+        self._widgets.list.grid(column=0, row=2, columnspan=2, sticky="NSEW", padx=2, pady=2)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
 

@@ -50,9 +50,7 @@ class VideoInfoFrame(ttk.Frame):
         self._vars = __class__._Vars(
             title=StringVar(self),
         )
-        self._vars.title.trace_add(
-            "write", lambda *args: _set_metadata("title", self._vars.title.get())
-        )
+        self._vars.title.trace_add("write", lambda *args: _set_metadata("title", self._vars.title.get()))
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         self._widgets = __class__._Widgets(
@@ -86,10 +84,10 @@ class VideoInfoFrame(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
 
-        def _set_metadata(key, value):
+        def _set_metadata(key: str, value: Any) -> None:
             self._metadata[key] = value
 
-        def _play_from_image(image):
+        def _play_from_image(image: ImageTk.PhotoImage) -> None:
             # thumbnail contains frameno and ms timecode
             for t in self._thumbs:
                 if t[0] == image:
@@ -109,11 +107,7 @@ class VideoInfoFrame(ttk.Frame):
     def metadata(self, metadata: dict[str, Any]):
         self._metadata = metadata
         vp = metadata["video_properties"]
-        (vidw, vidh) = (
-            (vp["dimensions"][0], vp["dimensions"][1])
-            if len(vp["dimensions"])
-            else (0, 0)
-        )
+        (vidw, vidh) = (vp["dimensions"][0], vp["dimensions"][1]) if len(vp["dimensions"]) else (0, 0)
         viddur = vp.get("duration", 0)
         self._vars.title.set(metadata["title"])
         self._widgets.lists.actor_listbox.clear_items()
@@ -123,10 +117,7 @@ class VideoInfoFrame(ttk.Frame):
         self._widgets.props.set_properties(vidw, vidh, viddur)
         for t in self._thumbs:
             del t
-        self._thumbs = tuple(
-            (ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), t)
-            for t in metadata["thumbnails"]
-        )
+        self._thumbs = tuple((ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), t) for t in metadata["thumbnails"])
         self._widgets.thumbnails.clear_images()
         self._widgets.thumbnails.add_images(tuple(i[0] for i in self._thumbs))
 
@@ -137,10 +128,7 @@ class VideoInfoFrame(ttk.Frame):
     def reload_thumbs(self):
         self._widgets.thumbnails.clear_images()
         self._widgets.thumbnails.add_images(
-            tuple(
-                ImageTk.PhotoImage(Image.open(io.BytesIO(t[0])))
-                for t in self._metadata["thumbnails"]
-            )
+            tuple(ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))) for t in self._metadata["thumbnails"])
         )
         self._widgets.generate.busy = False
 
@@ -152,9 +140,7 @@ class VideoProperties(ttk.Frame):
 
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
-        self._widgets = __class__._Widgets(
-            dimensions=ttk.Label(self), duration=ttk.Label(self)
-        )
+        self._widgets = __class__._Widgets(dimensions=ttk.Label(self), duration=ttk.Label(self))
         self._widgets.dimensions.pack(ipadx=4, side=tk.LEFT)
         self._widgets.duration.pack(ipadx=4, side=tk.LEFT)
 
@@ -219,9 +205,7 @@ class ThumbGen(ttk.Frame):
 
         super().__init__(parent, *args, **kw)
         self._vars = __class__._Vars(interval=IntVar(self))
-        self._vars.interval.trace_add(
-            "write", lambda *args: self.event_generate("<<IntervalChanged>>")
-        )
+        self._vars.interval.trace_add("write", lambda *args: self.event_generate("<<IntervalChanged>>"))
         self._widgets = __class__._Widgets(
             interval=LabeledEntry(
                 self,

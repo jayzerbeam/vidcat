@@ -66,27 +66,15 @@ class ScrolledFrame(ttk.Frame):
             # hide scroll bars if there's not enough content to scroll
             # NOTE pack_forget() doesn't work as expected when calling pack() again
             if vscroll is not None:
-                if (
-                    canvas.winfo_height() >= canvas.winfo_reqheight()
-                    and vscroll.winfo_ismapped()
-                ):
+                if canvas.winfo_height() >= canvas.winfo_reqheight() and vscroll.winfo_ismapped():
                     vscroll.grid_forget()
-                elif (
-                    canvas.winfo_height() < canvas.winfo_reqheight()
-                    and not vscroll.winfo_ismapped()
-                ):
+                elif canvas.winfo_height() < canvas.winfo_reqheight() and not vscroll.winfo_ismapped():
                     vscroll.grid(column=1, row=0, sticky="NS")
 
             if hscroll is not None:
-                if (
-                    canvas.winfo_width() >= canvas.winfo_reqwidth()
-                    and hscroll.winfo_ismapped()
-                ):
+                if canvas.winfo_width() >= canvas.winfo_reqwidth() and hscroll.winfo_ismapped():
                     hscroll.grid_remove()
-                elif (
-                    canvas.winfo_width() < canvas.winfo_reqwidth()
-                    and not hscroll.winfo_ismapped()
-                ):
+                elif canvas.winfo_width() < canvas.winfo_reqwidth() and not hscroll.winfo_ismapped():
                     hscroll.grid(column=0, row=1, sticky="EW")
 
             if interior.winfo_reqwidth() != canvas.winfo_width():
@@ -144,31 +132,17 @@ class ImagesFrame(ttk.Frame):
         canvas.yview_moveto(0)
 
         def _configure_canvas(event):
-            canvas.config(
-                scrollregion=(0, 0, canvas.winfo_reqwidth(), canvas.winfo_reqheight())
-            )
+            canvas.config(scrollregion=(0, 0, canvas.winfo_reqwidth(), canvas.winfo_reqheight()))
             # hide scroll bars if there's not enough content to scroll
             # NOTE use grid() as pack_forget() doesn't work as expected when calling pack() again
-            if (
-                canvas.winfo_height() >= canvas.winfo_reqheight()
-                and vscroll.winfo_ismapped()
-            ):
+            if canvas.winfo_height() >= canvas.winfo_reqheight() and vscroll.winfo_ismapped():
                 vscroll.grid_forget()
-            elif (
-                canvas.winfo_height() < canvas.winfo_reqheight()
-                and not vscroll.winfo_ismapped()
-            ):
+            elif canvas.winfo_height() < canvas.winfo_reqheight() and not vscroll.winfo_ismapped():
                 vscroll.grid(column=1, row=0, sticky="NS")
 
-            if (
-                canvas.winfo_width() >= canvas.winfo_reqwidth()
-                and hscroll.winfo_ismapped()
-            ):
+            if canvas.winfo_width() >= canvas.winfo_reqwidth() and hscroll.winfo_ismapped():
                 hscroll.grid_remove()
-            elif (
-                canvas.winfo_width() < canvas.winfo_reqwidth()
-                and not hscroll.winfo_ismapped()
-            ):
+            elif canvas.winfo_width() < canvas.winfo_reqwidth() and not hscroll.winfo_ismapped():
                 hscroll.grid(column=0, row=1, sticky="EW")
 
         canvas.bind("<Configure>", _configure_canvas)
@@ -177,16 +151,10 @@ class ImagesFrame(ttk.Frame):
             normx = canvas.canvasx(event.x)
             normy = canvas.canvasy(event.y)
             ids = canvas.find_overlapping(normx, normy, normx, normy)
-            if (
-                callable(self._image_click_func)
-                and len(ids) > 0
-                and ids[0] in self._images
-            ):
+            if callable(self._image_click_func) and len(ids) > 0 and ids[0] in self._images:
                 self._image_click_func(self._images[ids[0]][0])
 
-        canvas.bind(
-            "<Double-Button-1>", _canvas_click
-        )  # TODO refactor to send event and set prop
+        canvas.bind("<Double-Button-1>", _canvas_click)  # TODO refactor to send event and set prop
 
         def _mwheel(event):
             if event.state & 0x200:  # 0x200/512 is Button2 aka mousewheel
@@ -201,9 +169,7 @@ class ImagesFrame(ttk.Frame):
 
     def add_images(self, images: tuple[ImageTk.PhotoImage, ...]) -> None:
         for image in images:
-            imgid = self._canvas.create_image(
-                (self._offset["x"], self._offset["y"]), anchor=tk.NW, image=image
-            )
+            imgid = self._canvas.create_image((self._offset["x"], self._offset["y"]), anchor=tk.NW, image=image)
             self._offset["x"] = self._offset["x"] + self._spacing + image.width()
             self._canvas.config(
                 width=max(self._offset["x"], self._canvas.winfo_reqwidth()),

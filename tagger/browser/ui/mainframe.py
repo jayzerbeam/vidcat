@@ -56,12 +56,8 @@ class MainFrame(ttk.Frame):
 
         self.bind_all("<Control-KeyPress>", _ctrlkey)
 
-        self._widgets.filters.bind(
-            "<<ApplyFiltersAnd>>", lambda event: self.apply_filters(operator="AND")
-        )
-        self._widgets.filters.bind(
-            "<<ApplyFiltersOr>>", lambda event: self.apply_filters(operator="OR")
-        )
+        self._widgets.filters.bind("<<ApplyFiltersAnd>>", lambda event: self.apply_filters(operator="AND"))
+        self._widgets.filters.bind("<<ApplyFiltersOr>>", lambda event: self.apply_filters(operator="OR"))
         self._widgets.filters.bind("<<ClearFilters>>", self.clear_filters)
         self._widgets.filters.bind("<<ApplyHighlight>>", self.apply_highlight)
 
@@ -95,17 +91,13 @@ class MainFrame(ttk.Frame):
         self._widgets.filetree.extra_columns_active(True)
         self._widgets.filters._widgets.actors.clear()
         for i in sorted(items.keys()):
-            self._widgets.filters._widgets.actors.insert(
-                "", tk.END, i, text=str(i), values=(items[i])
-            )
+            self._widgets.filters._widgets.actors.insert("", tk.END, i, text=str(i), values=(items[i]))
 
     def set_tags(self, items: dict) -> None:
         self._widgets.filetree.extra_columns_active(True)
         self._widgets.filters._widgets.tags.clear()
         for i in sorted(items.keys()):
-            self._widgets.filters._widgets.tags.insert(
-                "", tk.END, i, text=str(i), values=(items[i])
-            )
+            self._widgets.filters._widgets.tags.insert("", tk.END, i, text=str(i), values=(items[i]))
 
     def apply_filters(self, operator: str = "OR") -> None:
         self._widgets.filetree.apply_filters(

@@ -5,7 +5,6 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Final
 
-import util.file.alternate_data_streams as ads
 from util.file.alternate_data_streams import ADSFile
 from util.video_thumbnailer import VideoThumbnailer
 
@@ -36,9 +35,7 @@ class VideoMetadataer:
 
         adsfile = self.adsfile = ADSFile(self.path.absolute())
         if adsfile.has_stream(__class__._METADATA_STREAM_NAME):
-            self.metadata = pickle.loads(
-                adsfile.read_stream(__class__._METADATA_STREAM_NAME)
-            )
+            self.metadata = pickle.loads(adsfile.read_stream(__class__._METADATA_STREAM_NAME))
         else:
             self.metadata = {
                 "title": "",
@@ -48,9 +45,7 @@ class VideoMetadataer:
                 "thumbnails": [],
             }
 
-    def do_thumbnails(
-        self, interval: int, thumb_height: int, overwrite: bool = True
-    ) -> None:
+    def do_thumbnails(self, interval: int, thumb_height: int, overwrite: bool = True) -> None:
         if not overwrite and self.metadata["thumbnails"]:
             return
 
@@ -58,9 +53,7 @@ class VideoMetadataer:
         dimensions = vt.get_dimensions()
         self.metadata["video_properties"] = {}
         self.metadata["video_properties"]["dimensions"] = dimensions
-        self.metadata["video_properties"]["duration"] = round(
-            vt.get_frame_count() / (vt.get_fps() or 30.0), 2
-        )
+        self.metadata["video_properties"]["duration"] = round(vt.get_frame_count() / (vt.get_fps() or 30.0), 2)
         vt.extract_frames(interval=interval)
         vt.resize_frames(resize_height=thumb_height)
         jpgs = vt.gen_jpgs(jpgq=__class__._JPGQ)
@@ -68,14 +61,10 @@ class VideoMetadataer:
 
     def parse_filename(self, overwrite: bool = True) -> None:
         if overwrite or self.metadata["title"]:
-            self.metadata["title"] = os.path.splitext(self.path.name)[0].replace(
-                "_", " "
-            )
+            self.metadata["title"] = os.path.splitext(self.path.name)[0].replace("_", " ")
 
     def write_metadata(self) -> int:
-        return self.adsfile.write_stream(
-            __class__._METADATA_STREAM_NAME, pickle.dumps(self.metadata)
-        )
+        return self.adsfile.write_stream(__class__._METADATA_STREAM_NAME, pickle.dumps(self.metadata))
 
 
 if __name__ == "__main__":

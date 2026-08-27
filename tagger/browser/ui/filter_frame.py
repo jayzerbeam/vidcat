@@ -36,38 +36,22 @@ class FilterFrame(ttk.Frame):
         self._widgets.actors.heading("#0", text="Actors")
         self._widgets.actors.heading("#1", text="#")
         self._widgets.actors.column("#1", minwidth=10, width=50, stretch=False)
-        self._widgets.actors.container.grid(
-            column=0, row=1, sticky="NSEW", padx=2, pady=2
-        )
+        self._widgets.actors.container.grid(column=0, row=1, sticky="NSEW", padx=2, pady=2)
         self._widgets.tags.heading("#0", text="Tags")
         self._widgets.tags.heading("#1", text="#")
         self._widgets.tags.column("#1", minwidth=10, width=50, stretch=False)
-        self._widgets.tags.container.grid(
-            column=1, row=1, sticky="NSEW", padx=2, pady=2
-        )
+        self._widgets.tags.container.grid(column=1, row=1, sticky="NSEW", padx=2, pady=2)
 
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(1, weight=1)
 
-        self._widgets.scan.config(
-            command=lambda: self.event_generate("<<ScanMetadata>>")
-        )
-        self._widgets.filter_and.config(
-            command=lambda: self.event_generate("<<ApplyFiltersAnd>>")
-        )
-        self._widgets.filter_or.config(
-            command=lambda: self.event_generate("<<ApplyFiltersOr>>")
-        )
-        self._widgets.filter_clear.config(
-            command=lambda: self.event_generate("<<ClearFilters>>")
-        )
-        self._widgets.actors.bind(
-            "<<TreeviewSelect>>", lambda ev: self.event_generate("<<ApplyHighlight>>")
-        )
-        self._widgets.tags.bind(
-            "<<TreeviewSelect>>", lambda ev: self.event_generate("<<ApplyHighlight>>")
-        )
+        self._widgets.scan.config(command=lambda: self.event_generate("<<ScanMetadata>>"))
+        self._widgets.filter_and.config(command=lambda: self.event_generate("<<ApplyFiltersAnd>>"))
+        self._widgets.filter_or.config(command=lambda: self.event_generate("<<ApplyFiltersOr>>"))
+        self._widgets.filter_clear.config(command=lambda: self.event_generate("<<ClearFilters>>"))
+        self._widgets.actors.bind("<<TreeviewSelect>>", lambda ev: self.event_generate("<<ApplyHighlight>>"))
+        self._widgets.tags.bind("<<TreeviewSelect>>", lambda ev: self.event_generate("<<ApplyHighlight>>"))
 
     def get_selected_actors(self) -> tuple[str, ...]:
         return self._widgets.actors.selection()

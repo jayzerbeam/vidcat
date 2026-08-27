@@ -39,9 +39,7 @@ class FileMetaTreeview(FileTreeview):
 
         _recurse("")
 
-    def apply_filters(
-        self, actors: StringListy, tags: StringListy, operator: str = "AND"
-    ):
+    def apply_filters(self, actors: StringListy, tags: StringListy, operator: str = "AND"):
         def _recurse(item):
             if self.tag_has("file", item):
                 itemconfig = self.item(item)
@@ -54,9 +52,9 @@ class FileMetaTreeview(FileTreeview):
                     else ([], [])
                 )
                 if operator == "AND":
-                    if (
-                        actors and len(set(actors) & set(item_actors)) != len(actors)
-                    ) or (tags and len(set(tags) & set(item_tags)) != len(tags)):
+                    if (actors and len(set(actors) & set(item_actors)) != len(actors)) or (
+                        tags and len(set(tags) & set(item_tags)) != len(tags)
+                    ):
                         self.hide(item)
                 else:
                     if (actors and len(set(actors) & set(item_actors)) == 0) or (
@@ -97,9 +95,7 @@ class FileMetaTreeview(FileTreeview):
                     if len(itemconfig["values"])
                     else ([], [])
                 )
-                highlighted = any_in_list(actors, item_actors) or any_in_list(
-                    tags, item_tags
-                )
+                highlighted = any_in_list(actors, item_actors) or any_in_list(tags, item_tags)
                 _highlight_item(item, highlighted, see=True)
             for child in self.get_children(item):
                 _recurse(child)
