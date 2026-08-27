@@ -112,25 +112,16 @@ class App:
         self._widgets.mainframe.bind_all("<<FileSelect>>", self.handle_file_selected)
         self._widgets.mainframe.bind_all("<<FileExec>>", self.handle_file_exec)
         self._widgets.mainframe.bind_all("<<PlayFromMs>>", self.handle_play_from_ms)
-        # self._widgets.mainframe.bind_all(
-        #    "<<PlayFileAt>>",
-        #    lambda event: self.play_file(
-        #        self._widgets.mainframe.selected_file, self._widgets.mainframe.play_ms
-        #    ),
-        # )
         self._widgets.mainframe.bind_all(
             "<<IntervalChanged>>", self.handle_interval_changed
         )
         self._widgets.mainframe.bind_all(
             "<<GenerateThumbs>>", self.handle_generate_thumbnails
         )
-        self._widgets.mainframe.bind_all(
-            "<<SaveMetadata>>", lambda ev: self.save_metadata()
-        )
+        self._widgets.mainframe.bind_all("<<SaveMetadata>>", self.handle_save_metadata)
         self._widgets.mainframe.bind_all(
             "<<ScanMetadata>>", lambda ev: self.scan_files_metadata()
         )
-        # self.frame.bind_all('<<SaveMetadata>>', lambda event: adsfile.write_stream('video_metadata', pickle.dumps(metadata)))
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.status.overrideredirect(True)
@@ -141,7 +132,20 @@ class App:
             p = Path(cast(ttk.Treeview, ev.widget).selection()[0])
             if p.is_file():
                 self._selected_path = p
-                self.load_metadata(p)
+                print(f"loading metadata for {p.name}")
+                try:
+                    adsfile = ADSFile(p)
+                    if not adsfile.has_stream(__class__.METADATA_STREAM):
+                        adsfile.write_stream(
+                            __class__.METADATA_STREAM,
+                            pickle.dumps(__class__._EMPTY_METADATA),
+                        )
+                    self._metadata = pickle.loads(
+                        adsfile.read_stream(__class__.METADATA_STREAM)
+                    )
+                except FileNotFoundError:
+                    self._metadata = deepcopy(__class__._EMPTY_METADATA)
+                self._widgets.mainframe.metadata = self._metadata
 
     def handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
@@ -157,22 +161,7 @@ class App:
         if hasattr(ev.widget, "interval"):
             self._interval = ev.widget.interval  # type: ignore
 
-    def load_metadata(self, path: Path):
-        print(f"loading metadata for {path.name}")
-        try:
-            adsfile = ADSFile(path)
-            if not adsfile.has_stream(__class__.METADATA_STREAM):
-                adsfile.write_stream(
-                    __class__.METADATA_STREAM, pickle.dumps(__class__._EMPTY_METADATA)
-                )
-            self._metadata = pickle.loads(
-                adsfile.read_stream(__class__.METADATA_STREAM)
-            )
-        except FileNotFoundError:
-            self._metadata = deepcopy(__class__._EMPTY_METADATA)
-        self._widgets.mainframe.metadata = self._metadata
-
-    def save_metadata(self):
+    def handle_save_metadata(self, ev: tk.Event) -> None:
         print(f"saving metadata for {self._widgets.mainframe.selected_file}")
         if not self._widgets.mainframe.selected_file:
             return

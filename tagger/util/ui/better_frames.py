@@ -174,7 +174,9 @@ class ImagesFrame(ttk.Frame):
         canvas.bind("<Configure>", _configure_canvas)
 
         def _canvas_click(event: tk.Event) -> None:
-            ids = canvas.find_overlapping(event.x, event.y, event.x, event.y)
+            normx = canvas.canvasx(event.x)
+            normy = canvas.canvasy(event.y)
+            ids = canvas.find_overlapping(normx, normy, normx, normy)
             if (
                 callable(self._image_click_func)
                 and len(ids) > 0
