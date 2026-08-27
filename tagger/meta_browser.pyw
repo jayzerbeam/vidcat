@@ -113,7 +113,7 @@ class App:
         self._widgets.mainframe.bind_all("<<IntervalChanged>>", self.handle_interval_changed)
         self._widgets.mainframe.bind_all("<<GenerateThumbs>>", self.handle_generate_thumbnails)
         self._widgets.mainframe.bind_all("<<SaveMetadata>>", self.handle_save_metadata)
-        self._widgets.mainframe.bind_all("<<ScanMetadata>>", lambda ev: self.scan_files_metadata())
+        self._widgets.mainframe.bind_all("<<ScanMetadata>>", self.handle_scan_metadata)
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.status.overrideredirect(True)
@@ -159,7 +159,7 @@ class App:
         adsfile = ADSFile(self._selected_path)
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
 
-    def scan_files_metadata(self):
+    def handle_scan_metadata(self, ev: tk.Event) -> None:
         xoffset = round(self._root.winfo_x() + self._root.winfo_width() / 2 - self._widgets.status.winfo_reqwidth() / 2)
         yoffset = round(
             self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_reqheight() / 2
@@ -170,15 +170,16 @@ class App:
 
         self._widgets.mainframe._widgets.filetree.unhide_all()
 
-        def _incr(totals: dict, keys):
+        def _incr(totals: dict[str, int], keys: list[str]):
             for k in keys:
+                k = k.lower()
                 if k not in totals:
                     totals[k] = 1
                 else:
                     totals[k] += 1
 
-        actors = {}
-        tags = {}
+        actors: dict[str, int] = {}
+        tags: dict[str, int] = {}
         items = self._widgets.mainframe._widgets.filetree.get_items(with_tags=["file"])
 
         item_count = len(items)
@@ -188,12 +189,12 @@ class App:
                 self._widgets.status.progress = (c + 1) / item_count * 100.0
                 self._widgets.status.info = item
                 self._root.update()
-            filename = os.path.join(self._basepath, item)
-            if os.path.isfile(filename) and ADS.has_stream(filename, __class__.METADATA_STREAM):
+            path = self._basepath / item
+            if path.is_file() and ADS.has_stream(path, __class__.METADATA_STREAM):
                 try:
-                    metadata = pickle.loads(ADS.read_stream(filename, __class__.METADATA_STREAM))
+                    metadata = pickle.loads(ADS.read_stream(path, __class__.METADATA_STREAM))
                 except pickle.UnpicklingError:
-                    print(f"failed to unpickle metadata for {filename}")
+                    print(f"failed to unpickle metadata for {path}")
                 else:
                     self._widgets.mainframe._widgets.filetree.set_meta_columns(
                         item, metadata["actors"], metadata["tags"]

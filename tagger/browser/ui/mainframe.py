@@ -58,8 +58,8 @@ class MainFrame(ttk.Frame):
 
         self._widgets.filters.bind("<<ApplyFiltersAnd>>", lambda event: self.apply_filters(operator="AND"))
         self._widgets.filters.bind("<<ApplyFiltersOr>>", lambda event: self.apply_filters(operator="OR"))
-        self._widgets.filters.bind("<<ClearFilters>>", self.clear_filters)
-        self._widgets.filters.bind("<<ApplyHighlight>>", self.apply_highlight)
+        self._widgets.filters.bind("<<ClearFilters>>", self.handle_clear_filters)
+        self._widgets.filters.bind("<<ApplyHighlight>>", self.handle_apply_highlight)
 
     @property
     def basepath(self) -> Path:
@@ -106,10 +106,10 @@ class MainFrame(ttk.Frame):
             operator=operator,
         )
 
-    def clear_filters(self, event: tk.Event) -> None:
+    def handle_clear_filters(self, event: tk.Event) -> None:
         self._widgets.filetree.unhide_all()
 
-    def apply_highlight(self, event: tk.Event) -> None:
+    def handle_apply_highlight(self, event: tk.Event) -> None:
         self._widgets.filetree.apply_highlight(
             self._widgets.filters._widgets.actors.selection(),
             self._widgets.filters._widgets.tags.selection(),

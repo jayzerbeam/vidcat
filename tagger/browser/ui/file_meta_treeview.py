@@ -4,8 +4,12 @@ from util.typing import StringListy
 from util.ui.better_treeview import FileTreeview
 
 
-def any_in_list(list1: list | tuple, list2: list | tuple):
-    return len(list1) > 0 and len(list2) > 0 and len(set(list1) & set(list2)) > 0
+def any_in_list(s1: set, s2: set, case_sensitive: bool = False) -> bool:
+    if not case_sensitive:
+        s1 = set(map(str.lower, s1))
+        s2 = set(map(str.lower, s2))
+
+    return len(s1 & s2) > 0
 
 
 # a FileTreeview that adds columns for actors and tags
@@ -89,13 +93,13 @@ class FileMetaTreeview(FileTreeview):
                 itemconfig = self.item(item)
                 (item_actors, item_tags) = (
                     (
-                        itemconfig["values"][0].split(", "),
-                        itemconfig["values"][1].split(", "),
+                        set(itemconfig["values"][0].split(", ")),
+                        set(itemconfig["values"][1].split(", ")),
                     )
                     if len(itemconfig["values"])
-                    else ([], [])
+                    else (set(), set())
                 )
-                highlighted = any_in_list(actors, item_actors) or any_in_list(tags, item_tags)
+                highlighted = any_in_list(set(actors), item_actors) or any_in_list(set(tags), item_tags)
                 _highlight_item(item, highlighted, see=True)
             for child in self.get_children(item):
                 _recurse(child)

@@ -52,6 +52,3 @@ class FilterFrame(ttk.Frame):
         self._widgets.filter_clear.config(command=lambda: self.event_generate("<<ClearFilters>>"))
         self._widgets.actors.bind("<<TreeviewSelect>>", lambda ev: self.event_generate("<<ApplyHighlight>>"))
         self._widgets.tags.bind("<<TreeviewSelect>>", lambda ev: self.event_generate("<<ApplyHighlight>>"))
-
-    def get_selected_actors(self) -> tuple[str, ...]:
-        return self._widgets.actors.selection()
