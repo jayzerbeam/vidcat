@@ -1,3 +1,5 @@
+from typing import cast
+
 from util.typing import StringListy
 from util.ui.better_treeview import FileTreeview
 
@@ -6,6 +8,7 @@ def any_in_list(list1: list | tuple, list2: list | tuple):
     return len(list1) > 0 and len(list2) > 0 and len(set(list1) & set(list2)) > 0
 
 
+# a FileTreeview that adds columns for actors and tags
 class FileMetaTreeview(FileTreeview):
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, columns=("actors", "tags"), **kw)
@@ -69,7 +72,7 @@ class FileMetaTreeview(FileTreeview):
         def _highlight_item(item: str, highlighted: bool, see: bool = False):
             itemconfig = self.item(item)
             if "highlight" in itemconfig["tags"] and not highlighted:
-                itemconfig["tags"].remove("highlight")
+                cast(list, itemconfig["tags"]).remove("highlight")
 
             if "highlight" not in itemconfig["tags"] and highlighted:
                 if isinstance(itemconfig["tags"], list):

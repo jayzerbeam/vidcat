@@ -111,10 +111,10 @@ class FileTreeview(ScrollableTreeview):
         self._hidden_items = {}
 
         def _click(evtype) -> None:
-            if os.path.isfile(self.selection()[0]):
-                if evtype == "exec":
+            match evtype:
+                case "exec":
                     self.event_generate("<<FileExec>>")
-                else:
+                case "select" | _:
                     self.event_generate("<<FileSelect>>")
 
         self.bind("<Double-Button-1>", lambda event: _click("exec"))
@@ -142,7 +142,7 @@ class FileTreeview(ScrollableTreeview):
     def extensions(self) -> list[str]:
         return self._extensions
 
-    def add_extensions(self, exts: list[str] | tuple[str, ...]) -> None:
+    def add_extensions(self, *exts: str) -> None:
         self._extensions.extend(exts)
         self._extensions.sort()
 
@@ -183,6 +183,7 @@ class FileTreeview(ScrollableTreeview):
     def count_dirs(self) -> int:
         return self._count_child_tags("", "dir")
 
+    # TODO: refactor out the file scanning to separate interface
     def update(self) -> None:
         def _filtered(filename: str) -> bool:
             if len(self.filters) == 0:

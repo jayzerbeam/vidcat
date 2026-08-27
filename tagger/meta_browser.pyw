@@ -6,7 +6,7 @@ import tkinter as tk
 from copy import deepcopy
 from pathlib import Path
 from tkinter import StringVar, ttk
-from typing import Any, Final, NamedTuple
+from typing import Any, Final, NamedTuple, cast
 
 # from meta_editor import ThumbGen, VideoProperties
 import util.file.alternate_data_streams as ADS
@@ -86,6 +86,8 @@ class App:
     _file_meta_filters: dict
     _all_tags: list[str]
     _all_actors: list[str]
+    _interval: int
+    _selected_path: Path
 
     class _Widgets(NamedTuple):
         mainframe: MainFrame
@@ -98,51 +100,67 @@ class App:
         self._file_meta_filters = {}
         self._all_tags = []
         self._all_actors = []
+        self._selected_path = Path()
 
         self._widgets = __class__._Widgets(
             mainframe=MainFrame(root), status=StatusWindow(root)
         )
-        self._widgets.mainframe.extensions(App.VID_EXTS)
+        self._widgets.mainframe.extensions(*App.VID_EXTS)
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
         self._widgets.mainframe.basepath = basepath
 
+        self._widgets.mainframe.bind_all("<<FileSelect>>", self.handle_file_selected)
+        self._widgets.mainframe.bind_all("<<FileExec>>", self.handle_file_exec)
+        self._widgets.mainframe.bind_all("<<PlayFromMs>>", self.handle_play_from_ms)
+        # self._widgets.mainframe.bind_all(
+        #    "<<PlayFileAt>>",
+        #    lambda event: self.play_file(
+        #        self._widgets.mainframe.selected_file, self._widgets.mainframe.play_ms
+        #    ),
+        # )
         self._widgets.mainframe.bind_all(
-            "<<FileSelect>>", lambda event: self.load_metadata()
-        )
-        self._widgets.mainframe.bind_all(
-            "<<FileExec>>",
-            lambda event: self.play_file(self._widgets.mainframe.selected_file),
-        )
-        self._widgets.mainframe.bind_all(
-            "<<PlayFileAt>>",
-            lambda event: self.play_file(
-                self._widgets.mainframe.selected_file, self._widgets.mainframe.play_ms
-            ),
+            "<<IntervalChanged>>", self.handle_interval_changed
         )
         self._widgets.mainframe.bind_all(
             "<<GenerateThumbs>>", self.handle_generate_thumbnails
         )
         self._widgets.mainframe.bind_all(
-            "<<SaveMetadata>>", lambda event: self.save_metadata()
+            "<<SaveMetadata>>", lambda ev: self.save_metadata()
         )
         self._widgets.mainframe.bind_all(
-            "<<ScanMetadata>>", lambda event: self.scan_files_metadata()
+            "<<ScanMetadata>>", lambda ev: self.scan_files_metadata()
         )
         # self.frame.bind_all('<<SaveMetadata>>', lambda event: adsfile.write_stream('video_metadata', pickle.dumps(metadata)))
 
-        self._widgets.status.transient(self._widgets.mainframe)
+        self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.status.overrideredirect(True)
         self._widgets.status.withdraw()
 
-    def handle_generate_thumbnails(self, ev: tk.Event) -> None:
-        print(ev.widget)
-        print(ev)
+    def handle_file_selected(self, ev: tk.Event) -> None:
+        if hasattr(ev.widget, "selection"):
+            p = Path(cast(ttk.Treeview, ev.widget).selection()[0])
+            if p.is_file():
+                self._selected_path = p
+                self.load_metadata(p)
 
-    def load_metadata(self):
-        print(f"loading metadata for {self._widgets.mainframe.selected_file}")
-        filepath = self._widgets.mainframe.selected_file
+    def handle_file_exec(self, ev: tk.Event) -> None:
+        self.play_file(self._selected_path)
+
+    def handle_play_from_ms(self, ev: tk.Event) -> None:
+        if hasattr(ev.widget, "play_from_ms"):
+            self.play_file(self._selected_path, startms=ev.widget.play_from_ms)  # type: ignore
+
+    def handle_generate_thumbnails(self, ev: tk.Event) -> None:
+        self.generate_thumbnails(self._widgets.mainframe.selected_file, self._interval)
+
+    def handle_interval_changed(self, ev: tk.Event) -> None:
+        if hasattr(ev.widget, "interval"):
+            self._interval = ev.widget.interval  # type: ignore
+
+    def load_metadata(self, path: Path):
+        print(f"loading metadata for {path.name}")
         try:
-            adsfile = ADSFile(filepath)
+            adsfile = ADSFile(path)
             if not adsfile.has_stream(__class__.METADATA_STREAM):
                 adsfile.write_stream(
                     __class__.METADATA_STREAM, pickle.dumps(__class__._EMPTY_METADATA)
@@ -159,78 +177,81 @@ class App:
         if not self._widgets.mainframe.selected_file:
             return
         self._metadata = self._widgets.mainframe.metadata
-        adsfile = ADSFile(self._widgets.mainframe.selected_file)
+        adsfile = ADSFile(self._selected_path)
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
 
     def scan_files_metadata(self):
-        # pretty much none of this is thread-safe
-        def _thread_entry():
-            def _incr(totals: dict, keys):
-                for k in keys:
-                    if k not in totals:
-                        totals[k] = 1
-                    else:
-                        totals[k] += 1
-
-            actors = {}
-            tags = {}
-            items = self._widgets.mainframe._widgets.filetree.get_items(
-                with_tags=["file"]
-            )
-            item_count = len(items)
-            steps = 200  # bar updates steps, so it's not updating with every file
-            for c, item in enumerate(items):
-                if (
-                    item_count <= steps
-                    or c % int(item_count / steps) == 0
-                    or c + 1 == item_count
-                ):
-                    self._widgets.status.progress = (c + 1) / item_count * 100.0
-                    self._widgets.status.info = item
-                    self._root.update()
-                filename = os.path.join(self._basepath, item)
-                if os.path.isfile(filename) and ADS.has_stream(
-                    filename, __class__.METADATA_STREAM
-                ):
-                    try:
-                        metadata = pickle.loads(
-                            ADS.read_stream(filename, __class__.METADATA_STREAM)
-                        )
-                    except pickle.UnpicklingError:
-                        print(f"failed to unpickle metadata for {filename}")
-                    else:
-                        self._widgets.mainframe._widgets.filetree.set_meta_columns(
-                            item, metadata["actors"], metadata["tags"]
-                        )
-                        _incr(actors, metadata["actors"])
-                        _incr(tags, metadata["tags"])
-            self._widgets.mainframe.set_actors(actors)
-            self._widgets.mainframe.set_tags(tags)
-            self._widgets.status.withdraw()
-
-        self._widgets.status.geometry(
-            f"+{round(self._root.winfo_x() + self._root.winfo_width() / 2 - self._widgets.status.winfo_reqwidth() / 2)}+{round(self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_reqheight() / 2)}"
+        xoffset = round(
+            self._root.winfo_x()
+            + self._root.winfo_width() / 2
+            - self._widgets.status.winfo_reqwidth() / 2
         )
+        yoffset = round(
+            self._root.winfo_y()
+            + self._root.winfo_height() / 2
+            - self._widgets.status.winfo_reqheight() / 2
+        )
+        self._widgets.status.geometry(f"+{xoffset}+{yoffset}")
         self._widgets.status.deiconify()
         self._widgets.status.lift(self._widgets.mainframe)
+
         self._widgets.mainframe._widgets.filetree.unhide_all()
-        # threading.Thread(target = _thread_entry).start()
-        _thread_entry()
+
+        def _incr(totals: dict, keys):
+            for k in keys:
+                if k not in totals:
+                    totals[k] = 1
+                else:
+                    totals[k] += 1
+
+        actors = {}
+        tags = {}
+        items = self._widgets.mainframe._widgets.filetree.get_items(with_tags=["file"])
+
+        item_count = len(items)
+        steps = 200  # bar updates steps, so it's not updating with every file
+        for c, item in enumerate(items):
+            if (
+                item_count <= steps
+                or c % int(item_count / steps) == 0
+                or c + 1 == item_count
+            ):
+                self._widgets.status.progress = (c + 1) / item_count * 100.0
+                self._widgets.status.info = item
+                self._root.update()
+            filename = os.path.join(self._basepath, item)
+            if os.path.isfile(filename) and ADS.has_stream(
+                filename, __class__.METADATA_STREAM
+            ):
+                try:
+                    metadata = pickle.loads(
+                        ADS.read_stream(filename, __class__.METADATA_STREAM)
+                    )
+                except pickle.UnpicklingError:
+                    print(f"failed to unpickle metadata for {filename}")
+                else:
+                    self._widgets.mainframe._widgets.filetree.set_meta_columns(
+                        item, metadata["actors"], metadata["tags"]
+                    )
+                    _incr(actors, metadata["actors"])
+                    _incr(tags, metadata["tags"])
+        self._widgets.mainframe.set_actors(actors)
+        self._widgets.mainframe.set_tags(tags)
+        self._widgets.status.withdraw()
 
     # so not thread-safe
-    def generate_thumbnails(self):
-        filename = self._widgets.mainframe.selected_file
-        if not filename:
+    def generate_thumbnails(self, path: Path | None, interval: int):
+        if path is None:
             return
 
         def thread_entry():
-            vt = VideoThumbnailer(filename)
+            vt = VideoThumbnailer(path)
             self._metadata["video_properties"] = {}
             self._metadata["video_properties"]["dimensions"] = vt.get_dimensions()
             self._metadata["video_properties"]["duration"] = round(
                 vt.get_frame_count() / (vt.get_fps() or 30.0), 2
             )
-            vt.extract_frames(interval=self._widgets.mainframe.thumb_interval)
+            vt.extract_frames(interval=interval)
             vt.resize_frames(resize_height=200)
             jpgs = vt.gen_jpgs(jpgq=70)
             self._metadata["thumbnails"] = jpgs
@@ -239,13 +260,16 @@ class App:
 
         threading.Thread(target=thread_entry).start()
 
-    def play_file(self, filepath, startms=0):
+    def play_file(self, path: Path, startms: int = 0):
+        if not path.is_file():
+            return
+
         os.spawnv(
             os.P_NOWAIT,
             __class__.VIDEO_PLAYER,
             [
                 os.path.basename(__class__.VIDEO_PLAYER),
-                f'"{filepath}"',
+                f'"{path}"',
                 f"/start {startms}",
             ],
         )

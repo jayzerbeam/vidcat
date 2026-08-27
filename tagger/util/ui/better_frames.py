@@ -1,7 +1,9 @@
+import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 from typing import Any
-import tkinter as tk
+
+from PIL import ImageTk
 
 
 # http://tkinter.unpythonic.net/wiki/VerticalScrolledFrame
@@ -107,17 +109,21 @@ class ScrolledFrame(ttk.Frame):
 
 # NOTE so far this assumes all images are the same size
 class ImagesFrame(ttk.Frame):
+    _images: dict[int, tuple[ImageTk.PhotoImage, dict]]
+    _offset: dict[str, int]
+    _canvas: tk.Canvas
+
     def __init__(self, parent, per_row=0, spacing=2, *args, **kw):
         super().__init__(parent, *args, **kw)
-        self.images = {}
-        self.offset = {"x": 0, "y": 0}
-        self.per_row = per_row  # per_row 0 will auto fit to the canvas' current width
-        self.spacing = spacing
+        self._images = {}
+        self._offset = {"x": 0, "y": 0}
+        self._per_row = per_row  # per_row 0 will auto fit to the canvas' current width
+        self._spacing = spacing
 
         # create a canvas object and a vertical scrollbar for scrolling it
         hscroll = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
         vscroll = ttk.Scrollbar(self, orient=tk.VERTICAL)
-        self.canvas = canvas = tk.Canvas(
+        self._canvas = canvas = tk.Canvas(
             self,
             bd=0,
             highlightthickness=0,
@@ -167,51 +173,53 @@ class ImagesFrame(ttk.Frame):
 
         canvas.bind("<Configure>", _configure_canvas)
 
-        def _canvas_click(event):
+        def _canvas_click(event: tk.Event) -> None:
             ids = canvas.find_overlapping(event.x, event.y, event.x, event.y)
             if (
                 callable(self._image_click_func)
                 and len(ids) > 0
-                and ids[0] in self.images
+                and ids[0] in self._images
             ):
-                self._image_click_func(self.images[ids[0]][0])
+                self._image_click_func(self._images[ids[0]][0])
 
-        canvas.bind("<Double-Button-1>", _canvas_click)
+        canvas.bind(
+            "<Double-Button-1>", _canvas_click
+        )  # TODO refactor to send event and set prop
 
         def _mwheel(event):
             if event.state & 0x200:  # 0x200/512 is Button2 aka mousewheel
-                self.canvas.xview_scroll(int(-1 * (event.delta / 60)), "units")
+                self._canvas.xview_scroll(int(-1 * (event.delta / 60)), "units")
             else:
-                self.canvas.yview_scroll(int(-1 * (event.delta / 60)), "units")
+                self._canvas.yview_scroll(int(-1 * (event.delta / 60)), "units")
 
         canvas.bind("<MouseWheel>", _mwheel)
 
     def set_image_click_handler(self, func: Callable):
         self._image_click_func = func
 
-    def add_images(self, images: list):
+    def add_images(self, images: tuple[ImageTk.PhotoImage, ...]) -> None:
         for image in images:
-            imgid = self.canvas.create_image(
-                (self.offset["x"], self.offset["y"]), anchor=tk.NW, image=image
+            imgid = self._canvas.create_image(
+                (self._offset["x"], self._offset["y"]), anchor=tk.NW, image=image
             )
-            self.offset["x"] = self.offset["x"] + self.spacing + image.width()
-            self.canvas.config(
-                width=max(self.offset["x"], self.canvas.winfo_reqwidth()),
-                height=self.offset["y"] + image.height(),
+            self._offset["x"] = self._offset["x"] + self._spacing + image.width()
+            self._canvas.config(
+                width=max(self._offset["x"], self._canvas.winfo_reqwidth()),
+                height=self._offset["y"] + image.height(),
             )
             # self.canvas.tag_bind(imgid, '<Double-Button-1>', lambda event, imgid = imgid: _dblclick(imgid)) # NOTE DO NOT pass image = image in the lambda or it leads to a memory leak
-            self.images[imgid] = (image, self.offset)
-            if self.per_row == 0:
-                if self.offset["x"] + image.width() > self.canvas.winfo_width():
-                    self.offset["x"] = 0
-                    self.offset["y"] = self.canvas.winfo_reqheight() + self.spacing
-            elif self.per_row > 0 and len(self.images) % self.per_row == 0:
-                self.offset["x"] = 0
-                self.offset["y"] = self.canvas.winfo_reqheight() + self.spacing
-        self.canvas.event_generate("<Configure>")
+            self._images[imgid] = (image, self._offset)
+            if self._per_row == 0:
+                if self._offset["x"] + image.width() > self._canvas.winfo_width():
+                    self._offset["x"] = 0
+                    self._offset["y"] = self._canvas.winfo_reqheight() + self._spacing
+            elif self._per_row > 0 and len(self._images) % self._per_row == 0:
+                self._offset["x"] = 0
+                self._offset["y"] = self._canvas.winfo_reqheight() + self._spacing
+        self._canvas.event_generate("<Configure>")
 
     def clear_images(self):
-        self.offset = {"x": 0, "y": 0}
-        self.canvas.delete(tk.ALL)
-        self.canvas.config(width=0, height=0)
-        self.images.clear()
+        self._offset = {"x": 0, "y": 0}
+        self._canvas.delete(tk.ALL)
+        self._canvas.config(width=0, height=0)
+        self._images.clear()

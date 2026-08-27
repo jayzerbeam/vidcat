@@ -1,31 +1,53 @@
 import tkinter as tk
 from collections.abc import Callable
+from enum import Enum, auto
 from pathlib import Path
-from tkinter import StringVar, ttk
+from tkinter import IntVar, StringVar, ttk
 from typing import NamedTuple
 
 
+class LabelledEntryLayout(Enum):
+    ONE_LINE = auto()
+    TWO_LINE = auto()
+
+
 class LabeledEntry(ttk.Frame):
+    class _Widgets(NamedTuple):
+        label: ttk.Label
+        entry: ttk.Entry
+
     def __init__(
         self,
         parent,
+        layout: LabelledEntryLayout,
         label: str = "",
-        textvariable: StringVar | None = None,
+        textvariable: StringVar | IntVar | None = None,
         *args,
         **kw,
     ):
-        self.ui = {}
         super().__init__(parent, *args, **kw)
-        self.ui["label"] = ttk.Label(self, text=label)
-        self.ui["label"].grid(row=0, sticky="W")
-        self.ui["entry"] = ttk.Entry(self)
+        self._widgets = __class__._Widgets(
+            label=ttk.Label(self, text=label),
+            entry=ttk.Entry(self),
+        )
         if textvariable is not None:
-            self.ui["entry"].configure(textvariable=textvariable)
-        self.ui["entry"].grid(row=1, sticky="EW", padx=4)
+            self._widgets.entry.configure(textvariable=textvariable)
+        match layout:
+            case LabelledEntryLayout.ONE_LINE:
+                self._widgets.label.grid(column=1, row=0)
+                self._widgets.entry.grid(column=2, row=0)
+
+            case LabelledEntryLayout.TWO_LINE:
+                self._widgets.label.grid(row=0, sticky="W")
+                self._widgets.entry.grid(row=1, sticky="EW", padx=4)
         self.columnconfigure(0, weight=1)
 
-    def get_text(self):
-        return self.ui["entry"].get()
+    def entry_set(self, val: str) -> None:
+        self._widgets.entry.delete(0, tk.END)
+        self._widgets.entry.insert(0, val)
+
+    def entry_get(self) -> str:
+        return self._widgets.entry.get()
 
 
 class EditableList(tk.Frame):

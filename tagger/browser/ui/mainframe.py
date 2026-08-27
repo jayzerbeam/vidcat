@@ -76,8 +76,8 @@ class MainFrame(ttk.Frame):
             self._widgets.filetree.root_path = path
             self._widgets.filetree.update()
 
-    def extensions(self, extensions: list[str] | tuple[str, ...]) -> None:
-        self._widgets.filetree.add_extensions(extensions)
+    def extensions(self, *extensions: str) -> None:
+        self._widgets.filetree.add_extensions(*extensions)
 
     @property
     def metadata(self):
@@ -122,17 +122,3 @@ class MainFrame(ttk.Frame):
             self._widgets.filters._widgets.actors.selection(),
             self._widgets.filters._widgets.tags.selection(),
         )
-
-    @property
-    def play_ms(self):
-        return self._widgets.vidinfo.play_ms
-
-    @property
-    def thumb_interval(self):
-        return int(
-            self._widgets.vidinfo._widgets.generate._widgets.interval.get()
-        )  # TODO
-
-    @property
-    def video_info_frame(self):
-        return self._widgets.vidinfo

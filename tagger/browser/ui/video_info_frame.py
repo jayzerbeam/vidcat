@@ -1,15 +1,12 @@
 import io
 import tkinter as tk
-from tkinter import StringVar, ttk
-from typing import NamedTuple
+from tkinter import IntVar, StringVar, ttk
+from typing import Any, NamedTuple
 
 from PIL import Image, ImageTk
 
 from util.ui.better_frames import ImagesFrame
-from util.ui.better_widgets import (
-    EditableList,
-    LabeledEntry,
-)
+from util.ui.better_widgets import EditableList, LabeledEntry, LabelledEntryLayout
 
 
 # t is seconds
@@ -37,24 +34,35 @@ class VideoInfoFrame(ttk.Frame):
         generate: ThumbGen
         save: ttk.Button
 
+    class _Vars(NamedTuple):
+        title: StringVar
+
+    _play_from_ms: int
+    _thumbs: tuple  # tuple[ImageTk.PhotoImage, int, int] | tuple[()]
+    _metadata: dict[str, Any]
+
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
-        self.thumbs = []
-        self.play_ms = 0
-        self._p = {}
-        self._p["metadata"] = {}
-        self._p["video_path"] = ""
+        self._thumbs = ()
+        self._play_from_ms = 0
+        self._metadata = {}
 
-        self.vars = {}
-        self.vars["title"] = StringVar(self)
-        self.vars["title"].trace_add(
-            "write", lambda *args: _set_metadata("title", self.vars["title"].get())
+        self._vars = __class__._Vars(
+            title=StringVar(self),
+        )
+        self._vars.title.trace_add(
+            "write", lambda *args: _set_metadata("title", self._vars.title.get())
         )
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         self._widgets = __class__._Widgets(
             props=VideoProperties(self),
-            title=LabeledEntry(self, "Title", self.vars["title"]),
+            title=LabeledEntry(
+                self,
+                layout=LabelledEntryLayout.TWO_LINE,
+                label="Title",
+                textvariable=self._vars.title,
+            ),
             lists=ActorTagPane(pane, orient=tk.VERTICAL, width=200),
             pane=pane,
             panes={},
@@ -79,27 +87,27 @@ class VideoInfoFrame(ttk.Frame):
         self.rowconfigure(2, weight=1)
 
         def _set_metadata(key, value):
-            self._p["metadata"][key] = value
+            self._metadata[key] = value
 
         def _play_from_image(image):
             # thumbnail contains frameno and ms timecode
-            for img in self.thumbs:
-                if img[0] == image:
-                    self.play_ms = img[1][2]
-                    self.event_generate("<<PlayFileAt>>")
+            for t in self._thumbs:
+                if t[0] == image:
+                    self._play_from_ms = t[1][2]
+                    self.event_generate("<<PlayFromMs>>")
                     break
 
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
 
     @property
     def metadata(self):
-        self._p["metadata"]["actors"] = self._widgets.lists.actors
-        self._p["metadata"]["tags"] = self._widgets.lists.tags
-        return self._p["metadata"]
+        self._metadata["actors"] = self._widgets.lists.actors
+        self._metadata["tags"] = self._widgets.lists.tags
+        return self._metadata
 
     @metadata.setter
-    def metadata(self, metadata: dict):
-        self._p["metadata"] = metadata
+    def metadata(self, metadata: dict[str, Any]):
+        self._metadata = metadata
         vp = metadata["video_properties"]
         (vidw, vidh) = (
             (vp["dimensions"][0], vp["dimensions"][1])
@@ -107,40 +115,32 @@ class VideoInfoFrame(ttk.Frame):
             else (0, 0)
         )
         viddur = vp.get("duration", 0)
-        self.vars["title"].set(metadata["title"])
+        self._vars.title.set(metadata["title"])
         self._widgets.lists.actor_listbox.clear_items()
         self._widgets.lists.actor_listbox.add_items(metadata["actors"])
         self._widgets.lists.tag_listbox.clear_items()
         self._widgets.lists.tag_listbox.add_items(metadata["tags"])
         self._widgets.props.set_properties(vidw, vidh, viddur)
-        for t in self.thumbs:
+        for t in self._thumbs:
             del t
-        self.thumbs = [
+        self._thumbs = tuple(
             (ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), t)
             for t in metadata["thumbnails"]
-        ]
+        )
         self._widgets.thumbnails.clear_images()
-        self._widgets.thumbnails.add_images([i[0] for i in self.thumbs])
+        self._widgets.thumbnails.add_images(tuple(i[0] for i in self._thumbs))
 
     @property
-    def video_path(self):
-        return self._p["video_path"]
-
-    @video_path.setter
-    def video_path(self, video_path):
-        self._p["video_path"] = video_path
-
-    @property
-    def thumb_interval(self):
-        return self.vars["interval"].get()
+    def play_from_ms(self) -> int:
+        return self._play_from_ms
 
     def reload_thumbs(self):
         self._widgets.thumbnails.clear_images()
         self._widgets.thumbnails.add_images(
-            [
+            tuple(
                 ImageTk.PhotoImage(Image.open(io.BytesIO(t[0])))
-                for t in self._p["metadata"]["thumbnails"]
-            ]
+                for t in self._metadata["thumbnails"]
+            )
         )
         self._widgets.generate.busy = False
 
@@ -206,9 +206,11 @@ class ActorTagPane(ttk.PanedWindow):
 
 class ThumbGen(ttk.Frame):
     class _Widgets(NamedTuple):
-        label: ttk.Label
-        interval: ttk.Entry
+        interval: LabeledEntry
         button: ttk.Button
+
+    class _Vars(NamedTuple):
+        interval: IntVar
 
     def __init__(self, parent, *args, **kw):
         def _gen_thumbs():
@@ -216,14 +218,22 @@ class ThumbGen(ttk.Frame):
             self._widgets.button.config(state=tk.DISABLED)
 
         super().__init__(parent, *args, **kw)
+        self._vars = __class__._Vars(interval=IntVar(self))
+        self._vars.interval.trace_add(
+            "write", lambda *args: self.event_generate("<<IntervalChanged>>")
+        )
         self._widgets = __class__._Widgets(
-            label=ttk.Label(self, text="interval"),
-            interval=ttk.Entry(self, width=5),
+            interval=LabeledEntry(
+                self,
+                layout=LabelledEntryLayout.ONE_LINE,
+                label="interval",
+                textvariable=self._vars.interval,
+                width=5,
+            ),
             button=ttk.Button(self, text="Generate", command=_gen_thumbs),
         )
-        self._widgets.label.grid(column=0, row=0)
-        self._widgets.interval.insert(0, "-30")
-        self._widgets.interval.grid(column=1, row=0, padx=4)
+        self._widgets.interval.entry_set("-30")
+        self._widgets.interval.grid(column=1, row=0)
         self._widgets.button.grid(column=2, row=0)
         self.bind_all(
             "<<GenerateThumbsComplete>>",
@@ -233,8 +243,8 @@ class ThumbGen(ttk.Frame):
         self.is_busy: bool = False
 
     @property
-    def interval(self) -> int:
-        return int(self._widgets.interval.get())
+    def interval(self):
+        return self._widgets.interval.entry_get()
 
     @property
     def busy(self) -> bool:
