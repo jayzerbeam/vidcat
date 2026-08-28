@@ -2,11 +2,11 @@ import tkinter as tk
 from collections.abc import Callable
 from enum import Enum, auto
 from pathlib import Path
-from tkinter import IntVar, StringVar, ttk
-from typing import NamedTuple
+from tkinter import ttk
+from typing import Any, NamedTuple
 
 
-class LabelledEntryLayout(Enum):
+class LabeledEntryLayout(Enum):
     ONE_LINE = auto()
     TWO_LINE = auto()
 
@@ -19,25 +19,28 @@ class LabeledEntry(ttk.Frame):
     def __init__(
         self,
         parent,
-        layout: LabelledEntryLayout,
-        label: str = "",
-        textvariable: StringVar | IntVar | None = None,
+        layout: LabeledEntryLayout,
+        labelconf: dict[str, Any] | None = None,
+        entryconf: dict[str, Any] | None = None,
         *args,
         **kw,
     ):
         super().__init__(parent, *args, **kw)
         self._widgets = __class__._Widgets(
-            label=ttk.Label(self, text=label),
+            label=ttk.Label(self),
             entry=ttk.Entry(self),
         )
-        if textvariable is not None:
-            self._widgets.entry.configure(textvariable=textvariable)
+        if labelconf:
+            self._widgets.label.configure(**labelconf)
+        if entryconf:
+            self._widgets.entry.configure(**entryconf)
+
         match layout:
-            case LabelledEntryLayout.ONE_LINE:
+            case LabeledEntryLayout.ONE_LINE:
                 self._widgets.label.grid(column=1, row=0)
                 self._widgets.entry.grid(column=2, row=0)
 
-            case LabelledEntryLayout.TWO_LINE:
+            case LabeledEntryLayout.TWO_LINE:
                 self._widgets.label.grid(row=0, sticky="W")
                 self._widgets.entry.grid(row=1, sticky="EW", padx=4)
         self.columnconfigure(0, weight=1)
@@ -59,7 +62,6 @@ class EditableList(tk.Frame):
     _items: list
     _sorted: bool
     _widgets: _Widgets
-    _on_add_func: Callable | None
 
     def __init__(
         self,
@@ -79,7 +81,6 @@ class EditableList(tk.Frame):
         )
         self._items = []
         self._sorted = sorted
-        self._on_add_func = None
         self._widgets.label.grid(column=0, row=0, columnspan=2, sticky="W")
         self._widgets.entry.grid(column=0, row=1, sticky="EW", padx=3)
         self._widgets.list.grid(column=0, row=2, columnspan=2, sticky="NSEW", padx=2, pady=2)

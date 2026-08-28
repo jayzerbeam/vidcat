@@ -6,7 +6,7 @@ from typing import Any, NamedTuple
 from PIL import Image, ImageTk
 
 from util.ui.better_frames import ImagesFrame
-from util.ui.better_widgets import EditableList, LabeledEntry, LabelledEntryLayout
+from util.ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
 
 
 # t is seconds
@@ -57,9 +57,9 @@ class VideoInfoFrame(ttk.Frame):
             props=VideoProperties(self),
             title=LabeledEntry(
                 self,
-                layout=LabelledEntryLayout.TWO_LINE,
-                label="Title",
-                textvariable=self._vars.title,
+                layout=LabeledEntryLayout.TWO_LINE,
+                labelconf={"text": "Title"},
+                entryconf={"textvariable": self._vars.title},
             ),
             lists=ActorTagPane(pane, orient=tk.VERTICAL, width=200),
             pane=pane,
@@ -72,6 +72,8 @@ class VideoInfoFrame(ttk.Frame):
                 command=lambda self=self: self.event_generate("<<SaveMetadata>>"),
             ),
         )
+        self.bind_all("<<GenerateThumbs>>", func=self.handle_generate_thumbs, add=True)
+        self.bind_all("<<GenerateThumbsComplete>>", func=self.handle_generate_thumbs_complete, add=True)
 
         self._widgets.props.grid(row=0, sticky="EW")
         self._widgets.title.grid(row=1, sticky="EW")
@@ -96,6 +98,13 @@ class VideoInfoFrame(ttk.Frame):
                     break
 
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
+
+    def handle_generate_thumbs(self, ev: tk.Event) -> None:
+        self._widgets.thumbnails.busy_hold(cursor="wait")
+
+    def handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
+        if self._widgets.thumbnails.busy_status():
+            self._widgets.thumbnails.busy_forget()
 
     @property
     def metadata(self):
@@ -130,7 +139,7 @@ class VideoInfoFrame(ttk.Frame):
         self._widgets.thumbnails.add_images(
             tuple(ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))) for t in self._metadata["thumbnails"])
         )
-        self._widgets.generate.busy = False
+        self._widgets.generate.busy_forget()
 
 
 class VideoProperties(ttk.Frame):
@@ -200,8 +209,8 @@ class ThumbGen(ttk.Frame):
 
     def __init__(self, parent, *args, **kw):
         def _gen_thumbs():
+            self.busy_hold(cursor="wait")
             self.event_generate("<<GenerateThumbs>>")
-            self._widgets.button.config(state=tk.DISABLED)
 
         super().__init__(parent, *args, **kw)
         self._vars = __class__._Vars(interval=IntVar(self))
@@ -209,35 +218,21 @@ class ThumbGen(ttk.Frame):
         self._widgets = __class__._Widgets(
             interval=LabeledEntry(
                 self,
-                layout=LabelledEntryLayout.ONE_LINE,
-                label="interval",
-                textvariable=self._vars.interval,
-                width=5,
+                layout=LabeledEntryLayout.ONE_LINE,
+                labelconf={"text": "Interval"},
+                entryconf={"textvariable": self._vars.interval, "width": 8},
             ),
             button=ttk.Button(self, text="Generate", command=_gen_thumbs),
         )
         self._widgets.interval.entry_set("-30")
-        self._widgets.interval.grid(column=1, row=0)
+        self._widgets.interval.grid(column=1, row=0, padx=(0, 4))
         self._widgets.button.grid(column=2, row=0)
-        self.bind_all(
-            "<<GenerateThumbsComplete>>",
-            lambda event: self._widgets.button.config(state=tk.ACTIVE),
-        )
+        self.bind_all("<<GenerateThumbsComplete>>", func=self.handle_generate_thumbs_complete, add=True)
 
-        self.is_busy: bool = False
+    def handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
+        if self.busy_status():
+            self.busy_forget()
 
     @property
     def interval(self):
         return self._widgets.interval.entry_get()
-
-    @property
-    def busy(self) -> bool:
-        return self.is_busy
-
-    @busy.setter
-    def busy(self, state: bool) -> None:
-        self.is_busy = state
-        if state:
-            self._widgets.button.config(state=tk.DISABLED)
-        else:
-            self._widgets.button.config(state=tk.NORMAL)

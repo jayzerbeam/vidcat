@@ -56,7 +56,7 @@ class ScrollableTreeview(ttk.Treeview):
 
         self.bind("<MouseWheel>", _mwheel)
 
-    def config(self, *args, **kw) -> None:
+    def config(self, *args, **kw):
         if "step" in kw:
             self._step = kw["step"]
             del kw["step"]
@@ -81,14 +81,14 @@ class ScrollableTreeview(ttk.Treeview):
     def sort_on_column(self, column: str) -> None:
         items = []
         column = column.strip("#")
-        self.sort_direction = SortDir.DESC if self.sort_direction == SortDir.ASC else SortDir.ASC
+        self._sort_dir = SortDir.DESC if self._sort_dir == SortDir.ASC else SortDir.ASC
         for item in self.get_children(""):
             itemconfig = self.item(item)
             items.append((item, itemconfig["text"], *itemconfig["values"]))
             self.detach(item)
         items.sort(
             key=lambda item: item[int(column) + 1],
-            reverse=self.sort_direction == SortDir.DESC,
+            reverse=self._sort_dir == SortDir.DESC,
         )
         for item in items:
             self.move(item[0], "", tk.END)

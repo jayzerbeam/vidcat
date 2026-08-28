@@ -9,7 +9,6 @@ class VideoThumbnailer:
     _frames: list[tuple[numpy.ndarray, int, int]]
     _cap: cv2.VideoCapture
 
-    # TODO use pathlib.Path
     def __init__(self, path: Path):
         self._frames = []
         self._cap = cv2.VideoCapture(path)
@@ -32,6 +31,7 @@ class VideoThumbnailer:
     def extract_frames(self, interval: float = 30.0) -> None:
         if interval == 0:
             raise ValueError(f"invalid interval ({interval})")
+
         video_fps = self._cap.get(cv2.CAP_PROP_FPS) or __class__._DEFAULT_FPS
         video_length = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT)) - 1
 

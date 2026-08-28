@@ -85,7 +85,8 @@ class MainFrame(ttk.Frame):
 
     @property
     def selected_file(self) -> Path | None:
-        return Path(self._widgets.filetree.selection()[0])
+        if len(self._widgets.filetree.selection()) > 0:
+            return Path(self._widgets.filetree.selection()[0])
 
     def set_actors(self, items: dict):
         self._widgets.filetree.extra_columns_active(True)
