@@ -32,7 +32,7 @@ class ScrollableTreeview(ttk.Treeview):
 
         self._sortable = sortable
         self._step = step
-        self._sort_direction = SortDir.DESC
+        self._sort_dir = SortDir.DESC
 
         self.config(yscrollcommand=self._widgets.scrollbar.set)
         self.grid(column=0, row=0, sticky="NSEW")
@@ -84,7 +84,7 @@ class ScrollableTreeview(ttk.Treeview):
         self._sort_dir = SortDir.DESC if self._sort_dir == SortDir.ASC else SortDir.ASC
         for item in self.get_children(""):
             itemconfig = self.item(item)
-            items.append((item, itemconfig["text"], *itemconfig["values"]))
+            items.append((item, itemconfig["text"], itemconfig["values"]))
             self.detach(item)
         items.sort(
             key=lambda item: item[int(column) + 1],
