@@ -265,7 +265,7 @@ if __name__ == "__main__":
         raise SystemExit
 
     window = MessageWindow()
-    window.title("Video Metadata Browser")
+    window.title(f"Video Browser ({path.resolve()})")
     window.geometry("1200x1000")
     app = App(window, path)
     window.mainloop()
