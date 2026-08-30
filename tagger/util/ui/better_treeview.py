@@ -7,6 +7,7 @@ from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
 
+from .constants import VirtualEventSequence
 from .tk_event_data import DataEvents
 
 
@@ -113,12 +114,12 @@ class FileTreeview(ScrollableTreeview):
         def _click(evtype) -> None:
             match evtype:
                 case "exec":
-                    self.event_generate("<<FileExec>>")
+                    self.event_generate(VirtualEventSequence.FILE_EXEC)
                 case "select" | _:
-                    self.event_generate("<<FileSelect>>")
+                    self.event_generate(VirtualEventSequence.FILE_SELECT)
 
         self.bind("<Double-Button-1>", lambda event: _click("exec"))
-        self.bind("<<TreeviewSelect>>", lambda event: _click("select"))
+        self.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda event: _click("select"))
 
     @property
     def root_path(self) -> Path | None:

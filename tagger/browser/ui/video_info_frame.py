@@ -5,8 +5,10 @@ from typing import Any, NamedTuple
 
 from PIL import Image, ImageTk
 
+from browser.ui.constants import VirtualEventSequence
 from util.ui.better_frames import ImagesFrame
 from util.ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
+from util.ui.tk_event_data import DataEvents
 
 
 # t is seconds
@@ -23,13 +25,12 @@ def nice_duration(t: int):
         return "???"
 
 
-class VideoInfoFrame(ttk.Frame):
+class VideoInfoFrame(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         props: VideoProperties
         title: LabeledEntry
         lists: ActorTagPane
         pane: ttk.PanedWindow
-        panes: dict[str, ttk.PanedWindow]
         thumbnails: ImagesFrame
         generate: ThumbGen
         save: ttk.Button
@@ -63,17 +64,18 @@ class VideoInfoFrame(ttk.Frame):
             ),
             lists=ActorTagPane(pane, orient=tk.VERTICAL, width=200),
             pane=pane,
-            panes={},
             thumbnails=ImagesFrame(self, per_row=0),
             generate=ThumbGen(self),
             save=ttk.Button(
                 self,
                 text="Save",
-                command=lambda self=self: self.event_generate("<<SaveMetadata>>"),
+                command=lambda self=self: self.event_generate(VirtualEventSequence.SAVE_METADATA),
             ),
         )
-        self.bind_all("<<GenerateThumbs>>", func=self.handle_generate_thumbs, add=True)
-        self.bind_all("<<GenerateThumbsComplete>>", func=self.handle_generate_thumbs_complete, add=True)
+        self.bind_all(VirtualEventSequence.GENERATE_THUMBS, func=self.handle_generate_thumbs, add=True)
+        self.bind_all(
+            VirtualEventSequence.GENERATE_THUMBS_COMPLETE, func=self.handle_generate_thumbs_complete, add=True
+        )
 
         self._widgets.props.grid(row=0, sticky="EW")
         self._widgets.title.grid(row=1, sticky="EW")
@@ -94,7 +96,7 @@ class VideoInfoFrame(ttk.Frame):
             for t in self._thumbs:
                 if t[0] == image:
                     self._play_from_ms = t[1][2]
-                    self.event_generate("<<PlayFromMs>>", data=self._play_from_ms)
+                    self.event_generate(VirtualEventSequence.PLAY_FROM_MS, data=self._play_from_ms)
                     break
 
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
@@ -138,7 +140,7 @@ class VideoInfoFrame(ttk.Frame):
         self._widgets.generate.busy_forget()
 
 
-class VideoProperties(ttk.Frame):
+class VideoProperties(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         dimensions: ttk.Label
         duration: ttk.Label
@@ -154,7 +156,7 @@ class VideoProperties(ttk.Frame):
         self._widgets.duration.config(text=f"duration: {nice_duration(duration)}")
 
 
-class ActorTagPane(ttk.PanedWindow):
+class ActorTagPane(DataEvents, ttk.PanedWindow):
     class _Widgets(NamedTuple):
         actors: EditableList
         tags: EditableList
@@ -195,7 +197,7 @@ class ActorTagPane(ttk.PanedWindow):
         return self._widgets.tags
 
 
-class ThumbGen(ttk.Frame):
+class ThumbGen(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         interval: LabeledEntry
         button: ttk.Button
@@ -206,12 +208,13 @@ class ThumbGen(ttk.Frame):
     def __init__(self, parent, *args, **kw):
         def _gen_thumbs():
             self.busy_hold(cursor="wait")
-            self.event_generate("<<GenerateThumbs>>")
+            self.event_generate(VirtualEventSequence.GENERATE_THUMBS)
 
         super().__init__(parent, *args, **kw)
         self._vars = __class__._Vars(interval=StringVar(self))
         self._vars.interval.trace_add(
-            "write", lambda *args: self.event_generate("<<IntervalChanged>>", data=self._vars.interval.get())
+            "write",
+            lambda *args: self.event_generate(VirtualEventSequence.INTERVAL_CHANGED, data=self._vars.interval.get()),
         )
         self._widgets = __class__._Widgets(
             interval=LabeledEntry(
@@ -225,7 +228,9 @@ class ThumbGen(ttk.Frame):
         self._widgets.interval.entry_set("-30")
         self._widgets.interval.grid(column=1, row=0, padx=(0, 4))
         self._widgets.button.grid(column=2, row=0)
-        self.bind_all("<<GenerateThumbsComplete>>", func=self.handle_generate_thumbs_complete, add=True)
+        self.bind_all(
+            VirtualEventSequence.GENERATE_THUMBS_COMPLETE, func=self.handle_generate_thumbs_complete, add=True
+        )
 
     def handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
         if self.busy_status():

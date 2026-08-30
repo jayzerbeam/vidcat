@@ -7,6 +7,7 @@ from typing import Any, NamedTuple
 
 from util.ui.tk_event_data import DataEvents
 
+from .constants import VirtualEventSequence
 from .file_meta_treeview import FileMetaTreeview
 from .filter_frame import FilterFrame
 from .video_info_frame import VideoInfoFrame
@@ -52,16 +53,16 @@ class MainFrame(DataEvents, ttk.Frame):
 
         def _ctrlkey(event: tk.Event) -> None:
             if event.keysym == "s":
-                self.event_generate("<<SaveMetadata>>")
+                self.event_generate(VirtualEventSequence.SAVE_METADATA)
             if event.keysym == "g":
-                self.event_generate("<<GenerateThumbs>>")
+                self.event_generate(VirtualEventSequence.GENERATE_THUMBS)
 
         self.bind_all("<Control-KeyPress>", _ctrlkey)
 
-        self._widgets.filters.bind("<<ApplyFiltersAnd>>", lambda event: self.apply_filters(operator="AND"))
-        self._widgets.filters.bind("<<ApplyFiltersOr>>", lambda event: self.apply_filters(operator="OR"))
-        self._widgets.filters.bind("<<ClearFilters>>", self.handle_clear_filters)
-        self._widgets.filters.bind("<<ApplyHighlight>>", self.handle_apply_highlight)
+        self._widgets.filters.bind(VirtualEventSequence.FILTERS_AND, lambda event: self.apply_filters(operator="AND"))
+        self._widgets.filters.bind(VirtualEventSequence.FILTERS_OR, lambda event: self.apply_filters(operator="OR"))
+        self._widgets.filters.bind(VirtualEventSequence.FILTERS_CLEAR, self.handle_clear_filters)
+        self._widgets.filters.bind(VirtualEventSequence.APPLY_HIGHHIGHT, self.handle_apply_highlight)
 
     @property
     def basepath(self) -> Path:

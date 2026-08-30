@@ -2,6 +2,9 @@ from tkinter import ttk
 from typing import NamedTuple
 
 from util.ui.better_treeview import ScrollableTreeview
+from util.ui.constants import VirtualEventSequence as VEvent
+
+from .constants import VirtualEventSequence as BVEvent
 
 
 class FilterFrame(ttk.Frame):
@@ -46,9 +49,9 @@ class FilterFrame(ttk.Frame):
         self.columnconfigure(1, weight=1)
         self.rowconfigure(1, weight=1)
 
-        self._widgets.scan.config(command=lambda: self.event_generate("<<ScanMetadata>>"))
-        self._widgets.filter_and.config(command=lambda: self.event_generate("<<ApplyFiltersAnd>>"))
-        self._widgets.filter_or.config(command=lambda: self.event_generate("<<ApplyFiltersOr>>"))
-        self._widgets.filter_clear.config(command=lambda: self.event_generate("<<ClearFilters>>"))
-        self._widgets.actors.bind("<<TreeviewSelect>>", lambda ev: self.event_generate("<<ApplyHighlight>>"))
-        self._widgets.tags.bind("<<TreeviewSelect>>", lambda ev: self.event_generate("<<ApplyHighlight>>"))
+        self._widgets.scan.config(command=lambda: self.event_generate(BVEvent.SCAN_METADATA))
+        self._widgets.filter_and.config(command=lambda: self.event_generate(BVEvent.FILTERS_AND))
+        self._widgets.filter_or.config(command=lambda: self.event_generate(BVEvent.FILTERS_OR))
+        self._widgets.filter_clear.config(command=lambda: self.event_generate(BVEvent.FILTERS_CLEAR))
+        self._widgets.actors.bind(VEvent.TREEVIEW_SELECT, lambda ev: self.event_generate(BVEvent.APPLY_HIGHHIGHT))
+        self._widgets.tags.bind(VEvent.TREEVIEW_SELECT, lambda ev: self.event_generate(BVEvent.APPLY_HIGHHIGHT))
