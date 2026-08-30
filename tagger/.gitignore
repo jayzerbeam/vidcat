@@ -1,1 +1,4 @@
-__pycache__/**
+**/.ignore/**
+**/__pycache__/**
+**/.mypy_cache/**
+**/.ruff_cache/**
