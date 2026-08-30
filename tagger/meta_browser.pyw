@@ -2,6 +2,7 @@ import os
 import pickle
 import sys
 import threading
+import time
 import tkinter as tk
 from copy import deepcopy
 from pathlib import Path
@@ -13,6 +14,7 @@ import util.file.alternate_data_streams as ADS
 from browser.ui import MainFrame
 from browser.ui.constants import VirtualEventSequence as BVEvent
 from util.file.alternate_data_streams import ADSFile
+from util.ui.constants import TkCursor
 from util.ui.constants import VirtualEventSequence as VEvent
 from util.ui.message_system import MessageWindow
 from util.video_thumbnailer import VideoThumbnailer
@@ -25,7 +27,6 @@ class StatusWindow(tk.Toplevel):
         status: ttk.Label
 
     def __init__(self, parent, *args, **kw):
-
         super().__init__(parent, *args, **kw)
         self.resizable(False, False)
         self.title("Status")
@@ -35,7 +36,7 @@ class StatusWindow(tk.Toplevel):
         frame = ttk.Frame(self)
         self._widgets = __class__._Widgets(
             frame=frame,
-            progress=ttk.Progressbar(frame, length=500),
+            progress=ttk.Progressbar(frame),
             status=ttk.Label(frame, textvariable=self.status_text),
         )
         self._widgets.progress.grid(column=0, row=0, padx=2, pady=2)
@@ -166,7 +167,7 @@ class App:
             self._widgets.mainframe.metadata = self._metadata  # TODO
             self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
 
-        threading.Thread(target=_thread_entry).start()
+        threading.Thread(target=_thread_entry, daemon=True).start()
 
     def _handle_interval_changed(self, ev: tk.Event, data: str) -> None:
         self._interval = float(data)
@@ -180,50 +181,63 @@ class App:
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
 
     def _handle_scan_metadata(self, ev: tk.Event) -> None:
-        xoffset = round(self._root.winfo_x() + self._root.winfo_width() / 2 - self._widgets.status.winfo_reqwidth() / 2)
-        yoffset = round(
-            self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_reqheight() / 2
+        SPACING: Final[int] = 80
+        width: int = round(self._root.winfo_width() - 80)
+        xoffset: int = round(self._root.winfo_x() + SPACING / 2)
+        yoffset: int = round(
+            self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_height() / 2
         )
-        self._widgets.status.geometry(f"+{xoffset}+{yoffset}")
+        self._widgets.status.update_idletasks()
+        height = self._widgets.status.winfo_reqheight()
+        self._widgets.status.geometry(f"{width}x{height}+{xoffset}+{yoffset}")
         self._widgets.status.deiconify()
         self._widgets.status.lift(self._widgets.mainframe)
 
+        self._widgets.mainframe.busy_hold(cursor=TkCursor.WATCH)
         self._widgets.mainframe._widgets.filetree.unhide_all()
 
-        def _incr(totals: dict[str, int], keys: list[str]):
-            for k in keys:
-                k = k.lower()
-                if k not in totals:
-                    totals[k] = 1
-                else:
-                    totals[k] += 1
+        def _thread_entry():
+            def _incr(totals: dict[str, int], keys: list[str]):
+                for k in keys:
+                    k = k.lower()
+                    if k not in totals:
+                        totals[k] = 1
+                    else:
+                        totals[k] += 1
 
-        actors: dict[str, int] = {}
-        tags: dict[str, int] = {}
-        items = self._widgets.mainframe._widgets.filetree.get_items(with_tags=["file"])
+            actors: dict[str, int] = {}
+            tags: dict[str, int] = {}
+            items: list = self._widgets.mainframe._widgets.filetree.get_items(with_tags=["file"])
 
-        item_count = len(items)
-        steps = 200  # bar updates steps, so it's not updating with every file
-        for c, item in enumerate(items):
-            if item_count <= steps or c % int(item_count / steps) == 0 or c + 1 == item_count:
-                self._widgets.status.progress = (c + 1) / item_count * 100.0
-                self._widgets.status.info = item
-                self._root.update()
-            path = self._basepath / item
-            if path.is_file() and ADS.has_stream(path, __class__.METADATA_STREAM):
-                try:
-                    metadata = pickle.loads(ADS.read_stream(path, __class__.METADATA_STREAM))
-                except pickle.UnpicklingError:
-                    print(f"failed to unpickle metadata for {path}")
-                else:
-                    self._widgets.mainframe._widgets.filetree.set_meta_columns(
-                        item, metadata["actors"], metadata["tags"]
-                    )
-                    _incr(actors, metadata["actors"])
-                    _incr(tags, metadata["tags"])
-        self._widgets.mainframe.set_actors(actors)
-        self._widgets.mainframe.set_tags(tags)
-        self._widgets.status.withdraw()
+            item_count: int = len(items)
+            update_interval: float = 0.1
+            last_time: float = time.time()
+            for c, item in enumerate(items):
+                if time.time() > last_time + update_interval:
+                    self._widgets.status.progress = (c + 1) / item_count * 100.0
+                    self._widgets.status.info = f"[{c}/{item_count}] {item}"
+                    last_time = time.time()
+
+                path = self._basepath / item
+                if path.is_file() and ADS.has_stream(path, __class__.METADATA_STREAM):
+                    try:
+                        metadata = pickle.loads(ADS.read_stream(path, __class__.METADATA_STREAM))
+                    except pickle.UnpicklingError:
+                        print(f"failed to unpickle metadata for {path}")
+                    else:
+                        self._widgets.mainframe._widgets.filetree.set_meta_columns(
+                            item, metadata["actors"], metadata["tags"]
+                        )
+                        _incr(actors, metadata["actors"])
+                        _incr(tags, metadata["tags"])
+
+            self._widgets.status.progress = 100.0
+            self._widgets.mainframe.set_actors(actors)
+            self._widgets.mainframe.set_tags(tags)
+            self._widgets.status.withdraw()
+            self._widgets.mainframe.busy_forget()
+
+        threading.Thread(target=_thread_entry, daemon=True).start()
 
     def play_file(self, path: Path, startms: int = 0):
         if not path.is_file():
