@@ -5,13 +5,15 @@ from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
 
+from .tk_event_data import DataEvents
+
 
 class LabeledEntryLayout(Enum):
     ONE_LINE = auto()
     TWO_LINE = auto()
 
 
-class LabeledEntry(ttk.Frame):
+class LabeledEntry(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         label: ttk.Label
         entry: ttk.Entry
@@ -53,7 +55,7 @@ class LabeledEntry(ttk.Frame):
         return self._widgets.entry.get()
 
 
-class EditableList(tk.Frame):
+class EditableList(DataEvents, tk.Frame):
     class _Widgets(NamedTuple):
         label: ttk.Label
         entry: ttk.Entry
@@ -165,7 +167,7 @@ class EditableList(tk.Frame):
 
 
 # somewhat inefficient: rebuilds the whole button widgets with any path change
-class FilePathSelector(ttk.Frame):
+class FilePathSelector(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         path_widgets: list[ttk.Widget]
 

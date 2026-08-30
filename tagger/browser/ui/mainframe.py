@@ -5,12 +5,14 @@ from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
 
+from util.ui.tk_event_data import DataEvents
+
 from .file_meta_treeview import FileMetaTreeview
 from .filter_frame import FilterFrame
 from .video_info_frame import VideoInfoFrame
 
 
-class MainFrame(ttk.Frame):
+class MainFrame(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         pane: ttk.PanedWindow
         filetree: FileMetaTreeview

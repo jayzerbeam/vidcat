@@ -1,6 +1,6 @@
 import io
 import tkinter as tk
-from tkinter import IntVar, StringVar, ttk
+from tkinter import StringVar, ttk
 from typing import Any, NamedTuple
 
 from PIL import Image, ImageTk
@@ -94,7 +94,7 @@ class VideoInfoFrame(ttk.Frame):
             for t in self._thumbs:
                 if t[0] == image:
                     self._play_from_ms = t[1][2]
-                    self.event_generate("<<PlayFromMs>>")
+                    self.event_generate("<<PlayFromMs>>", data=self._play_from_ms)
                     break
 
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
@@ -129,10 +129,6 @@ class VideoInfoFrame(ttk.Frame):
         self._thumbs = tuple((ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), t) for t in metadata["thumbnails"])
         self._widgets.thumbnails.clear_images()
         self._widgets.thumbnails.add_images(tuple(i[0] for i in self._thumbs))
-
-    @property
-    def play_from_ms(self) -> int:
-        return self._play_from_ms
 
     def reload_thumbs(self):
         self._widgets.thumbnails.clear_images()
@@ -205,7 +201,7 @@ class ThumbGen(ttk.Frame):
         button: ttk.Button
 
     class _Vars(NamedTuple):
-        interval: IntVar
+        interval: StringVar
 
     def __init__(self, parent, *args, **kw):
         def _gen_thumbs():
@@ -213,8 +209,10 @@ class ThumbGen(ttk.Frame):
             self.event_generate("<<GenerateThumbs>>")
 
         super().__init__(parent, *args, **kw)
-        self._vars = __class__._Vars(interval=IntVar(self))
-        self._vars.interval.trace_add("write", lambda *args: self.event_generate("<<IntervalChanged>>"))
+        self._vars = __class__._Vars(interval=StringVar(self))
+        self._vars.interval.trace_add(
+            "write", lambda *args: self.event_generate("<<IntervalChanged>>", data=self._vars.interval.get())
+        )
         self._widgets = __class__._Widgets(
             interval=LabeledEntry(
                 self,
@@ -235,4 +233,4 @@ class ThumbGen(ttk.Frame):
 
     @property
     def interval(self):
-        return self._widgets.interval.entry_get()
+        return self._vars.interval.get()

@@ -7,13 +7,15 @@ from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
 
+from .tk_event_data import DataEvents
+
 
 class SortDir(StrEnum):
     ASC = "ASC"
     DESC = "DESC"
 
 
-class ScrollableTreeview(ttk.Treeview):
+class ScrollableTreeview(DataEvents, ttk.Treeview):
     _sortable: bool
     _step: int
     _sort_dir: SortDir

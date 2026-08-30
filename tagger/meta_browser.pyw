@@ -110,8 +110,8 @@ class App:
 
         self._widgets.mainframe.bind_all("<<FileSelect>>", func=self.handle_file_selected, add=True)
         self._widgets.mainframe.bind_all("<<FileExec>>", func=self.handle_file_exec, add=True)
-        self._widgets.mainframe.bind_all("<<PlayFromMs>>", func=self.handle_play_from_ms, add=True)
-        self._widgets.mainframe.bind_all("<<IntervalChanged>>", func=self.handle_interval_changed, add=True)
+        self._widgets.mainframe.bind_all_with_data("<<PlayFromMs>>", func=self.handle_play_from_ms, add=True)
+        self._widgets.mainframe.bind_all_with_data("<<IntervalChanged>>", func=self.handle_interval_changed, add=True)
         self._widgets.mainframe.bind_all("<<GenerateThumbs>>", func=self.handle_generate_thumbnails, add=True)
         self._widgets.mainframe.bind_all("<<SaveMetadata>>", func=self.handle_save_metadata, add=True)
         self._widgets.mainframe.bind_all("<<ScanMetadata>>", func=self.handle_scan_metadata, add=True)
@@ -141,9 +141,8 @@ class App:
     def handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
 
-    def handle_play_from_ms(self, ev: tk.Event) -> None:
-        if hasattr(ev.widget, "play_from_ms"):
-            self.play_file(self._selected_path, startms=ev.widget.play_from_ms)  # type: ignore
+    def handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
+        self.play_file(self._selected_path, startms=int(data))
 
     def handle_generate_thumbnails(self, ev: tk.Event) -> None:
         if self._selected_path is None or not self._selected_path.is_file():
@@ -165,9 +164,8 @@ class App:
 
         threading.Thread(target=_thread_entry).start()
 
-    def handle_interval_changed(self, ev: tk.Event) -> None:
-        if hasattr(ev.widget, "interval"):
-            self._interval = float(ev.widget.interval)  # type: ignore
+    def handle_interval_changed(self, ev: tk.Event, data: str) -> None:
+        self._interval = float(data)
 
     def handle_save_metadata(self, ev: tk.Event) -> None:
         print(f"saving metadata for {self._widgets.mainframe.selected_file}")
