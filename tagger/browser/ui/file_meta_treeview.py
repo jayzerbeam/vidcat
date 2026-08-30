@@ -16,16 +16,17 @@ def any_in_list(s1: set, s2: set, case_sensitive: bool = False) -> bool:
 class FileMetaTreeview(FileTreeview):
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, columns=("actors", "tags"), **kw)
+        self.heading("#0", text="Sub Dir")
         self.heading("#1", text="Actors")
         self.heading("#2", text="Tags")
-        self.extra_columns_active(False)
+        self.with_meta_columns(False)
         # self.tag_configure('dir', background = '#EEE')
         self.tag_configure("highlight", background="#DFD")
 
-    def extra_columns_active(self, state):
-        if state:
-            self.column("#1", minwidth=10, width=100)
-            self.column("#2", minwidth=10, width=250)
+    def with_meta_columns(self, enabled: bool):
+        if enabled:
+            self.column("#1", minwidth=10, width=100, stretch=True)
+            self.column("#2", minwidth=10, width=250, stretch=True)
         else:
             self.column("#1", minwidth=0, width=0, stretch=False)
             self.column("#2", minwidth=0, width=0, stretch=False)

@@ -34,7 +34,7 @@ class MainFrame(DataEvents, ttk.Frame):
         self._basepath = basepath
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
-        tabs = ttk.Notebook(self)
+        tabs = ttk.Notebook(pane)
         self._widgets = __class__._Widgets(
             pane=pane,
             filetree=FileMetaTreeview(pane),
@@ -43,11 +43,13 @@ class MainFrame(DataEvents, ttk.Frame):
             filters=FilterFrame(tabs),
         )
         self._widgets.pane.add(self._widgets.filetree.container)
+        self._widgets.pane.add(self._widgets.tabs)
+        self._widgets.pane.pack(fill=tk.BOTH, expand=True)
+
         self._widgets.tabs.add(self._widgets.filters, text="Filters")
         self._widgets.tabs.add(self._widgets.vidinfo, text="Video Info")
         self._widgets.tabs.select(1)
-        self._widgets.pane.add(self._widgets.tabs)
-        self._widgets.pane.grid(column=0, row=1, padx=2, pady=2, sticky="NSEW")
+
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
@@ -92,13 +94,13 @@ class MainFrame(DataEvents, ttk.Frame):
             return Path(self._widgets.filetree.selection()[0])
 
     def set_actors(self, items: dict):
-        self._widgets.filetree.extra_columns_active(True)
+        self._widgets.filetree.with_meta_columns(True)
         self._widgets.filters._widgets.actors.clear()
         for i in sorted(items.keys()):
             self._widgets.filters._widgets.actors.insert("", tk.END, i, text=str(i), values=(items[i]))
 
     def set_tags(self, items: dict) -> None:
-        self._widgets.filetree.extra_columns_active(True)
+        self._widgets.filetree.with_meta_columns(True)
         self._widgets.filters._widgets.tags.clear()
         for i in sorted(items.keys()):
             self._widgets.filters._widgets.tags.insert("", tk.END, i, text=str(i), values=(items[i]))

@@ -39,9 +39,10 @@ class StatusWindow(tk.Toplevel):
             progress=ttk.Progressbar(frame),
             status=ttk.Label(frame, textvariable=self.status_text),
         )
-        self._widgets.progress.grid(column=0, row=0, padx=2, pady=2)
+        self._widgets.progress.grid(column=0, row=0, padx=2, pady=2, sticky="ew")
         self._widgets.status.grid(column=0, row=1, padx=2, pady=2)
-        self._widgets.frame.pack(padx=10, pady=10)
+        self._widgets.frame.columnconfigure(0, weight=1)
+        self._widgets.frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     @property
     def info(self):

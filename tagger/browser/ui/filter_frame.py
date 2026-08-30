@@ -32,10 +32,12 @@ class FilterFrame(ttk.Frame):
         )
 
         self._widgets.actions.grid(column=0, row=0, columnspan=2)
+        # configured inside actions actions frame
         self._widgets.scan.grid(column=0, row=0, sticky="W", padx=2, pady=2)
         self._widgets.filter_and.grid(column=1, row=0, sticky="E", padx=2, pady=2)
         self._widgets.filter_or.grid(column=2, row=0, sticky="E", padx=2, pady=2)
         self._widgets.filter_clear.grid(column=3, row=0, sticky="E", padx=2, pady=2)
+
         self._widgets.actors.heading("#0", text="Actors")
         self._widgets.actors.heading("#1", text="#")
         self._widgets.actors.column("#1", minwidth=10, width=50, stretch=False)

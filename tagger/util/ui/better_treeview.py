@@ -40,8 +40,8 @@ class ScrollableTreeview(DataEvents, ttk.Treeview):
         self.config(yscrollcommand=self._widgets.scrollbar.set)
         self.grid(column=0, row=0, sticky="NSEW")
         self._widgets.scrollbar.grid(column=1, row=0, sticky="NS")
-        self._widgets.container.columnconfigure(0, weight=1)
-        self._widgets.container.rowconfigure(0, weight=1)
+        self.container.columnconfigure(0, weight=1)
+        self.container.rowconfigure(0, weight=1)
 
         def _click(event) -> None:
             if self._sortable:
@@ -228,7 +228,7 @@ class FileTreeview(ScrollableTreeview):
                 )
 
         if self._root_path is not None:
-            self.heading("#0", text=str(self._root_path))
+            # self.heading("#0", text=str(self._root_path.resolve()))
             _scandir(self._root_path, "")
 
     def hide(self, item) -> None:

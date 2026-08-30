@@ -8,6 +8,7 @@ from PIL import Image, ImageTk
 from browser.ui.constants import VirtualEventSequence
 from util.ui.better_frames import ImagesFrame
 from util.ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
+from util.ui.constants import TkCursor
 from util.ui.tk_event_data import DataEvents
 
 
@@ -102,7 +103,7 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
 
     def _handle_generate_thumbs(self, ev: tk.Event) -> None:
-        self._widgets.thumbnails.busy_hold(cursor="wait")
+        self._widgets.thumbnails.busy_hold(cursor=TkCursor.WAIT)
 
     def _handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
         if self._widgets.thumbnails.busy_status():
@@ -207,7 +208,7 @@ class ThumbGen(DataEvents, ttk.Frame):
 
     def __init__(self, parent, *args, **kw):
         def _gen_thumbs():
-            self.busy_hold(cursor="wait")
+            self.busy_hold(cursor=TkCursor.WAIT)
             self.event_generate(VirtualEventSequence.GENERATE_THUMBS)
 
         super().__init__(parent, *args, **kw)
