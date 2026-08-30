@@ -110,21 +110,21 @@ class App:
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
         self._widgets.mainframe.basepath = basepath
 
-        self._widgets.mainframe.bind_all(VEvent.FILE_SELECT, func=self.handle_file_selected, add=True)
-        self._widgets.mainframe.bind_all(VEvent.FILE_EXEC, func=self.handle_file_exec, add=True)
-        self._widgets.mainframe.bind_all(BVEvent.GENERATE_THUMBS, func=self.handle_generate_thumbnails, add=True)
-        self._widgets.mainframe.bind_all(BVEvent.SAVE_METADATA, func=self.handle_save_metadata, add=True)
-        self._widgets.mainframe.bind_all(BVEvent.SCAN_METADATA, func=self.handle_scan_metadata, add=True)
-        self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self.handle_play_from_ms, add=True)
+        self._widgets.mainframe.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
+        self._widgets.mainframe.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
+        self._widgets.mainframe.bind_all(BVEvent.GENERATE_THUMBS, func=self._handle_generate_thumbnails, add=True)
+        self._widgets.mainframe.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
+        self._widgets.mainframe.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
+        self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
         self._widgets.mainframe.bind_all_with_data(
-            BVEvent.INTERVAL_CHANGED, func=self.handle_interval_changed, add=True
+            BVEvent.INTERVAL_CHANGED, func=self._handle_interval_changed, add=True
         )
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.status.overrideredirect(True)
         self._widgets.status.withdraw()
 
-    def handle_file_selected(self, ev: tk.Event) -> None:
+    def _handle_file_selected(self, ev: tk.Event) -> None:
         if hasattr(ev.widget, "selection"):
             p = Path(cast(ttk.Treeview, ev.widget).selection()[0])
             if p.is_file():
@@ -142,13 +142,13 @@ class App:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
                 self._widgets.mainframe.metadata = self._metadata
 
-    def handle_file_exec(self, ev: tk.Event) -> None:
+    def _handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
 
-    def handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
+    def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
         self.play_file(self._selected_path, startms=int(data))
 
-    def handle_generate_thumbnails(self, ev: tk.Event) -> None:
+    def _handle_generate_thumbnails(self, ev: tk.Event) -> None:
         if self._selected_path is None or not self._selected_path.is_file():
             self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
             return
@@ -168,10 +168,10 @@ class App:
 
         threading.Thread(target=_thread_entry).start()
 
-    def handle_interval_changed(self, ev: tk.Event, data: str) -> None:
+    def _handle_interval_changed(self, ev: tk.Event, data: str) -> None:
         self._interval = float(data)
 
-    def handle_save_metadata(self, ev: tk.Event) -> None:
+    def _handle_save_metadata(self, ev: tk.Event) -> None:
         print(f"saving metadata for {self._widgets.mainframe.selected_file}")
         if not self._widgets.mainframe.selected_file:
             return
@@ -179,7 +179,7 @@ class App:
         adsfile = ADSFile(self._selected_path)
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
 
-    def handle_scan_metadata(self, ev: tk.Event) -> None:
+    def _handle_scan_metadata(self, ev: tk.Event) -> None:
         xoffset = round(self._root.winfo_x() + self._root.winfo_width() / 2 - self._widgets.status.winfo_reqwidth() / 2)
         yoffset = round(
             self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_reqheight() / 2

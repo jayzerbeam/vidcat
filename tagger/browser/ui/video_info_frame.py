@@ -72,9 +72,9 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
                 command=lambda self=self: self.event_generate(VirtualEventSequence.SAVE_METADATA),
             ),
         )
-        self.bind_all(VirtualEventSequence.GENERATE_THUMBS, func=self.handle_generate_thumbs, add=True)
+        self.bind_all(VirtualEventSequence.GENERATE_THUMBS, func=self._handle_generate_thumbs, add=True)
         self.bind_all(
-            VirtualEventSequence.GENERATE_THUMBS_COMPLETE, func=self.handle_generate_thumbs_complete, add=True
+            VirtualEventSequence.GENERATE_THUMBS_COMPLETE, func=self._handle_generate_thumbs_complete, add=True
         )
 
         self._widgets.props.grid(row=0, sticky="EW")
@@ -101,10 +101,10 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
 
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
 
-    def handle_generate_thumbs(self, ev: tk.Event) -> None:
+    def _handle_generate_thumbs(self, ev: tk.Event) -> None:
         self._widgets.thumbnails.busy_hold(cursor="wait")
 
-    def handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
+    def _handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
         if self._widgets.thumbnails.busy_status():
             self._widgets.thumbnails.busy_forget()
 
@@ -229,10 +229,10 @@ class ThumbGen(DataEvents, ttk.Frame):
         self._widgets.interval.grid(column=1, row=0, padx=(0, 4))
         self._widgets.button.grid(column=2, row=0)
         self.bind_all(
-            VirtualEventSequence.GENERATE_THUMBS_COMPLETE, func=self.handle_generate_thumbs_complete, add=True
+            VirtualEventSequence.GENERATE_THUMBS_COMPLETE, func=self._handle_generate_thumbs_complete, add=True
         )
 
-    def handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
+    def _handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
         if self.busy_status():
             self.busy_forget()
 
