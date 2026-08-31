@@ -5,6 +5,7 @@ import threading
 import time
 import tkinter as tk
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
 from tkinter import StringVar, ttk
 from typing import Any, Final, NamedTuple, cast
@@ -37,7 +38,7 @@ class StatusWindow(tk.Toplevel):
         frame = ttk.Frame(self)
         self._widgets = __class__._Widgets(
             frame=frame,
-            progress=ttk.Progressbar(frame),
+            progress=ttk.Progressbar(frame, maximum=1.0),
             status=ttk.Label(frame, textvariable=self.status_text),
         )
         self._widgets.progress.grid(column=0, row=0, padx=2, pady=2, sticky="ew")
@@ -46,19 +47,21 @@ class StatusWindow(tk.Toplevel):
         self._widgets.frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     @property
-    def info(self):
+    def info(self) -> str:
         return self.status_text.get()
 
     @info.setter
-    def info(self, val):
+    def info(self, val: str):
         return self.status_text.set(val)
 
     @property
-    def progress(self):
+    def progress(self) -> float:
+        """Returns progress value [0,1]"""
         return self._widgets.progress["value"]
 
     @progress.setter
-    def progress(self, val):
+    def progress(self, val: float):
+        """Set progress value [0,1]"""
         self._widgets.progress.config(value=val)
 
 
@@ -165,17 +168,27 @@ class App:
 
         # probably not thread-safe
         def _thread_entry():
+            def _progress(prefix: str, p: float) -> None:
+                self._widgets.status.progress = p
+                self._widgets.status.info = f"{prefix} {p * 100:.1f}%"
+
             vt = VideoThumbnailer(self._selected_path)
             self._metadata["video_properties"] = {}
             self._metadata["video_properties"]["dimensions"] = vt.get_dimensions()
             self._metadata["video_properties"]["duration"] = round(vt.get_frame_count() / (vt.get_fps() or 30.0), 2)
-            vt.extract_frames(interval=int(self._vars.thumb_interval.get()))
-            vt.resize_frames(resize_height=int(self._vars.thumb_height.get()))
+            vt.extract_frames(
+                interval=int(self._vars.thumb_interval.get()), progress_func=partial(_progress, "Extracting frames ")
+            )
+            vt.resize_frames(
+                resize_height=int(self._vars.thumb_height.get()), progress_func=partial(_progress, "Resizing frames")
+            )
             jpgs = vt.gen_jpgs(jpgq=70)
             self._metadata["thumbnails"] = jpgs
             self._widgets.mainframe.metadata = self._metadata  # TODO
             self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
+            self.status_window(False)
 
+        self.status_window(True)
         threading.Thread(target=_thread_entry, daemon=True).start()
 
     def _handle_save_metadata(self, ev: tk.Event) -> None:
@@ -209,7 +222,7 @@ class App:
             last_time: float = time.time()
             for c, item in enumerate(items):
                 if time.time() > last_time + update_interval:
-                    self._widgets.status.progress = (c + 1) / item_count * 100.0
+                    self._widgets.status.progress = (c + 1) / item_count
                     self._widgets.status.info = f"[{c}/{item_count}] {item}"
                     last_time = time.time()
 
@@ -226,7 +239,7 @@ class App:
                         _incr(actors, metadata["actors"])
                         _incr(tags, metadata["tags"])
 
-            self._widgets.status.progress = 100.0
+            self._widgets.status.progress = 1.0
             self._widgets.status.info = "populating widgets"
             self._widgets.mainframe.set_actors(actors)
             self._widgets.mainframe.set_tags(tags)

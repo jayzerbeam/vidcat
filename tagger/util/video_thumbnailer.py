@@ -1,7 +1,10 @@
+from collections.abc import Callable
 from pathlib import Path
 
 import cv2
 import numpy
+
+ProgressFunc = Callable[[float], None]
 
 
 class VideoThumbnailer:
@@ -25,11 +28,12 @@ class VideoThumbnailer:
     def get_frame_count(self):
         return int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    def extract_frames(self, interval: float = 30.0) -> None:
+    def extract_frames(self, interval: float = 30.0, progress_func: ProgressFunc = lambda p: None) -> None:
         """Extract frames at a given interval
 
         Parameters:
         interval (float): interval in seconds if positive, fixed number of frames if negative
+        progress_func (Callable[[float], None): progress callback, receives a float param [0,1]
         """
         if interval == 0:
             raise ValueError(f"invalid interval ({interval})")
@@ -49,6 +53,7 @@ class VideoThumbnailer:
 
         frames = []
         s = 0
+        progress_func(0.0)
         if self._cap.isOpened() and video_length > 0:
             frameno = interval
             while round(frameno) < video_length:
@@ -61,12 +66,15 @@ class VideoThumbnailer:
                     print(".", end="", flush=True)
                 else:
                     print("x", end="", flush=True)
+
+                progress_func(frameno / video_length)
                 frameno += interval
             print(f" {s}/{len(frames)}")
 
+        progress_func(1.0)
         self._frames = frames
 
-    def resize_frames(self, resize_height: int = 240) -> None:
+    def resize_frames(self, resize_height: int = 240, progress_func: ProgressFunc = lambda p: None) -> None:
         """Resizes all the held extracted frames
         This is a destructive operation
         """
@@ -80,8 +88,9 @@ class VideoThumbnailer:
         (neww, newh) = (int(resize_height / oldh * oldw), resize_height)
         s = 0
         print(f"resizing {oldw}x{oldh} -> {neww}x{newh} ", end="")
+        progress_func(0.0)
 
-        for fdata in self._frames:
+        for i, fdata in enumerate(self._frames):
             try:
                 rimage = cv2.resize(
                     fdata[0],
@@ -93,7 +102,11 @@ class VideoThumbnailer:
                 s += 1
             except cv2.error:
                 print("x", end="", flush=True)
+
+            progress_func(i / len(self._frames))
+
         print(f" {s}/{len(self._frames)}")
+        progress_func(1.0)
 
         self._frames = resized_frames
 
