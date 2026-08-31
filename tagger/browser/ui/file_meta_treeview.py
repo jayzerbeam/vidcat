@@ -12,26 +12,24 @@ def any_in_list(s1: set, s2: set, case_sensitive: bool = False) -> bool:
     return len(s1 & s2) > 0
 
 
-# a FileTreeviewFrame that adds columns for actors and tags
 class FileMetaTreeviewFrame(FileTreeviewFrame):
+    """A FileTreeviewFrame that adds columns and functionality for actors and tags"""
+
     def __init__(self, parent, *args, **kw):
-        super().__init__(parent, *args, columns=("actors", "tags"), xscrollable=False, sortable=False, **kw)
+        super().__init__(parent, *args, columns=("actors", "tags"), sortable=False, width=300, **kw)
+        # disable propogation to set a treeview total width wider than the frame
+        self.grid_propagate(False)
+        self.pack_propagate(False)
         self.treeview.heading("#0", text="Sub Dir")
         self.treeview.heading("#1", text="Actors")
         self.treeview.heading("#2", text="Tags")
-        self.with_meta_columns(False)
+        self.treeview.column("#0", minwidth=100, width=300, stretch=False)
+        self.treeview.column("#1", minwidth=50, width=100, stretch=False)
+        self.treeview.column("#2", minwidth=50, width=100, stretch=False)
         # self.tag_configure('dir', background = '#EEE')
         self.treeview.tag_configure("highlight", background="#DFD")
 
-    def with_meta_columns(self, enabled: bool):
-        if enabled:
-            self.treeview.column("#1", minwidth=10, width=100, stretch=True)
-            self.treeview.column("#2", minwidth=10, width=250, stretch=True)
-        else:
-            self.treeview.column("#1", minwidth=0, width=0, stretch=False)
-            self.treeview.column("#2", minwidth=0, width=0, stretch=False)
-
-    def set_meta_columns(self, item: str, actors: list, tags: list):
+    def set_meta_column_vals(self, item: str, actors: StringListy, tags: StringListy):
         self.child.item(item, values=(", ".join(actors), ", ".join(tags)))
 
     def collapse_all(self) -> None:

@@ -94,14 +94,12 @@ class MainFrame(DataEvents, ttk.Frame):
             return Path(self._widgets.filetree.treeview.selection()[0])
 
     def set_actors(self, items: dict):
-        self._widgets.filetree.with_meta_columns(True)
         tv = self._widgets.filters._widgets.actors.treeview
         tv.clear()
         for i in sorted(items.keys()):
             tv.insert("", tk.END, i, text=str(i), values=(items[i]))
 
     def set_tags(self, items: dict) -> None:
-        self._widgets.filetree.with_meta_columns(True)
         tv = self._widgets.filters._widgets.tags.treeview
         tv.clear()
         for i in sorted(items.keys()):

@@ -217,7 +217,7 @@ class App:
                     except pickle.UnpicklingError:
                         print(f"failed to unpickle metadata for {path}")
                     else:
-                        self._widgets.mainframe._widgets.filetree.set_meta_columns(
+                        self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
                             item, metadata["actors"], metadata["tags"]
                         )
                         _incr(actors, metadata["actors"])
