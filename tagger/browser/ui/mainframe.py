@@ -8,7 +8,7 @@ from typing import Any, NamedTuple
 from util.ui.tk_event_data import DataEvents
 
 from .constants import VirtualEventSequence
-from .file_meta_treeview import FileMetaTreeview
+from .file_meta_treeview import FileMetaTreeviewFrame
 from .filter_frame import FilterFrame
 from .video_info_frame import VideoInfoFrame
 
@@ -16,7 +16,7 @@ from .video_info_frame import VideoInfoFrame
 class MainFrame(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         pane: ttk.PanedWindow
-        filetree: FileMetaTreeview
+        filetree: FileMetaTreeviewFrame
         tabs: ttk.Notebook
         vidinfo: VideoInfoFrame
         filters: FilterFrame
@@ -37,12 +37,12 @@ class MainFrame(DataEvents, ttk.Frame):
         tabs = ttk.Notebook(pane)
         self._widgets = __class__._Widgets(
             pane=pane,
-            filetree=FileMetaTreeview(pane),
+            filetree=FileMetaTreeviewFrame(pane),
             tabs=tabs,
             vidinfo=VideoInfoFrame(tabs),
             filters=FilterFrame(tabs),
         )
-        self._widgets.pane.add(self._widgets.filetree.container)
+        self._widgets.pane.add(self._widgets.filetree)
         self._widgets.pane.add(self._widgets.tabs)
         self._widgets.pane.pack(fill=tk.BOTH, expand=True)
 
@@ -90,25 +90,27 @@ class MainFrame(DataEvents, ttk.Frame):
 
     @property
     def selected_file(self) -> Path | None:
-        if len(self._widgets.filetree.selection()) > 0:
-            return Path(self._widgets.filetree.selection()[0])
+        if len(self._widgets.filetree.treeview.selection()) > 0:
+            return Path(self._widgets.filetree.treeview.selection()[0])
 
     def set_actors(self, items: dict):
         self._widgets.filetree.with_meta_columns(True)
-        self._widgets.filters._widgets.actors.clear()
+        tv = self._widgets.filters._widgets.actors.treeview
+        tv.clear()
         for i in sorted(items.keys()):
-            self._widgets.filters._widgets.actors.insert("", tk.END, i, text=str(i), values=(items[i]))
+            tv.insert("", tk.END, i, text=str(i), values=(items[i]))
 
     def set_tags(self, items: dict) -> None:
         self._widgets.filetree.with_meta_columns(True)
-        self._widgets.filters._widgets.tags.clear()
+        tv = self._widgets.filters._widgets.tags.treeview
+        tv.clear()
         for i in sorted(items.keys()):
-            self._widgets.filters._widgets.tags.insert("", tk.END, i, text=str(i), values=(items[i]))
+            tv.insert("", tk.END, i, text=str(i), values=(items[i]))
 
     def apply_filters(self, operator: str = "OR") -> None:
         self._widgets.filetree.apply_filters(
-            self._widgets.filters._widgets.actors.selection(),
-            self._widgets.filters._widgets.tags.selection(),
+            self._widgets.filters._widgets.actors.treeview.selection(),
+            self._widgets.filters._widgets.tags.treeview.selection(),
             operator=operator,
         )
 
@@ -117,6 +119,6 @@ class MainFrame(DataEvents, ttk.Frame):
 
     def _handle_apply_highlight(self, event: tk.Event) -> None:
         self._widgets.filetree.apply_highlight(
-            self._widgets.filters._widgets.actors.selection(),
-            self._widgets.filters._widgets.tags.selection(),
+            self._widgets.filters._widgets.actors.treeview.selection(),
+            self._widgets.filters._widgets.tags.treeview.selection(),
         )

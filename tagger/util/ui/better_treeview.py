@@ -5,9 +5,10 @@ from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
 from tkinter import ttk
-from typing import Any, NamedTuple
+from typing import Any
 
 from .constants import VirtualEventSequence
+from .scrollable import ScrollableWidgetFrame
 from .tk_event_data import DataEvents
 
 
@@ -16,65 +17,27 @@ class SortDir(StrEnum):
     DESC = "DESC"
 
 
-class ScrollableTreeview(DataEvents, ttk.Treeview):
+class SortableTreeview(DataEvents, ttk.Treeview):
+    _sort_dir = SortDir
     _sortable: bool
-    _step: int
-    _sort_dir: SortDir
 
-    class _Widgets(NamedTuple):
-        container: ttk.Frame
-        scrollbar: ttk.Scrollbar
-
-    def __init__(self, parent, sortable: bool = False, step: int = 3, *args, **kw):
-        container = ttk.Frame(parent)
-        self._widgets = __class__._Widgets(
-            container=container,
-            scrollbar=ttk.Scrollbar(container, orient=tk.VERTICAL, command=self.yview),
-        )
-        super().__init__(container, *args, **kw)
-
+    def __init__(self, parent, sortable: bool = True, *args, **kwargs):
         self._sortable = sortable
-        self._step = step
-        self._sort_dir = SortDir.DESC
-
-        self.config(yscrollcommand=self._widgets.scrollbar.set)
-        self.grid(column=0, row=0, sticky="NSEW")
-        self._widgets.scrollbar.grid(column=1, row=0, sticky="NS")
-        self.container.columnconfigure(0, weight=1)
-        self.container.rowconfigure(0, weight=1)
+        super().__init__(parent, *args, **kwargs)
 
         def _click(event) -> None:
-            if self._sortable:
-                region = self.identify("region", event.x, event.y)
-                column = self.identify_column(event.x)
-                if region == "heading":
-                    self.sort_on_column(column)
+            region = self.identify("region", event.x, event.y)
+            column = self.identify_column(event.x)
+            if region == "heading":
+                self.sort_on_column(column)
 
         self.bind("<Button-1>", _click)
 
-        def _mwheel(event) -> None:
-            self.yview_scroll(
-                int(-1 * (event.delta / 120) * (self._step - 1)), "units"
-            )  # step - 1 accounts default scroll binding
-
-        self.bind("<MouseWheel>", _mwheel)
-
     def config(self, *args, **kw):
-        if "step" in kw:
-            self._step = kw["step"]
-            del kw["step"]
         if "sortable" in kw:
             self._sortable = kw["sortable"]
             del kw["sortable"]
         return super().config(*args, **kw)
-
-    @property
-    def container(self) -> ttk.Frame:
-        return self._widgets.container
-
-    @property
-    def scrollbar(self) -> ttk.Scrollbar:
-        return self._widgets.scrollbar
 
     def clear(self) -> None:
         for item in self.get_children(""):
@@ -82,6 +45,9 @@ class ScrollableTreeview(DataEvents, ttk.Treeview):
 
     # TODO check out of bounds
     def sort_on_column(self, column: str) -> None:
+        if not self._sortable:
+            return
+
         items = []
         column = column.strip("#")
         self._sort_dir = SortDir.DESC if self._sort_dir == SortDir.ASC else SortDir.ASC
@@ -97,15 +63,45 @@ class ScrollableTreeview(DataEvents, ttk.Treeview):
             self.move(item[0], "", tk.END)
 
 
-class FileTreeview(ScrollableTreeview):
-    asdf: str
+class ScrollableTreeviewFrame(ScrollableWidgetFrame):
+    def __init__(
+        self,
+        parent,
+        xscrollable: bool = True,
+        yscrollable: bool = True,
+        scroll_step: int = 3,
+        sortable: bool = True,
+        columns: tuple[str, ...] = (),
+        *args,
+        **kw,
+    ):
+        super().__init__(
+            parent,
+            *args,
+            child_type=SortableTreeview,
+            child_params={"columns": columns, "sortable": sortable},
+            xscrollable=xscrollable,
+            yscrollable=yscrollable,
+            scroll_step=scroll_step,
+            **kw,
+        )
+
+        self._scroll_step = scroll_step
+
+    @property
+    def treeview(self) -> SortableTreeview:
+        return super().child
+
+
+class FileTreeviewFrame(ScrollableTreeviewFrame):
     _root_path: Path | None
     _extensions: list[str]
     _filters: list[re.Pattern]
     _hidden_items: dict[str, Any]
 
     def __init__(self, parent, *args, **kw):
-        super().__init__(parent, *args, selectmode=tk.BROWSE, **kw)
+        super().__init__(parent, *args, **kw)
+        self.treeview.configure(selectmode=tk.BROWSE)
         self._root_path = None
         self._extensions = []
         self._filters = []
@@ -114,12 +110,12 @@ class FileTreeview(ScrollableTreeview):
         def _click(evtype) -> None:
             match evtype:
                 case "exec":
-                    self.event_generate(VirtualEventSequence.FILE_EXEC)
+                    self.treeview.event_generate(VirtualEventSequence.FILE_EXEC)
                 case "select" | _:
-                    self.event_generate(VirtualEventSequence.FILE_SELECT)
+                    self.treeview.event_generate(VirtualEventSequence.FILE_SELECT)
 
-        self.bind("<Double-Button-1>", lambda event: _click("exec"))
-        self.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda event: _click("select"))
+        self.treeview.bind("<Double-Button-1>", lambda event: _click("exec"))
+        self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda event: _click("select"))
 
     @property
     def root_path(self) -> Path | None:
@@ -130,10 +126,6 @@ class FileTreeview(ScrollableTreeview):
         if not path.is_dir():
             raise ValueError(f"{path} is not a directory")
         self._root_path = path
-
-    @property
-    def filters(self) -> list[re.Pattern]:
-        return self._filters
 
     def add_filter(self, regex: re.Pattern) -> None:
         if isinstance(regex, type(re.compile("null"))):
@@ -157,11 +149,11 @@ class FileTreeview(ScrollableTreeview):
             if len(with_tags) <= 0:
                 items.append(item)
             else:
-                itemcfg = self.item(item)
+                itemcfg = self.treeview.item(item)
                 if len(set(itemcfg["tags"]) & set(with_tags)) > 0:
                     items.append(item)
 
-            for child in self.get_children(item):
+            for child in self.treeview.get_children(item):
                 _recurse(child)
 
         _recurse("")
@@ -170,9 +162,9 @@ class FileTreeview(ScrollableTreeview):
     def _count_child_tags(self, item, item_tag) -> int:
         def _recurse(item):
             c = 0
-            if self.tag_has(item_tag, item):
+            if self.treeview.tag_has(item_tag, item):
                 c += 1
-            for child in self.get_children(item):
+            for child in self.treeview.get_children(item):
                 c += _recurse(child)
             return c
 
@@ -187,9 +179,9 @@ class FileTreeview(ScrollableTreeview):
     # TODO: refactor out the file scanning to separate interface
     def update(self) -> None:
         def _filtered(filename: str) -> bool:
-            if len(self.filters) == 0:
+            if len(self._filters) == 0:
                 return True
-            for f in self.filters:
+            for f in self._filters:
                 if f.match(filename):
                     return True
             return False
@@ -202,7 +194,7 @@ class FileTreeview(ScrollableTreeview):
 
                 iid = os.path.join(path, entry.name)
                 if entry.is_dir():
-                    self.insert(
+                    self.treeview.insert(
                         parent_iid,
                         tk.END,
                         iid=iid,
@@ -211,15 +203,15 @@ class FileTreeview(ScrollableTreeview):
                     )
                     _scandir(path / entry.name, iid)
                     # remove directories with nothing in them
-                    if not self.get_children(iid):
-                        self.delete(iid)
+                    if not self.treeview.get_children(iid):
+                        self.treeview.delete(iid)
                 else:
                     _, ext = os.path.splitext(entry.name)
                     if ext in self.extensions:
                         files.append(entry)
 
             for file in files:
-                self.insert(
+                self.treeview.insert(
                     parent_iid,
                     tk.END,
                     os.path.join(path, file.name),
@@ -232,22 +224,22 @@ class FileTreeview(ScrollableTreeview):
             _scandir(self._root_path, "")
 
     def hide(self, item) -> None:
-        self._hidden_items[item] = self.parent(item)  # key => item, value => parent
-        self.detach(item)
+        self._hidden_items[item] = self.treeview.parent(item)  # key => item, value => parent
+        self.treeview.detach(item)
 
     # always inserts at end
     def unhide(self, item) -> None:
         parent = self._hidden_items[item]
-        for sibling in self.get_children(parent):
+        for sibling in self.treeview.get_children(parent):
             if item.lower() > sibling.lower():
-                self.move(item, parent, self.index(sibling) + 1)
+                self.treeview.move(item, parent, self.treeview.index(sibling) + 1)
                 break
         del self._hidden_items[item]
 
     # this doesn't guarantee items will go back in their original order
     def unhide_all(self) -> None:
         for item in self._hidden_items:
-            self.move(item, self._hidden_items[item], tk.END)
+            self.treeview.move(item, self._hidden_items[item], tk.END)
         self._hidden_items.clear()
 
     def process_items(self, func: Callable) -> None:
@@ -256,7 +248,7 @@ class FileTreeview(ScrollableTreeview):
 
         def _recurse(item):
             func(self, item)
-            for child in self.get_children(item):
+            for child in self.treeview.get_children(item):
                 _recurse(item)
 
         _recurse("")
