@@ -112,7 +112,7 @@ class App:
 
         self._vars = __class__._Vars(
             thumb_interval=tk.StringVar(self._root, name=TkVarNames.THUMB_INTERVAL, value="-30"),
-            thumb_height=tk.StringVar(self._root, name=TkVarNames.THUMB_HEIGHT, value="240"),
+            thumb_height=tk.StringVar(self._root, name=TkVarNames.THUMB_HEIGHT, value="200"),
         )
 
         self._widgets = __class__._Widgets(mainframe=MainFrame(root), status=StatusWindow(root))

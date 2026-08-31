@@ -233,7 +233,6 @@ class ThumbGen(DataEvents, ttk.Frame):
             button=ttk.Button(self, text="Generate", command=_gen_thumbs),
         )
         self._widgets.interval.grid(column=1, row=0, padx=(0, 4))
-        self._widgets.height.entry_set("240")
         self._widgets.height.grid(column=2, row=0, padx=(0, 4))
         self._widgets.button.grid(column=3, row=0)
         self.bind_all(
