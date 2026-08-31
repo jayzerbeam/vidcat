@@ -167,7 +167,7 @@ class App:
             self._metadata["video_properties"]["dimensions"] = vt.get_dimensions()
             self._metadata["video_properties"]["duration"] = round(vt.get_frame_count() / (vt.get_fps() or 30.0), 2)
             vt.extract_frames(interval=int(self._vars.thumb_interval.get()))
-            vt.resize_frames(resize_height=200)
+            vt.resize_frames(resize_height=int(self._vars.thumb_height.get()))
             jpgs = vt.gen_jpgs(jpgq=70)
             self._metadata["thumbnails"] = jpgs
             self._widgets.mainframe.metadata = self._metadata  # TODO
@@ -202,7 +202,7 @@ class App:
             items: list = self._widgets.mainframe._widgets.filetree.get_items(with_tags=["file"])
 
             item_count: int = len(items)
-            update_interval: float = 0.1
+            update_interval: float = 0.05
             last_time: float = time.time()
             for c, item in enumerate(items):
                 if time.time() > last_time + update_interval:
@@ -224,6 +224,7 @@ class App:
                         _incr(tags, metadata["tags"])
 
             self._widgets.status.progress = 100.0
+            self._widgets.status.info = "populating widgets"
             self._widgets.mainframe.set_actors(actors)
             self._widgets.mainframe.set_tags(tags)
             self._widgets.mainframe.busy_forget()

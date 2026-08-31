@@ -25,10 +25,12 @@ class VideoThumbnailer:
     def get_frame_count(self):
         return int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    # interval
-    # 	positive is seconds
-    # 	negative is divisions
     def extract_frames(self, interval: float = 30.0) -> None:
+        """Extract frames at a given interval
+
+        Parameters:
+        interval (float): interval in seconds if positive, fixed number of frames if negative
+        """
         if interval == 0:
             raise ValueError(f"invalid interval ({interval})")
 
@@ -64,8 +66,10 @@ class VideoThumbnailer:
 
         self._frames = frames
 
-    # this is a destructive operation
     def resize_frames(self, resize_height: int = 240) -> None:
+        """Resizes all the held extracted frames
+        This is a destructive operation
+        """
         if not self._frames:
             return
 
