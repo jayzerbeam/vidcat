@@ -12,6 +12,7 @@ from typing import Any, Final, NamedTuple, cast
 # from meta_editor import ThumbGen, VideoProperties
 import util.file.alternate_data_streams as ADS
 from browser.ui import MainFrame
+from browser.ui.constants import TkVarNames
 from browser.ui.constants import VirtualEventSequence as BVEvent
 from util.file.alternate_data_streams import ADSFile
 from util.ui.constants import TkCursor
@@ -90,12 +91,15 @@ class App:
     _file_meta_filters: dict
     _all_tags: list[str]
     _all_actors: list[str]
-    _interval: float
     _selected_path: Path
 
     class _Widgets(NamedTuple):
         mainframe: MainFrame
         status: StatusWindow
+
+    class _Vars(NamedTuple):
+        thumb_interval: StringVar
+        thumb_height: StringVar
 
     def __init__(self, root: tk.Tk, basepath: Path):
         self._root = root
@@ -104,8 +108,12 @@ class App:
         self._file_meta_filters = {}
         self._all_tags = []
         self._all_actors = []
-        self._interval = -30
         self._selected_path = Path()
+
+        self._vars = __class__._Vars(
+            thumb_interval=tk.StringVar(self._root, name=TkVarNames.THUMB_INTERVAL, value="-30"),
+            thumb_height=tk.StringVar(self._root, name=TkVarNames.THUMB_HEIGHT, value="240"),
+        )
 
         self._widgets = __class__._Widgets(mainframe=MainFrame(root), status=StatusWindow(root))
         self._widgets.mainframe.extensions(*App.VID_EXTS)
@@ -118,9 +126,6 @@ class App:
         self._widgets.mainframe.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
         self._widgets.mainframe.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
         self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
-        self._widgets.mainframe.bind_all_with_data(
-            BVEvent.INTERVAL_CHANGED, func=self._handle_interval_changed, add=True
-        )
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.status.overrideredirect(True)
@@ -161,7 +166,7 @@ class App:
             self._metadata["video_properties"] = {}
             self._metadata["video_properties"]["dimensions"] = vt.get_dimensions()
             self._metadata["video_properties"]["duration"] = round(vt.get_frame_count() / (vt.get_fps() or 30.0), 2)
-            vt.extract_frames(interval=self._interval)
+            vt.extract_frames(interval=int(self._vars.thumb_interval.get()))
             vt.resize_frames(resize_height=200)
             jpgs = vt.gen_jpgs(jpgq=70)
             self._metadata["thumbnails"] = jpgs
@@ -169,9 +174,6 @@ class App:
             self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
 
         threading.Thread(target=_thread_entry, daemon=True).start()
-
-    def _handle_interval_changed(self, ev: tk.Event, data: str) -> None:
-        self._interval = float(data)
 
     def _handle_save_metadata(self, ev: tk.Event) -> None:
         print(f"saving metadata for {self._widgets.mainframe.selected_file}")

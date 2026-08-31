@@ -3,7 +3,6 @@ from enum import StrEnum
 
 class VirtualEventSequence(StrEnum):
     PLAY_FROM_MS = "<<PalyFromMs>>"
-    INTERVAL_CHANGED = "<<IntervalChanged>>"
     GENERATE_THUMBS = "<<GenerateThumbs>>"
     GENERATE_THUMBS_COMPLETE = "<<GenerateThumbsComplete>>"
     SCAN_METADATA = "<<ScanMetadata>>"
@@ -12,3 +11,8 @@ class VirtualEventSequence(StrEnum):
     FILTERS_OR = "<<FiltersOr>>"
     FILTERS_CLEAR = "<<FiltersClear>>"
     APPLY_HIGHHIGHT = "<<ApplyHighlight>>"
+
+
+class TkVarNames(StrEnum):
+    THUMB_INTERVAL = "THUMB_INTERVAL"
+    THUMB_HEIGHT = "THUMB_HEIGHT"
