@@ -44,13 +44,16 @@ class ScrollableWidgetFrame[T: ScrollableWidget](DataEvents, ttk.Frame):
 
         self._widgets = __class__._Widgets(child=child, xscrollbar=xscroll, yscrollbar=yscroll)
 
-        def _mwheel(event) -> None:
-            if yscrollable and hasattr(child, "yview"):
-                self._widgets.child.yview_scroll(int(-1 * (event.delta / 120) * (self._scroll_step - 1)), "units")
+        def _mwheel(ev: tk.Event) -> None:
+            if yscrollable and hasattr(child, "yview"):  # this may automatically be handled
+                self._widgets.child.yview_scroll(int(-1 * (ev.delta / 120) * (self._scroll_step - 1)), "units")
             elif xscrollable and hasattr(child, "xview"):
-                self._widgets.child.xview_scroll(int(-1 * (event.delta / 120) * (self._scroll_step - 1)), "units")
+                self._widgets.child.xview_scroll(int(-1 * (ev.delta / 120) * (self._scroll_step - 1)), "units")
 
-        self.bind("<MouseWheel>", _mwheel)
+        """there's some weirdness where certain widgets with scrollbars will have their MouseWheel events
+        automatically handled and swallowed.
+        We bind it here but the even may never actually be triggered"""
+        self.bind("<MouseWheel>", _mwheel, add=True)
 
         # self.grid(column=0, row=0, sticky="NSEW")
         self.columnconfigure(0, weight=1)
