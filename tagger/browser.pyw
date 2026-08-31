@@ -145,6 +145,9 @@ class App:
                             pickle.dumps(__class__._EMPTY_METADATA),
                         )
                     self._metadata = pickle.loads(adsfile.read_stream(__class__.METADATA_STREAM))
+                    self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
+                        str(p), self._metadata["actors"], self._metadata["tags"]
+                    )
                 except FileNotFoundError:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
                 self._widgets.mainframe.metadata = self._metadata
