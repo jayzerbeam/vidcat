@@ -184,18 +184,7 @@ class App:
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
 
     def _handle_scan_metadata(self, ev: tk.Event) -> None:
-        SPACING: Final[int] = 80
-        width: int = round(self._root.winfo_width() - 80)
-        xoffset: int = round(self._root.winfo_x() + SPACING / 2)
-        yoffset: int = round(
-            self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_height() / 2
-        )
-        self._widgets.status.update_idletasks()
-        height = self._widgets.status.winfo_reqheight()
-        self._widgets.status.geometry(f"{width}x{height}+{xoffset}+{yoffset}")
-        self._widgets.status.deiconify()
-        self._widgets.status.lift(self._widgets.mainframe)
-
+        self.status_window(True)
         self._widgets.mainframe.busy_hold(cursor=TkCursor.WATCH)
         self._widgets.mainframe._widgets.filetree.unhide_all()
 
@@ -237,10 +226,26 @@ class App:
             self._widgets.status.progress = 100.0
             self._widgets.mainframe.set_actors(actors)
             self._widgets.mainframe.set_tags(tags)
-            self._widgets.status.withdraw()
             self._widgets.mainframe.busy_forget()
+            self.status_window(False)
 
         threading.Thread(target=_thread_entry, daemon=True).start()
+
+    def status_window(self, active: bool) -> None:
+        STATUS_SPACING: Final[int] = 80
+        if active:
+            width: int = round(self._root.winfo_width() - 80)
+            xoffset: int = round(self._root.winfo_x() + STATUS_SPACING / 2)
+            yoffset: int = round(
+                self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_height() / 2
+            )
+            self._widgets.status.update_idletasks()
+            height = self._widgets.status.winfo_reqheight()
+            self._widgets.status.geometry(f"{width}x{height}+{xoffset}+{yoffset}")
+            self._widgets.status.deiconify()
+            self._widgets.status.lift(self._widgets.mainframe)
+        else:
+            self._widgets.status.withdraw()
 
     def play_file(self, path: Path, startms: int = 0):
         if not path.is_file():
