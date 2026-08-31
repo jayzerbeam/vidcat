@@ -40,7 +40,7 @@ class DataEvents(ABC):
         tcl_command = self.register(func)
         self._registered_tcl_commands.append(tcl_command)
 
-        script = f"{tcl_command} %w %d"
+        script = f"{tcl_command} %W %d"
         if add:
             script = f"+{script}"
 
@@ -54,7 +54,7 @@ class DataEvents(ABC):
         tcl_command = self.register(func)
         self._registered_tcl_commands.append(tcl_command)
 
-        script = f"{tcl_command} %w %d"
+        script = f"{tcl_command} %W %d"
         if add:
             script = f"+{script}"
 
