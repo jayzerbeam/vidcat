@@ -3,8 +3,8 @@ name = "tagger"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+	"av>=18.1.0",
 	"numpy>=2.2.1",
-	"opencv-python>=4.10.0.84",
 	"pillow>=11.1.0",
 	"python-tkdnd>=0.2.1",
 	"pywin32>=308",

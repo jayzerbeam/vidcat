@@ -80,13 +80,8 @@ class MainFrame(DataEvents, ttk.Frame):
     def extensions(self, *extensions: str) -> None:
         self._widgets.filetree.add_extensions(*extensions)
 
-    @property
-    def metadata(self):
-        return self._widgets.vidinfo.metadata
-
-    @metadata.setter
-    def metadata(self, value: dict) -> None:
-        self._widgets.vidinfo.metadata = value
+    def update_metadata(self, metadata: dict[str, Any]) -> None:
+        self._widgets.vidinfo.update_metadata(metadata)
 
     @property
     def selected_file(self) -> Path | None:

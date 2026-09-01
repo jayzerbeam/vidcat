@@ -1,3 +1,4 @@
+import gc
 import os
 import pickle
 import sys
@@ -157,7 +158,8 @@ class App:
                     )
                 except FileNotFoundError:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
-                self._widgets.mainframe.metadata = self._metadata
+
+                self._widgets.mainframe.update_metadata(self._metadata)
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
@@ -178,19 +180,23 @@ class App:
 
             vt = VideoThumbnailer(self._selected_path)
             self._metadata["video_properties"] = {}
-            self._metadata["video_properties"]["dimensions"] = vt.get_dimensions()
-            self._metadata["video_properties"]["duration"] = round(vt.get_frame_count() / (vt.get_fps() or 30.0), 2)
+            self._metadata["video_properties"]["dimensions"] = vt.dimensions
+            self._metadata["video_properties"]["duration"] = round(vt.duration, 2) if vt.duration is not None else 0
             vt.extract_frames(
                 interval=int(self._vars.thumb_interval.get()), progress_func=partial(_progress, "Extracting frames ")
             )
             vt.resize_frames(
                 resize_height=int(self._vars.thumb_height.get()), progress_func=partial(_progress, "Resizing frames")
             )
-            jpgs = vt.gen_jpgs(jpgq=70)
+            jpgs = vt.gen_jpgs()
             self._metadata["thumbnails"] = jpgs
-            self._widgets.mainframe.metadata["thumbnails"] = jpgs
+            self._widgets.mainframe.update_metadata({"thumbnails": jpgs})
             self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
             self.status_window(False)
+
+            """ a lot of buffers, objects, etc. are created here so invoking a garbage collection afterward seems
+                to keep memory usage from ballooning"""
+            gc.collect()
 
         self.status_window(True)
         threading.Thread(target=_thread_entry, daemon=True).start()
@@ -200,7 +206,7 @@ class App:
         if not self._widgets.mainframe.selected_file:
             return
 
-        self._metadata = self._widgets.mainframe.metadata
+        # self._metadata = self._widgets.mainframe.metadata
         adsfile = ADSFile(self._selected_path)
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
 
