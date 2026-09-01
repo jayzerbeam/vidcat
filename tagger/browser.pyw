@@ -188,7 +188,7 @@ class App:
             )
             jpgs = vt.gen_jpgs(jpgq=70)
             self._metadata["thumbnails"] = jpgs
-            self._widgets.mainframe.metadata = self._metadata  # TODO
+            self._widgets.mainframe.metadata["thumbnails"] = jpgs
             self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
             self.status_window(False)
 
@@ -199,6 +199,7 @@ class App:
         print(f"saving metadata for {self._widgets.mainframe.selected_file}")
         if not self._widgets.mainframe.selected_file:
             return
+
         self._metadata = self._widgets.mainframe.metadata
         adsfile = ADSFile(self._selected_path)
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
