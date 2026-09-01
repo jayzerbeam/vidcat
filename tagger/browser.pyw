@@ -149,7 +149,11 @@ class App:
                         )
                     self._metadata = pickle.loads(adsfile.read_stream(__class__.METADATA_STREAM))
                     self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
-                        str(p), self._metadata["actors"], self._metadata["tags"]
+                        str(p),
+                        self._metadata["video_properties"]["duration"],
+                        self._metadata["video_properties"]["dimensions"],
+                        self._metadata["actors"],
+                        self._metadata["tags"],
                     )
                 except FileNotFoundError:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
@@ -234,7 +238,11 @@ class App:
                         print(f"failed to unpickle metadata for {path}")
                     else:
                         self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
-                            item, metadata["actors"], metadata["tags"]
+                            item,
+                            metadata["video_properties"]["duration"],
+                            metadata["video_properties"]["dimensions"],
+                            metadata["actors"],
+                            metadata["tags"],
                         )
                         _incr(actors, metadata["actors"])
                         _incr(tags, metadata["tags"])

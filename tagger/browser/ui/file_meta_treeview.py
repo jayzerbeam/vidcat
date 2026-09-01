@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import cast
 
 from util.typing import StringListy
@@ -16,21 +17,28 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
     """A FileTreeviewFrame that adds columns and functionality for actors and tags"""
 
     def __init__(self, parent, *args, **kw):
-        super().__init__(parent, *args, columns=("actors", "tags"), sortable=False, width=300, **kw)
+        super().__init__(parent, *args, columns=("time", "res", "actors", "tags"), sortable=False, width=300, **kw)
         # disable propogation to set a treeview total width wider than the frame
         self.grid_propagate(False)
         self.pack_propagate(False)
         self.treeview.heading("#0", text="Sub Dir")
-        self.treeview.heading("#1", text="Actors")
-        self.treeview.heading("#2", text="Tags")
-        self.treeview.column("#0", minwidth=100, width=300, stretch=False)
-        self.treeview.column("#1", minwidth=50, width=100, stretch=False)
-        self.treeview.column("#2", minwidth=50, width=100, stretch=False)
+        self.treeview.heading("#1", text="Time")
+        self.treeview.heading("#2", text="Res")
+        self.treeview.heading("#3", text="Actors")
+        self.treeview.heading("#4", text="Tags")
+        self.treeview.column("#0", minwidth=100, width=280, stretch=False)
+        self.treeview.column("#1", minwidth=10, width=50, stretch=False)
+        self.treeview.column("#2", minwidth=10, width=70, stretch=False)
+        self.treeview.column("#3", minwidth=10, width=100, stretch=False)
+        self.treeview.column("#4", minwidth=10, width=100, stretch=False)
         # self.tag_configure('dir', background = '#EEE')
         self.treeview.tag_configure("highlight", background="#DFD")
 
-    def set_meta_column_vals(self, item: str, actors: StringListy, tags: StringListy):
-        self.child.item(item, values=(", ".join(actors), ", ".join(tags)))
+    def set_meta_column_vals(
+        self, item: str, duration: float, res: tuple[int, int], actors: StringListy, tags: StringListy
+    ):
+        td = str(timedelta(seconds=duration)).removeprefix("0:").split(".")[0]
+        self.child.item(item, values=(td, f"{res[0]}x{res[1]}", ", ".join(actors), ", ".join(tags)))
 
     def collapse_all(self) -> None:
         def _recurse(item: str):
