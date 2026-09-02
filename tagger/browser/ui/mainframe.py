@@ -66,10 +66,12 @@ class MainFrame(DataEvents, ttk.Frame):
         self._widgets.filters.bind(VirtualEventSequence.FILTERS_CLEAR, self._handle_clear_filters)
         self._widgets.filters.bind(VirtualEventSequence.APPLY_HIGHHIGHT, self._handle_apply_highlight)
 
+    # deprecated filepath refactor
     @property
     def basepath(self) -> Path:
         return self.basepath
 
+    # deprecated filepath refactor
     @basepath.setter
     def basepath(self, path: Path) -> None:
         if path.is_dir():

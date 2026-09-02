@@ -17,6 +17,7 @@ from browser.ui import MainFrame
 from browser.ui.constants import TkVarNames
 from browser.ui.constants import VirtualEventSequence as BVEvent
 from util.file.alternate_data_streams import ADSFile
+from util.file.tree import PathTree, path_extension_filter
 from util.ui.constants import TkCursor
 from util.ui.constants import VirtualEventSequence as VEvent
 from util.ui.message_system import MessageWindow
@@ -91,6 +92,7 @@ class App:
         "thumbnails": [],
     }
 
+    _pathtree: PathTree
     _metadata: dict[str, Any]
     _file_meta_filters: dict
     _all_tags: list[str]
@@ -110,8 +112,7 @@ class App:
         thumb_height: StringVar
 
     def __init__(self, root: tk.Tk, basepath: Path):
-        self._root = root
-        self._basepath = basepath
+        self._pathtree = PathTree(basepath)
         self._metadata = deepcopy(__class__._EMPTY_METADATA)
         self._file_meta_filters = {}
         self._all_tags = []
@@ -248,7 +249,7 @@ class App:
                     self._widgets.status.info = f"[{c}/{item_count}] {item}"
                     last_time = time.time()
 
-                path = self._basepath / item
+                path = self._pathtree.root / item
                 if path.is_file() and ADS.has_stream(path, __class__.METADATA_STREAM):
                     try:
                         metadata = pickle.loads(ADS.read_stream(path, __class__.METADATA_STREAM))
@@ -287,6 +288,10 @@ class App:
                 f"/start {startms}",
             ],
         )
+
+    def update_filetree(self) -> None:
+        self._pathtree.scan(filters=[path_extension_filter(VID_EXTS)])
+        print(self._pathtree)
 
     def status_window(self, active: bool) -> None:
         STATUS_SPACING: Final[int] = 80
