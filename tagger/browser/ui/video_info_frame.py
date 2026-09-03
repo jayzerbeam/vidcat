@@ -5,7 +5,7 @@ from typing import Any, NamedTuple
 
 from PIL import Image, ImageTk
 
-from browser.ui.constants import VirtualEventSequence, TkVarNames
+from browser.ui.constants import TkVarNames, VirtualEventSequence
 from util.ui.better_frames import ImagesFrame
 from util.ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
 from util.ui.constants import TkCursor
@@ -47,11 +47,8 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         self._play_from_ms = 0
 
         self._vars = __class__._Vars(
-            title=StringVar(self),
+            title=StringVar(name=TkVarNames.META_TITLE),
         )
-
-        # TODO updating title
-        # self._vars.title.trace_add("write", lambda *args: _set_title(self._vars.title.get()))
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         self._widgets = __class__._Widgets(
@@ -106,6 +103,9 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
             self._widgets.thumbnails.busy_forget()
 
     def update_metadata(self, metadata: dict[str, Any]) -> None:
+        """note: title, actors, and tags are modifiable through their respective tk.Variables
+        but we still need this as tk.Variables cannot be used for images"""
+
         if "title" in metadata:
             self._vars.title.set(metadata["title"])
 
@@ -131,8 +131,6 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
                 (ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), *t[1:]) for t in metadata["thumbnails"]
             )
             self.redraw_thumbs()
-            # self._widgets.thumbnails.clear_images()
-            # self._widgets.thumbnails.add_images(tuple(i[0] for i in self._thumbs))
 
     def redraw_thumbs(self):
         self._widgets.thumbnails.clear_images()
@@ -163,20 +161,30 @@ class ActorTagPane(DataEvents, ttk.PanedWindow):
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
 
-        def _on_add(entry):
+        def _remove_commas(entry: str) -> str:
             if isinstance(entry, str):
                 return entry.replace(",", "").strip()
             else:
                 return entry
 
         self._widgets = __class__._Widgets(
-            actors=EditableList(self, "Actors", width=1),
-            tags=EditableList(self, "Tags", width=1),
+            actors=EditableList(
+                self,
+                "Actors",
+                listboxconf={"selectmode": tk.EXTENDED, "listvariable": tk.Variable(name=TkVarNames.META_ACTORS)},
+                width=1,
+            ),
+            tags=EditableList(
+                self,
+                "Tags",
+                listboxconf={"selectmode": tk.EXTENDED, "listvariable": tk.Variable(name=TkVarNames.META_TAGS)},
+                width=1,
+            ),
         )
         self._widgets.actors.list_height(10)
-        self._widgets.actors.on_add_handler(_on_add)
+        self._widgets.actors.set_entry_filter(_remove_commas)
         self.add(self._widgets.actors)
-        self._widgets.tags.on_add_handler(_on_add)
+        self._widgets.tags.set_entry_filter(_remove_commas)
         self.add(self._widgets.tags)
 
     @property
@@ -213,7 +221,8 @@ class ThumbGen(DataEvents, ttk.Frame):
 
         super().__init__(parent, *args, **kw)
         self._vars = __class__._Vars(
-            interval=StringVar(self, name="THUMB_INTERVAL"), height=StringVar(self, name="THUMB_HEIGHT")
+            interval=StringVar(name="THUMB_INTERVAL"),
+            height=StringVar(name="THUMB_HEIGHT"),
         )
         self._widgets = __class__._Widgets(
             interval=LabeledEntry(

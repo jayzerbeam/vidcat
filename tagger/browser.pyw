@@ -22,6 +22,19 @@ from util.ui.constants import VirtualEventSequence as VEvent
 from util.ui.message_system import MessageWindow
 from util.video_thumbnailer import VideoThumbnailer
 
+VID_EXTS: Final[tuple[str, ...]] = (
+    ".avi",
+    ".mp4",
+    ".m4v",
+    ".mkv",
+    ".mpg",
+    ".mpeg",
+    ".wmv",
+    ".flv",
+    ".f4v",
+    ".mov",
+)
+
 
 class StatusWindow(tk.Toplevel):
     class _Widgets(NamedTuple):
@@ -31,6 +44,7 @@ class StatusWindow(tk.Toplevel):
 
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
+        self.overrideredirect(True)  # no titlebar, borders
         self.resizable(False, False)
         self.title("Status")
         self.group(parent)
@@ -68,18 +82,6 @@ class StatusWindow(tk.Toplevel):
 
 class App:
     VIDEO_PLAYER: Final[str] = "C:\\Program Files\\MPC-BE\\mpc-be64.exe"
-    VID_EXTS: Final[tuple[str, ...]] = (
-        ".avi",
-        ".mp4",
-        ".m4v",
-        ".mkv",
-        ".mpg",
-        ".mpeg",
-        ".wmv",
-        ".flv",
-        ".f4v",
-        ".mov",
-    )
     METADATA_STREAM: Final[str] = "video_metadata"
     _EMPTY_METADATA: Final[dict[str, Any]] = {
         "title": "",
@@ -89,8 +91,6 @@ class App:
         "thumbnails": [],
     }
 
-    _basepath: Path
-    _root: tk.Tk
     _metadata: dict[str, Any]
     _file_meta_filters: dict
     _all_tags: list[str]
@@ -98,10 +98,14 @@ class App:
     _selected_path: Path
 
     class _Widgets(NamedTuple):
+        root: tk.Tk
         mainframe: MainFrame
         status: StatusWindow
 
     class _Vars(NamedTuple):
+        meta_actors: tk.Variable
+        meta_tags: tk.Variable
+        meta_title: StringVar
         thumb_interval: StringVar
         thumb_height: StringVar
 
@@ -115,12 +119,15 @@ class App:
         self._selected_path = Path()
 
         self._vars = __class__._Vars(
-            thumb_interval=tk.StringVar(self._root, name=TkVarNames.THUMB_INTERVAL, value="-30"),
-            thumb_height=tk.StringVar(self._root, name=TkVarNames.THUMB_HEIGHT, value="200"),
+            meta_actors=tk.Variable(root, name=TkVarNames.META_ACTORS),
+            meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
+            meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
+            thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value="-30"),
+            thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value="200"),
         )
 
-        self._widgets = __class__._Widgets(mainframe=MainFrame(root), status=StatusWindow(root))
-        self._widgets.mainframe.extensions(*App.VID_EXTS)
+        self._widgets = __class__._Widgets(root=root, mainframe=MainFrame(root), status=StatusWindow(root))
+        self._widgets.mainframe.extensions(VID_EXTS)
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
         self._widgets.mainframe.basepath = basepath
 
@@ -132,8 +139,8 @@ class App:
         self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
-        self._widgets.status.overrideredirect(True)
-        self._widgets.status.withdraw()
+        # self.update_filetree()
+        self.status_window(False)
 
     def _handle_file_selected(self, ev: tk.Event) -> None:
         if hasattr(ev.widget, "selection"):
@@ -149,6 +156,9 @@ class App:
                             pickle.dumps(__class__._EMPTY_METADATA),
                         )
                     self._metadata = pickle.loads(adsfile.read_stream(__class__.METADATA_STREAM))
+                except FileNotFoundError, pickle.UnpicklingError:
+                    self._metadata = deepcopy(__class__._EMPTY_METADATA)
+                else:
                     self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
                         str(p),
                         self._metadata["video_properties"]["duration"],
@@ -156,10 +166,8 @@ class App:
                         self._metadata["actors"],
                         self._metadata["tags"],
                     )
-                except FileNotFoundError:
-                    self._metadata = deepcopy(__class__._EMPTY_METADATA)
 
-                self._widgets.mainframe.update_metadata(self._metadata)
+                    self._widgets.mainframe.update_metadata(self._metadata)
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
@@ -206,7 +214,10 @@ class App:
         if not self._widgets.mainframe.selected_file:
             return
 
-        # self._metadata = self._widgets.mainframe.metadata
+        # thumbnails are updated on generation
+        self._metadata["title"] = self._vars.meta_title.get()
+        self._metadata["actors"] = self._widgets.root.tk.splitlist(self._vars.meta_actors.get())
+        self._metadata["tags"] = self._widgets.root.tk.splitlist(self._vars.meta_tags.get())
         adsfile = ADSFile(self._selected_path)
         adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
 
@@ -263,22 +274,6 @@ class App:
 
         threading.Thread(target=_thread_entry, daemon=True).start()
 
-    def status_window(self, active: bool) -> None:
-        STATUS_SPACING: Final[int] = 80
-        if active:
-            width: int = round(self._root.winfo_width() - 80)
-            xoffset: int = round(self._root.winfo_x() + STATUS_SPACING / 2)
-            yoffset: int = round(
-                self._root.winfo_y() + self._root.winfo_height() / 2 - self._widgets.status.winfo_height() / 2
-            )
-            self._widgets.status.update_idletasks()
-            height = self._widgets.status.winfo_reqheight()
-            self._widgets.status.geometry(f"{width}x{height}+{xoffset}+{yoffset}")
-            self._widgets.status.deiconify()
-            self._widgets.status.lift(self._widgets.mainframe)
-        else:
-            self._widgets.status.withdraw()
-
     def play_file(self, path: Path, startms: int = 0):
         if not path.is_file():
             return
@@ -292,6 +287,24 @@ class App:
                 f"/start {startms}",
             ],
         )
+
+    def status_window(self, active: bool) -> None:
+        STATUS_SPACING: Final[int] = 80
+        if active:
+            width: int = round(self._widgets.root.winfo_width() - 80)
+            xoffset: int = round(self._widgets.root.winfo_x() + STATUS_SPACING / 2)
+            yoffset: int = round(
+                self._widgets.root.winfo_y()
+                + self._widgets.root.winfo_height() / 2
+                - self._widgets.status.winfo_height() / 2
+            )
+            self._widgets.status.update_idletasks()
+            height = self._widgets.status.winfo_reqheight()
+            self._widgets.status.geometry(f"{width}x{height}+{xoffset}+{yoffset}")
+            self._widgets.status.deiconify()
+            self._widgets.status.lift(self._widgets.mainframe)
+        else:
+            self._widgets.status.withdraw()
 
 
 if __name__ == "__main__":

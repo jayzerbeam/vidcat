@@ -1,5 +1,5 @@
 import tkinter as tk
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from enum import Enum, auto
 from pathlib import Path
 from tkinter import ttk
@@ -61,40 +61,45 @@ class EditableList(DataEvents, tk.Frame):
         entry: ttk.Entry
         list: tk.Listbox
 
-    _items: list
     _sorted: bool
     _widgets: _Widgets
+    _entry_filter: Callable[[str], str]
 
     def __init__(
         self,
         parent,
         label: str = "",
-        items: list | None = None,
+        init_items: Sequence[str] | None = None,
         sorted: bool = True,
+        listboxconf: dict[str, Any] | None = None,
         *args,
         **kw,
     ):
         super().__init__(parent, *args, **kw)
 
+        if listboxconf is None:
+            listboxconf = {}
+
         self._widgets = __class__._Widgets(
             label=ttk.Label(self, text=label),
             entry=ttk.Entry(self),
-            list=tk.Listbox(self, selectmode=tk.EXTENDED, height=0, width=0),
+            list=tk.Listbox(self, height=0, width=0, **listboxconf),
         )
-        self._items = []
+
         self._sorted = sorted
+        self._on_add_func = lambda s: s
         self._widgets.label.grid(column=0, row=0, columnspan=2, sticky="W")
         self._widgets.entry.grid(column=0, row=1, sticky="EW", padx=3)
         self._widgets.list.grid(column=0, row=2, columnspan=2, sticky="NSEW", padx=2, pady=2)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
 
-        self.add_items(self._items)
+        if init_items is not None:
+            self.add_items(init_items)
 
         def _add_entry(*args) -> None:
             entry = self._widgets.entry.get()
-            if self.on_add_func and callable(self.on_add_func):
-                entry = self.on_add_func(entry)
+            entry = self._entry_filter(entry)
             if entry:
                 self.add_items((entry,))
                 self._widgets.entry.delete(0, tk.END)
@@ -104,7 +109,6 @@ class EditableList(DataEvents, tk.Frame):
         def _remove_entry(*args) -> None:
             for idx in reversed(self._widgets.list.curselection()):
                 self._widgets.list.delete(idx)
-                del self._items[idx]
 
         self._widgets.list.bind("<Delete>", _remove_entry)
 
@@ -112,34 +116,26 @@ class EditableList(DataEvents, tk.Frame):
         self._widgets.list.config(height=height)
 
     @property
-    def items(self) -> list:
-        return self._items
+    def items(self) -> Sequence[str]:
+        return self._widgets.list.curselection()
 
-    def add_items(self, items: list | tuple) -> None:
-        for i in items:
+    def add_items(self, items: Sequence[str]) -> None:
+        for item in items:
             if self._sorted:
                 idx = 0
-                for val in self._items:
-                    if i < val:
+                for val in self._widgets.list.get(0, tk.END):
+                    if item < val:
                         break
                     idx = idx + 1
-                self._items.insert(idx, i)
-                self._widgets.list.insert(idx, i)
+                self._widgets.list.insert(idx, item)
             else:
-                self._items.append(i)
-                self._widgets.list.insert(tk.END, i)
-
-    def sort_items(self) -> None:
-        self._items.sort()
-        self._widgets.list.delete(0, tk.END)
-        self._widgets.list.insert(0, *self._items)
+                self._widgets.list.insert(tk.END, item)
 
     def clear_items(self) -> None:
-        self._items.clear()
         self._widgets.list.delete(0, tk.END)
 
-    def on_add_handler(self, func: Callable) -> None:
-        self.on_add_func = func
+    def set_entry_filter(self, func: Callable[[str], str]) -> None:
+        self._entry_filter = func
 
 
 # class ScrolledList(tk.Listbox):

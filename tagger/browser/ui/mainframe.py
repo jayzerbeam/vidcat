@@ -77,7 +77,8 @@ class MainFrame(DataEvents, ttk.Frame):
             self._widgets.filetree.root_path = path
             self._widgets.filetree.update()
 
-    def extensions(self, *extensions: str) -> None:
+    # deprecated filepath refactor
+    def extensions(self, extensions: list[str] | tuple[str, ...]) -> None:
         self._widgets.filetree.add_extensions(*extensions)
 
     def update_metadata(self, metadata: dict[str, Any]) -> None:

@@ -14,5 +14,8 @@ class VirtualEventSequence(StrEnum):
 
 
 class TkVarNames(StrEnum):
+    META_ACTORS = "METADATA_ACTORS"
+    META_TAGS = "METADATA_TAGS"
+    META_TITLE = "METADATA_TITLE"
     THUMB_INTERVAL = "THUMB_INTERVAL"
     THUMB_HEIGHT = "THUMB_HEIGHT"
