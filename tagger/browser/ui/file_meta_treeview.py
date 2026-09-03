@@ -1,6 +1,6 @@
-from datetime import timedelta
 from typing import cast
 
+from util.format import clock_format
 from util.typing import StringListy
 from util.ui.better_treeview import FileTreeviewFrame
 
@@ -37,8 +37,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
     def set_meta_column_vals(
         self, item: str, duration: float, res: tuple[int, int], actors: StringListy, tags: StringListy
     ):
-        td = str(timedelta(seconds=duration)).removeprefix("0:").split(".")[0]
-        self.child.item(item, values=(td, f"{res[0]}x{res[1]}", ", ".join(actors), ", ".join(tags)))
+        self.child.item(item, values=(clock_format(duration), f"{res[0]}x{res[1]}", ", ".join(actors), ", ".join(tags)))
 
     def collapse_all(self) -> None:
         def _recurse(item: str):

@@ -18,6 +18,7 @@ from browser.ui.constants import TkVarNames
 from browser.ui.constants import VirtualEventSequence as BVEvent
 from util.file.alternate_data_streams import ADSFile
 from util.file.tree import PathTree, path_extension_filter
+from util.format import nice_bytesize, nice_duration
 from util.ui.constants import TkCursor
 from util.ui.constants import VirtualEventSequence as VEvent
 from util.ui.message_system import MessageWindow
@@ -35,20 +36,6 @@ VID_EXTS: Final[tuple[str, ...]] = (
     ".f4v",
     ".mov",
 )
-
-
-# t is seconds
-def nice_duration(t: int):
-    units = ["h", "m", "s"]
-    formatted = ""
-    try:
-        t = int(t)
-        while t >= 1:
-            formatted = f" {t % 60}{units.pop()}" + formatted
-            t = int(t / 60)
-        return formatted.strip()
-    except ValueError:
-        return "???"
 
 
 class StatusWindow(tk.Toplevel):
@@ -183,8 +170,8 @@ class App:
                 except FileNotFoundError, pickle.UnpicklingError:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
                 else:
-                    self._vars.file_size.set(f"file size: {round(p.stat().st_size / 1000)}KB")
-                    self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
+                    self._vars.file_size.set(f"file size: {nice_bytesize(p.stat().st_size)}")
+                    self._vars.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
                     self.update_widgets_from_metadata()
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
