@@ -1,5 +1,5 @@
 import io
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import av
@@ -131,7 +131,7 @@ class VideoThumbnailer:
 
         self._frames = resized_frames
 
-    def gen_jpgs(self, jpgq: int = 70) -> list | None:
+    def gen_jpgs(self, jpgq: int = 70) -> Sequence[tuple[bytes, int, int]] | None:
         if not self._frames:
             return
 

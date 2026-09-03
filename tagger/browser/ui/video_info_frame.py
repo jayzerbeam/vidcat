@@ -1,7 +1,8 @@
 import io
 import tkinter as tk
+from collections.abc import Sequence
 from tkinter import StringVar, ttk
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 from PIL import Image, ImageTk
 
@@ -10,20 +11,6 @@ from util.ui.better_frames import ImagesFrame
 from util.ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
 from util.ui.constants import TkCursor
 from util.ui.tk_event_data import DataEvents
-
-
-# t is seconds
-def nice_duration(t: int):
-    units = ["h", "m", "s"]
-    formatted = ""
-    try:
-        t = int(t)
-        while t >= 1:
-            formatted = f" {t % 60}{units.pop()}" + formatted
-            t = int(t / 60)
-        return formatted.strip()
-    except ValueError:
-        return "???"
 
 
 class VideoInfoFrame(DataEvents, ttk.Frame):
@@ -102,35 +89,11 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         if self._widgets.thumbnails.busy_status():
             self._widgets.thumbnails.busy_forget()
 
-    def update_metadata(self, metadata: dict[str, Any]) -> None:
-        """note: title, actors, and tags are modifiable through their respective tk.Variables
-        but we still need this as tk.Variables cannot be used for images"""
-
-        if "title" in metadata:
-            self._vars.title.set(metadata["title"])
-
-        if "video_properties" in metadata:
-            vp = metadata["video_properties"]
-            (vidw, vidh) = vp["dimensions"] if len(vp["dimensions"]) else (0, 0)
-            viddur = vp.get("duration", "")
-            self._vars.title.set(metadata["title"])
-            self._widgets.props.set_properties(vidw, vidh, viddur)
-
-        if "actors" in metadata:
-            self._widgets.lists.actor_listbox.clear_items()
-            self._widgets.lists.actor_listbox.add_items(metadata["actors"])
-
-        if "tags" in metadata:
-            self._widgets.lists.tag_listbox.clear_items()
-            self._widgets.lists.tag_listbox.add_items(metadata["tags"])
-
-        if "thumbnails" in metadata:
-            for t in self._thumbs:
-                del t
-            self._thumbs = tuple(
-                (ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), *t[1:]) for t in metadata["thumbnails"]
-            )
-            self.redraw_thumbs()
+    def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
+        for t in thumbs:
+            del t
+        self._thumbs = tuple((ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), *t[1:]) for t in thumbs)
+        self.redraw_thumbs()
 
     def redraw_thumbs(self):
         self._widgets.thumbnails.clear_images()
@@ -141,16 +104,18 @@ class VideoProperties(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         dimensions: ttk.Label
         duration: ttk.Label
+        metadata_size: ttk.Label
 
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
-        self._widgets = __class__._Widgets(dimensions=ttk.Label(self), duration=ttk.Label(self))
+        self._widgets = __class__._Widgets(
+            dimensions=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.VIDEO_RES)),
+            duration=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.VIDEO_LEN)),
+            metadata_size=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.META_SIZE)),
+        )
         self._widgets.dimensions.pack(ipadx=4, side=tk.LEFT)
         self._widgets.duration.pack(ipadx=4, side=tk.LEFT)
-
-    def set_properties(self, width, height, duration):
-        self._widgets.dimensions.config(text=f"dimensions: {width}x{height}")
-        self._widgets.duration.config(text=f"duration: {nice_duration(duration)}")
+        self._widgets.metadata_size.pack(ipadx=4, side=tk.LEFT)
 
 
 class ActorTagPane(DataEvents, ttk.PanedWindow):

@@ -3,3 +3,4 @@ use config file
 option to use sidecar files
 move status bar inside main frame?
 multi-tagging?
+refactor win32file to be platform specific

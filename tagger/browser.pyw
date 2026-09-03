@@ -37,6 +37,20 @@ VID_EXTS: Final[tuple[str, ...]] = (
 )
 
 
+# t is seconds
+def nice_duration(t: int):
+    units = ["h", "m", "s"]
+    formatted = ""
+    try:
+        t = int(t)
+        while t >= 1:
+            formatted = f" {t % 60}{units.pop()}" + formatted
+            t = int(t / 60)
+        return formatted.strip()
+    except ValueError:
+        return "???"
+
+
 class StatusWindow(tk.Toplevel):
     class _Widgets(NamedTuple):
         frame: ttk.Frame
@@ -108,8 +122,11 @@ class App:
         meta_actors: tk.Variable
         meta_tags: tk.Variable
         meta_title: StringVar
+        meta_size: StringVar
         thumb_interval: StringVar
         thumb_height: StringVar
+        video_len: StringVar
+        video_res: StringVar
 
     def __init__(self, root: tk.Tk, basepath: Path):
         self._pathtree = PathTree(basepath)
@@ -123,8 +140,11 @@ class App:
             meta_actors=tk.Variable(root, name=TkVarNames.META_ACTORS),
             meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
             meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
+            meta_size=tk.StringVar(root, name=TkVarNames.META_SIZE),
             thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value="-30"),
             thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value="200"),
+            video_len=tk.StringVar(root, name=TkVarNames.VIDEO_LEN),
+            video_res=tk.StringVar(root, name=TkVarNames.VIDEO_RES),
         )
 
         self._widgets = __class__._Widgets(root=root, mainframe=MainFrame(root), status=StatusWindow(root))
@@ -156,10 +176,12 @@ class App:
                             __class__.METADATA_STREAM,
                             pickle.dumps(__class__._EMPTY_METADATA),
                         )
-                    self._metadata = pickle.loads(adsfile.read_stream(__class__.METADATA_STREAM))
+                    buf = adsfile.read_stream(__class__.METADATA_STREAM)
+                    self._metadata = pickle.loads(buf)
                 except FileNotFoundError, pickle.UnpicklingError:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
                 else:
+                    # todo don't reach down through widgets
                     self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
                         str(p),
                         self._metadata["video_properties"]["duration"],
@@ -168,7 +190,15 @@ class App:
                         self._metadata["tags"],
                     )
 
-                    self._widgets.mainframe.update_metadata(self._metadata)
+                    vres = self._metadata["video_properties"]["dimensions"]
+                    vlen = nice_duration(self._metadata["video_properties"]["duration"])
+                    self._vars.meta_title.set(self._metadata["title"])
+                    self._vars.meta_actors.set(self._metadata["actors"])
+                    self._vars.meta_tags.set(self._metadata["tags"])
+                    self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
+                    self._vars.video_len.set(f"length: {vlen}")
+                    self._vars.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
+                    self._widgets.mainframe.update_thumbs(self._metadata["thumbnails"])
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
@@ -198,8 +228,10 @@ class App:
                 resize_height=int(self._vars.thumb_height.get()), progress_func=partial(_progress, "Resizing frames")
             )
             jpgs = vt.gen_jpgs()
-            self._metadata["thumbnails"] = jpgs
-            self._widgets.mainframe.update_metadata({"thumbnails": jpgs})
+            if jpgs is not None:
+                self._metadata["thumbnails"] = jpgs
+                self._widgets.mainframe.update_thumbs(jpgs)
+
             self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
             self.status_window(False)
 
@@ -217,8 +249,10 @@ class App:
         self._metadata["title"] = self._vars.meta_title.get()
         self._metadata["actors"] = self._widgets.root.tk.splitlist(self._vars.meta_actors.get())
         self._metadata["tags"] = self._widgets.root.tk.splitlist(self._vars.meta_tags.get())
+        buf = pickle.dumps(self._metadata)
         adsfile = ADSFile(self._selected_path)
-        adsfile.write_stream(__class__.METADATA_STREAM, pickle.dumps(self._metadata))
+        adsfile.write_stream(__class__.METADATA_STREAM, buf)
+        self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
 
     def _handle_scan_metadata(self, ev: tk.Event) -> None:
         self.status_window(True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+from collections.abc import Sequence
 from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
@@ -66,8 +67,8 @@ class MainFrame(DataEvents, ttk.Frame):
         self._widgets.filters.bind(VirtualEventSequence.FILTERS_CLEAR, self._handle_clear_filters)
         self._widgets.filters.bind(VirtualEventSequence.APPLY_HIGHHIGHT, self._handle_apply_highlight)
 
-    def update_metadata(self, metadata: dict[str, Any]) -> None:
-        self._widgets.vidinfo.update_metadata(metadata)
+    def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
+        self._widgets.vidinfo.update_thumbs(thumbs)
 
     def set_actors(self, items: dict):
         tv = self._widgets.filters._widgets.actors.treeview
