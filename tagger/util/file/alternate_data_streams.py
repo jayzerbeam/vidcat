@@ -1,79 +1,85 @@
 import os
+from collections.abc import Sequence
+from pathlib import Path
 
 import win32file
 
-# TODO change exceptions to return codes where
-
 
 # returns tuples with format (size, full name, name)
-def get_streams(filename):
-    if not os.path.exists(filename):
-        raise FileNotFoundError(f"{filename} does not exist")
-    return [(s[0], s[1], s[1][1:-6]) for s in win32file.FindStreams(filename)][1:]
+def get_streams(path: Path) -> Sequence:
+    if not path.exists():
+        raise FileNotFoundError(f"{path} does not exist")
+
+    return [(s[0], s[1], s[1][1:-6]) for s in win32file.FindStreams(str(path.resolve()))][1:]
 
 
-def get_stream_names(filename):
+def get_stream_names(path: Path) -> Sequence[str]:
     # chop off the first ($data) stream
     # chop of the ":" prefix and ":$DATA" postfix
-    return [s[2] for s in get_streams(filename)]
+    return [s[2] for s in get_streams(path)]
 
 
-def read_stream(filename, stream):
-    if not os.path.isfile(filename):
-        raise FileNotFoundError(f"{filename} does not exist")
-    with open(_file_stream_name(filename, stream), "rb") as fd:
+def read_stream(path: Path, stream) -> bytes:
+    if not path.exists():
+        raise FileNotFoundError(f"{path} does not exist")
+
+    with open(_file_stream_name(path, stream), "rb") as fd:
         return fd.read()
 
 
-def write_stream(filename, stream, data: bytes):
-    if not os.path.exists(filename):
-        raise FileNotFoundError(f"{filename} does not exist")
+def write_stream(path: Path, stream, data: bytes) -> int:
+    if not path.exists():
+        raise FileNotFoundError(f"{path} does not exist")
 
-    with open(_file_stream_name(filename, stream), "wb") as fd:
+    with open(_file_stream_name(path, stream), "wb") as fd:
         return fd.write(data)
 
 
-def delete_stream(filename, stream):
-    if not os.path.exists(filename):
-        raise FileNotFoundError(f"{filename} does not exist")
-    if not os.path.exists(_file_stream_name(filename, stream)):
-        raise FileNotFoundError(f"stream {stream} does not exist for {filename}")
-    return os.remove(_file_stream_name(filename, stream))
+def delete_stream(path: Path, stream: str) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"{path} does not exist")
+    if not os.path.exists(_file_stream_name(path, stream)):
+        raise FileNotFoundError(f"stream {stream} does not exist for {path}")
+
+    os.remove(_file_stream_name(path, stream))
 
 
-def has_stream(filename, stream):
-    return os.path.isfile(_file_stream_name(filename, stream))
+def has_stream(path: Path, stream: str) -> bool:
+    return os.path.isfile(_file_stream_name(path, stream))
 
 
-def _file_stream_name(filename, stream):
-    return f"{filename}:{stream}:$DATA"
+def _file_stream_name(path: Path, stream: str) -> str:
+    return f"{path.resolve()}:{stream}:$DATA"
 
 
 # stream data is not cached as it may be quite large
 class ADSFile:
-    def __init__(self, filename):
-        if not os.path.exists(filename):
-            raise FileNotFoundError(f"{filename} does not exist")
-        self.filepath = os.path.abspath(filename)
-        self.stream_names = get_stream_names(self.filepath)
+    _path: Path
 
-    def get_stream_names(self):
+    def __init__(self, path: Path) -> None:
+        if not path.exists():
+            raise FileNotFoundError(f"{path} does not exist")
+
+        self._path = path
+        self.stream_names = get_stream_names(path)
+
+    def get_stream_names(self) -> Sequence[str]:
         return self.stream_names
 
-    def has_stream(self, stream):
-        return has_stream(self.filepath, stream)
+    def has_stream(self, stream: str) -> bool:
+        return has_stream(self._path, stream)
 
-    def read_stream(self, stream):
-        return read_stream(self.filepath, stream)
+    def read_stream(self, stream: str) -> bytes:
+        return read_stream(self._path, stream)
 
-    def write_stream(self, stream, data: bytes):
+    def write_stream(self, stream: str, data: bytes) -> int:
         try:
-            return write_stream(self.filepath, stream, data)
+            return write_stream(self._path, stream, data)
         finally:
-            self.stream_names = get_stream_names(self.filepath)
+            self.stream_names = get_stream_names(self._path)
 
-    def delete_stream(self, stream):
+    def delete_stream(self, stream: str) -> None:
         try:
-            return delete_stream(self.filepath, stream)
+            return delete_stream(self._path, stream)
         finally:
-            self.stream_names = get_stream_names(self.filepath)
+            self.stream_names = get_stream_names(self._path)
