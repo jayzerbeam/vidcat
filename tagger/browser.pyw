@@ -181,24 +181,8 @@ class App:
                 except FileNotFoundError, pickle.UnpicklingError:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
                 else:
-                    # todo don't reach down through widgets
-                    self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
-                        str(p),
-                        self._metadata["video_properties"]["duration"],
-                        self._metadata["video_properties"]["dimensions"],
-                        self._metadata["actors"],
-                        self._metadata["tags"],
-                    )
-
-                    vres = self._metadata["video_properties"]["dimensions"]
-                    vlen = nice_duration(self._metadata["video_properties"]["duration"])
-                    self._vars.meta_title.set(self._metadata["title"])
-                    self._vars.meta_actors.set(self._metadata["actors"])
-                    self._vars.meta_tags.set(self._metadata["tags"])
                     self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
-                    self._vars.video_len.set(f"length: {vlen}")
-                    self._vars.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
-                    self._widgets.mainframe.update_thumbs(self._metadata["thumbnails"])
+                    self.update_widgets_from_metadata()
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
@@ -249,6 +233,7 @@ class App:
         self._metadata["title"] = self._vars.meta_title.get()
         self._metadata["actors"] = self._widgets.root.tk.splitlist(self._vars.meta_actors.get())
         self._metadata["tags"] = self._widgets.root.tk.splitlist(self._vars.meta_tags.get())
+        self.update_widgets_from_metadata()
         buf = pickle.dumps(self._metadata)
         adsfile = ADSFile(self._selected_path)
         adsfile.write_stream(__class__.METADATA_STREAM, buf)
@@ -320,6 +305,25 @@ class App:
                 f"/start {startms}",
             ],
         )
+
+    def update_widgets_from_metadata(self) -> None:
+        # todo don't reach down through widgets
+        self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
+            str(self._selected_path),
+            self._metadata["video_properties"]["duration"],
+            self._metadata["video_properties"]["dimensions"],
+            self._metadata["actors"],
+            self._metadata["tags"],
+        )
+
+        vres = self._metadata["video_properties"]["dimensions"]
+        vlen = nice_duration(self._metadata["video_properties"]["duration"])
+        self._vars.meta_title.set(self._metadata["title"])
+        self._vars.meta_actors.set(self._metadata["actors"])
+        self._vars.meta_tags.set(self._metadata["tags"])
+        self._vars.video_len.set(f"length: {vlen}")
+        self._widgets.mainframe.update_thumbs(self._metadata["thumbnails"])
+        self._vars.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
 
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(VID_EXTS)])
