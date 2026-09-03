@@ -66,30 +66,8 @@ class MainFrame(DataEvents, ttk.Frame):
         self._widgets.filters.bind(VirtualEventSequence.FILTERS_CLEAR, self._handle_clear_filters)
         self._widgets.filters.bind(VirtualEventSequence.APPLY_HIGHHIGHT, self._handle_apply_highlight)
 
-    # deprecated filepath refactor
-    @property
-    def basepath(self) -> Path:
-        return self.basepath
-
-    # deprecated filepath refactor
-    @basepath.setter
-    def basepath(self, path: Path) -> None:
-        if path.is_dir():
-            self._basepath = path
-            self._widgets.filetree.root_path = path
-            self._widgets.filetree.update()
-
-    # deprecated filepath refactor
-    def extensions(self, extensions: list[str] | tuple[str, ...]) -> None:
-        self._widgets.filetree.add_extensions(*extensions)
-
     def update_metadata(self, metadata: dict[str, Any]) -> None:
         self._widgets.vidinfo.update_metadata(metadata)
-
-    @property
-    def selected_file(self) -> Path | None:
-        if len(self._widgets.filetree.treeview.selection()) > 0:
-            return Path(self._widgets.filetree.treeview.selection()[0])
 
     def set_actors(self, items: dict):
         tv = self._widgets.filters._widgets.actors.treeview

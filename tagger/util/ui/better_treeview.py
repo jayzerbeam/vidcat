@@ -1,11 +1,11 @@
-import os
 import re
 import tkinter as tk
-from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
 from tkinter import ttk
 from typing import Any
+
+from util.file.tree import PathTree
 
 from .constants import VirtualEventSequence
 from .scrollable import ScrollableWidgetFrame
@@ -117,27 +117,9 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         self.treeview.bind("<Double-Button-1>", lambda event: _click("exec"))
         self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda event: _click("select"))
 
-    @property
-    def root_path(self) -> Path | None:
-        return self._root_path
-
-    @root_path.setter
-    def root_path(self, path: Path) -> None:
-        if not path.is_dir():
-            raise ValueError(f"{path} is not a directory")
-        self._root_path = path
-
     def add_filter(self, regex: re.Pattern) -> None:
         if isinstance(regex, type(re.compile("null"))):
             self._filters.append(regex)
-
-    @property
-    def extensions(self) -> list[str]:
-        return self._extensions
-
-    def add_extensions(self, *exts: str) -> None:
-        self._extensions.extend(exts)
-        self._extensions.sort()
 
     def get_items(self, with_tags: list | None) -> list:
         if with_tags is None:
@@ -159,69 +141,33 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         _recurse("")
         return items
 
-    def _count_child_tags(self, item, item_tag) -> int:
-        def _recurse(item):
-            c = 0
-            if self.treeview.tag_has(item_tag, item):
-                c += 1
-            for child in self.treeview.get_children(item):
-                c += _recurse(child)
-            return c
-
-        return _recurse(item)
-
-    def count_files(self) -> int:
-        return self._count_child_tags("", "file")
-
-    def count_dirs(self) -> int:
-        return self._count_child_tags("", "dir")
-
-    # TODO: refactor out the file scanning to separate interface
-    def update(self) -> None:
-        def _filtered(filename: str) -> bool:
-            if len(self._filters) == 0:
-                return True
-            for f in self._filters:
-                if f.match(filename):
-                    return True
-            return False
-
-        def _scandir(path: Path, parent_iid: str) -> None:
-            files = []  # cache files so that they can be added after directories
-            for entry in os.scandir(path):
-                if not _filtered(entry.name):
+    def fill_from_pathtree(self, root: PathTree) -> None:
+        def _recurse(pt: PathTree, parent_iid: str) -> None:
+            for d, child in pt.dirs():
+                if child.is_empty:
                     continue
 
-                iid = os.path.join(path, entry.name)
-                if entry.is_dir():
-                    self.treeview.insert(
-                        parent_iid,
-                        tk.END,
-                        iid=iid,
-                        text=f"[{entry.name}]",
-                        tags=["dir"],
-                    )
-                    _scandir(path / entry.name, iid)
-                    # remove directories with nothing in them
-                    if not self.treeview.get_children(iid):
-                        self.treeview.delete(iid)
-                else:
-                    _, ext = os.path.splitext(entry.name)
-                    if ext in self.extensions:
-                        files.append(entry)
-
-            for file in files:
+                iid = str(child.root.resolve())
                 self.treeview.insert(
                     parent_iid,
                     tk.END,
-                    os.path.join(path, file.name),
-                    text=file.name,
+                    iid=iid,
+                    text=f"[{d}]",
+                    tags=["dir"],
+                )
+                _recurse(child, iid)
+
+            for f in pt.files():
+                self.treeview.insert(
+                    parent_iid,
+                    tk.END,
+                    iid=str(f.resolve()),
+                    text=f.name,
                     tags=["file"],
                 )
 
-        if self._root_path is not None:
-            # self.heading("#0", text=str(self._root_path.resolve()))
-            _scandir(self._root_path, "")
+        self.treeview.clear()
+        _recurse(root, "")
 
     def hide(self, item) -> None:
         self._hidden_items[item] = self.treeview.parent(item)  # key => item, value => parent
@@ -241,14 +187,3 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         for item in self._hidden_items:
             self.treeview.move(item, self._hidden_items[item], tk.END)
         self._hidden_items.clear()
-
-    def process_items(self, func: Callable) -> None:
-        if not isinstance(func, Callable):
-            raise TypeError("func is not callable")
-
-        def _recurse(item):
-            func(self, item)
-            for child in self.treeview.get_children(item):
-                _recurse(item)
-
-        _recurse("")

@@ -128,9 +128,8 @@ class App:
         )
 
         self._widgets = __class__._Widgets(root=root, mainframe=MainFrame(root), status=StatusWindow(root))
-        self._widgets.mainframe.extensions(VID_EXTS)
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
-        self._widgets.mainframe.basepath = basepath
+        # self._widgets.mainframe.basepath = basepath
 
         self._widgets.mainframe.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
         self._widgets.mainframe.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
@@ -140,7 +139,8 @@ class App:
         self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
-        # self.update_filetree()
+        self.update_filetree()
+        self._widgets.mainframe._widgets.filetree.fill_from_pathtree(self._pathtree)
         self.status_window(False)
 
     def _handle_file_selected(self, ev: tk.Event) -> None:
@@ -148,7 +148,7 @@ class App:
             p = Path(cast(ttk.Treeview, ev.widget).selection()[0])
             if p.is_file():
                 self._selected_path = p
-                print(f"loading metadata for {p.name}")
+                print(f"loading metadata for {p}")
                 try:
                     adsfile = ADSFile(p)
                     if not adsfile.has_stream(__class__.METADATA_STREAM):
@@ -211,9 +211,7 @@ class App:
         threading.Thread(target=_thread_entry, daemon=True).start()
 
     def _handle_save_metadata(self, ev: tk.Event) -> None:
-        print(f"saving metadata for {self._widgets.mainframe.selected_file}")
-        if not self._widgets.mainframe.selected_file:
-            return
+        print(f"saving metadata for {self._selected_path}")
 
         # thumbnails are updated on generation
         self._metadata["title"] = self._vars.meta_title.get()
@@ -291,7 +289,6 @@ class App:
 
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(VID_EXTS)])
-        print(self._pathtree)
 
     def status_window(self, active: bool) -> None:
         STATUS_SPACING: Final[int] = 80
