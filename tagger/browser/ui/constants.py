@@ -14,6 +14,7 @@ class VirtualEventSequence(StrEnum):
 
 
 class TkVarNames(StrEnum):
+    FILE_SIZE = "FILE_SIZE"
     META_ACTORS = "METADATA_ACTORS"
     META_TAGS = "METADATA_TAGS"
     META_TITLE = "METADATA_TITLE"

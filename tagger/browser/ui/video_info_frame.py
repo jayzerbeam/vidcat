@@ -104,6 +104,7 @@ class VideoProperties(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
         dimensions: ttk.Label
         duration: ttk.Label
+        file_size: ttk.Label
         metadata_size: ttk.Label
 
     def __init__(self, parent, *args, **kw):
@@ -111,10 +112,12 @@ class VideoProperties(DataEvents, ttk.Frame):
         self._widgets = __class__._Widgets(
             dimensions=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.VIDEO_RES)),
             duration=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.VIDEO_LEN)),
+            file_size=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.FILE_SIZE)),
             metadata_size=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.META_SIZE)),
         )
         self._widgets.dimensions.pack(ipadx=4, side=tk.LEFT)
         self._widgets.duration.pack(ipadx=4, side=tk.LEFT)
+        self._widgets.file_size.pack(ipadx=4, side=tk.LEFT)
         self._widgets.metadata_size.pack(ipadx=4, side=tk.LEFT)
 
 

@@ -119,6 +119,7 @@ class App:
         status: StatusWindow
 
     class _Vars(NamedTuple):
+        file_size: tk.StringVar
         meta_actors: tk.Variable
         meta_tags: tk.Variable
         meta_title: StringVar
@@ -137,6 +138,7 @@ class App:
         self._selected_path = Path()
 
         self._vars = __class__._Vars(
+            file_size=tk.StringVar(root, name=TkVarNames.FILE_SIZE),
             meta_actors=tk.Variable(root, name=TkVarNames.META_ACTORS),
             meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
             meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
@@ -181,6 +183,7 @@ class App:
                 except FileNotFoundError, pickle.UnpicklingError:
                     self._metadata = deepcopy(__class__._EMPTY_METADATA)
                 else:
+                    self._vars.file_size.set(f"file size: {round(p.stat().st_size / 1000)}KB")
                     self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
                     self.update_widgets_from_metadata()
 
