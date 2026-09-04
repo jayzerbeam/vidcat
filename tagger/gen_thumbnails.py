@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Final
 
-from util.file.alternate_data_streams import ADSFile
+from util.file.sidecar import MagicSidecar
 from util.video_thumbnailer import VideoThumbnailer
 
 VID_EXTS = (
@@ -21,11 +21,15 @@ VID_EXTS = (
     ".mov",
 )
 
+SIDECAR_NAMESPACE: Final[str] = "video_metadata"
+
 
 class VideoMetadataer:
     _DEFAULT_FPS: Final[float] = 30.0
-    _METADATA_STREAM_NAME: Final[str] = "video_metadata"
     _JPGQ: Final[int] = 66
+
+    path: Path
+    sidecar: MagicSidecar
 
     def __init__(self, path: Path):
         if not path.exists():
@@ -33,9 +37,9 @@ class VideoMetadataer:
 
         self.path = path
 
-        adsfile = self.adsfile = ADSFile(self.path.absolute())
-        if adsfile.has_stream(__class__._METADATA_STREAM_NAME):
-            self.metadata = pickle.loads(adsfile.read_stream(__class__._METADATA_STREAM_NAME))
+        self.sidecar = MagicSidecar(path, namespace=SIDECAR_NAMESPACE)
+        if self.sidecar.exists:
+            self.metadata = pickle.loads(self.sidecar.read())  # can raise
         else:
             self.metadata = {
                 "title": "",
@@ -50,10 +54,10 @@ class VideoMetadataer:
             return
 
         vt = VideoThumbnailer(self.path)
-        dimensions = vt.get_dimensions()
+        dimensions = vt.dimensions
         self.metadata["video_properties"] = {}
         self.metadata["video_properties"]["dimensions"] = dimensions
-        self.metadata["video_properties"]["duration"] = round(vt.get_frame_count() / (vt.get_fps() or 30.0), 2)
+        self.metadata["video_properties"]["duration"] = round(vt.duration if vt.duration is not None else -1, 2)
         vt.extract_frames(interval=interval)
         vt.resize_frames(resize_height=thumb_height)
         jpgs = vt.gen_jpgs(jpgq=__class__._JPGQ)
@@ -64,7 +68,7 @@ class VideoMetadataer:
             self.metadata["title"] = os.path.splitext(self.path.name)[0].replace("_", " ")
 
     def write_metadata(self) -> int:
-        return self.adsfile.write_stream(__class__._METADATA_STREAM_NAME, pickle.dumps(self.metadata))
+        return self.sidecar.write(pickle.dumps(self.metadata))
 
 
 if __name__ == "__main__":

@@ -1,12 +1,12 @@
-import os
 import pickle
 from argparse import ArgumentParser
-from glob import iglob
+from copy import deepcopy
+from pathlib import Path
 
-from lib.alternate_data_streams import ADSFile
+from util.file.sidecar import MagicSidecar
 
 VID_EXTS = (".avi", ".mp4", ".m4v", ".mkv", ".mpg", ".mpeg", ".wmv", ".flv", ".f4v", ".mov")
-STREAM_NAME = "video_metadata"
+SIDECAR_NAMESPACE = "video_metadata"
 
 
 class Args:
@@ -16,25 +16,41 @@ class Args:
         parser.add_argument("-t", "--tags", default=[], nargs="*")
         parser.add_argument("-ra", "--remove_actors", default=[], nargs="*")
         parser.add_argument("-rt", "--remove_tags", default=[], nargs="*")
-        parser.add_argument("-r", "--recursive", action="store_true")
+        parser.add_argument("path")
         parser.add_argument("glob")
         self.names = parser.parse_args()
 
 
 if __name__ == "__main__":
     args = Args()
-    for f in iglob(args.names.glob, recursive=args.names.recursive):
-        path, ext = os.path.splitext(f)
-        if not ext in VID_EXTS:
+    root = Path(args.names.path)
+    for p in root.glob(args.names.glob, case_sensitive=False):
+        if not p.suffix in VID_EXTS:
             continue
-        print(f)
-        ads = ADSFile(f)
-        if not ads.has_stream(STREAM_NAME):
-            continue
-        metadata = pickle.loads(ads.read_stream(STREAM_NAME))
-        metadata["actors"] = sorted(list(set(metadata["actors"] + args.names.actors)))
+        print(p)
+        sc = MagicSidecar(p, namespace=SIDECAR_NAMESPACE)
+
+        metadata = deepcopy(
+            {
+                "title": "",
+                "video_properties": {"dimensions": (0, 0), "duration": 0},
+                "actors": [],
+                "tags": [],
+                "thumbnails": [],
+            }
+        )
+        if sc.exists:
+            try:
+                metadata = pickle.loads(sc.read())
+            except Exception as ex:
+                print(f"error reading metadata for {p}: {ex}")
+
+        metadata["actors"] = sorted(set(metadata["actors"] + args.names.actors))
         metadata["actors"] = [a for a in metadata["actors"] if a not in args.names.remove_actors]
-        metadata["tags"] = sorted(list(set(metadata["tags"] + args.names.tags)))
+        metadata["tags"] = sorted(set(metadata["tags"] + args.names.tags))
         metadata["tags"] = [t for t in metadata["tags"] if t not in args.names.remove_tags]
-        bytes_written = ads.write_stream(STREAM_NAME, pickle.dumps(metadata))
-        print(f"{bytes_written} bytes written")
+        try:
+            bytes_written = sc.write(pickle.dumps(metadata))
+            print(f"{bytes_written} bytes written")
+        except Exception as ex:
+            print(f"failed to write metadata for {p}: {ex}")

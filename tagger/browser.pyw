@@ -12,11 +12,10 @@ from tkinter import StringVar, ttk
 from typing import Any, Final, NamedTuple, cast
 
 # from meta_editor import ThumbGen, VideoProperties
-import util.file.alternate_data_streams as ADS
 from browser.ui import MainFrame
 from browser.ui.constants import TkVarNames
 from browser.ui.constants import VirtualEventSequence as BVEvent
-from util.file.alternate_data_streams import ADSFile
+from util.file.sidecar import MagicSidecar
 from util.file.tree import PathTree, path_extension_filter
 from util.format import nice_bytesize, nice_duration
 from util.ui.constants import TkCursor
@@ -157,21 +156,24 @@ class App:
             p = Path(cast(ttk.Treeview, ev.widget).selection()[0])
             if p.is_file():
                 self._selected_path = p
+                sidecar = MagicSidecar(p, __class__.METADATA_STREAM)
                 print(f"loading metadata for {p}")
+                self._vars.file_size.set(f"file size: {nice_bytesize(p.stat().st_size)}")
+                self._vars.meta_size.set("metadata size: none")
+                self._metadata = deepcopy(__class__._EMPTY_METADATA)
+
                 try:
-                    adsfile = ADSFile(p)
-                    if not adsfile.has_stream(__class__.METADATA_STREAM):
-                        adsfile.write_stream(
-                            __class__.METADATA_STREAM,
-                            pickle.dumps(__class__._EMPTY_METADATA),
-                        )
-                    buf = adsfile.read_stream(__class__.METADATA_STREAM)
+                    buf = sidecar.read()
                     self._metadata = pickle.loads(buf)
-                except FileNotFoundError, pickle.UnpicklingError:
-                    self._metadata = deepcopy(__class__._EMPTY_METADATA)
-                else:
-                    self._vars.file_size.set(f"file size: {nice_bytesize(p.stat().st_size)}")
                     self._vars.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
+                except FileNotFoundError:
+                    self._metadata = deepcopy(self._EMPTY_METADATA)
+                    print(f"{p} does not have a magic sidecar")
+                except pickle.UnpicklingError:
+                    print(f"{p} does not have valid pickle data, using default")
+                except Exception as ex:
+                    print(f"{p} failed to load metadata: {ex}")
+                finally:
                     self.update_widgets_from_metadata()
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
@@ -224,10 +226,15 @@ class App:
         self._metadata["actors"] = self._widgets.root.tk.splitlist(self._vars.meta_actors.get())
         self._metadata["tags"] = self._widgets.root.tk.splitlist(self._vars.meta_tags.get())
         self.update_widgets_from_metadata()
-        buf = pickle.dumps(self._metadata)
-        adsfile = ADSFile(self._selected_path)
-        adsfile.write_stream(__class__.METADATA_STREAM, buf)
-        self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
+        try:
+            buf = pickle.dumps(self._metadata)
+            sidecar = MagicSidecar(self._selected_path, __class__.METADATA_STREAM)
+            sidecar.write(buf)
+            self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
+        except pickle.PickleError:
+            print(f"failed to pickle metadata for {self._selected_path}")
+        except Exception:
+            print(f"failed to save metadata for {self._selected_path}")
 
     def _handle_scan_metadata(self, ev: tk.Event) -> None:
         self.status_window(True)
@@ -257,11 +264,17 @@ class App:
                     last_time = time.time()
 
                 path = self._pathtree.root / item
-                if path.is_file() and ADS.has_stream(path, __class__.METADATA_STREAM):
+                if path.is_file():
+                    sidecar = MagicSidecar(path, namespace=__class__.METADATA_STREAM)
+                    if not sidecar.exists:
+                        continue
+
                     try:
-                        metadata = pickle.loads(ADS.read_stream(path, __class__.METADATA_STREAM))
+                        metadata = pickle.loads(sidecar.read())
                     except pickle.UnpicklingError:
                         print(f"failed to unpickle metadata for {path}")
+                    except Exception:
+                        print(f"failed to read metadata for {path}")
                     else:
                         self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
                             item,
