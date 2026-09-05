@@ -1,5 +1,8 @@
-from typing import cast
+import tkinter as tk
+from pathlib import Path
+from typing import NamedTuple, cast
 
+from browser.ui.constants import VirtualEventSequence
 from util.format import clock_format
 from util.typing import StringListy
 from util.ui.better_treeview import FileTreeviewFrame
@@ -16,12 +19,19 @@ def any_in_list(s1: set, s2: set, case_sensitive: bool = False) -> bool:
 class FileMetaTreeviewFrame(FileTreeviewFrame):
     """A FileTreeviewFrame that adds columns and functionality for actors and tags"""
 
+    class _Menus(NamedTuple):
+        dir: tk.Menu
+        file: tk.Menu
+
+    _menus: _Menus
+    _menu_iid: str | None
+
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, columns=("time", "res", "actors", "tags"), sortable=False, width=300, **kw)
         # disable propogation to set a treeview total width wider than the frame
         self.grid_propagate(False)
         self.pack_propagate(False)
-        self.treeview.heading("#0", text="Sub Dir")
+        self.treeview.heading("#0", text="Path")
         self.treeview.heading("#1", text="Time")
         self.treeview.heading("#2", text="Res")
         self.treeview.heading("#3", text="Actors")
@@ -33,6 +43,36 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self.treeview.column("#4", minwidth=10, width=100, stretch=False)
         # self.tag_configure('dir', background = '#EEE')
         self.treeview.tag_configure("highlight", background="#DFD")
+        is_mac = self.winfo_toplevel().tk.call("tk", "windowingsystem") == "aqua"
+        self.treeview.bind("<Button-2>" if is_mac else "<Button-3>", self._handle_right_click)
+
+        self._menu_iid = None
+        self._menus = __class__._Menus(
+            file=tk.Menu(self, tearoff=0),
+            dir=tk.Menu(self, tearoff=0),
+        )
+        self._menus.file.add_command(label="Remove", command=self._handle_file_delete)
+
+    def _handle_right_click(self, ev: tk.Event) -> None:
+        iid = self.treeview.identify_row(ev.y)
+        if iid is None:
+            return
+
+        if self.treeview.tag_has("file", iid):
+            try:
+                self._menu_iid = iid
+                self._menus.file.entryconfigure(0, label=f"Remove {Path(iid).name}")
+                self._menus.file.tk_popup(ev.x_root, ev.y_root)
+            finally:
+                self._menus.file.grab_release()
+        elif self.treeview.tag_has("dir", iid):
+            print("dir", iid)
+
+    def _handle_file_delete(self):
+        if self._menu_iid is not None:
+            self.event_generate(VirtualEventSequence.FILE_DELETE, data=self._menu_iid)
+            self.treeview.delete(self._menu_iid)
+            self._menu_iid = None
 
     def set_meta_column_vals(
         self, item: str, duration: float, res: tuple[int, int], actors: StringListy, tags: StringListy

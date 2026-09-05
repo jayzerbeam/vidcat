@@ -11,6 +11,7 @@ class VirtualEventSequence(StrEnum):
     FILTERS_OR = "<<FiltersOr>>"
     FILTERS_CLEAR = "<<FiltersClear>>"
     APPLY_HIGHHIGHT = "<<ApplyHighlight>>"
+    FILE_DELETE = "<<FileDelete>>"
 
 
 class TkVarNames(StrEnum):

@@ -84,6 +84,7 @@ class StatusWindow(tk.Toplevel):
 class App:
     VIDEO_PLAYER: Final[str] = "C:\\Program Files\\MPC-BE\\mpc-be64.exe"
     METADATA_STREAM: Final[str] = "video_metadata"
+    TRASH_NAME: Final[str] = ".trash"
     _EMPTY_METADATA: Final[dict[str, Any]] = {
         "title": "",
         "video_properties": {"dimensions": (0, 0), "duration": 0},
@@ -93,6 +94,7 @@ class App:
     }
 
     _pathtree: PathTree
+    _trash_path: Path
     _metadata: dict[str, Any]
     _file_meta_filters: dict
     _all_tags: list[str]
@@ -139,21 +141,35 @@ class App:
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
         # self._widgets.mainframe.basepath = basepath
 
-        self._widgets.mainframe.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
-        self._widgets.mainframe.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
-        self._widgets.mainframe.bind_all(BVEvent.GENERATE_THUMBS, func=self._handle_generate_thumbnails, add=True)
-        self._widgets.mainframe.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
-        self._widgets.mainframe.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
+        self._widgets.root.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
+        self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
+        self._widgets.root.bind_all(BVEvent.GENERATE_THUMBS, func=self._handle_generate_thumbnails, add=True)
+        self._widgets.root.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
+        self._widgets.root.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
+        # bind_all_with_data is a Monkey patch but only on widgets, not root
         self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
+        self._widgets.mainframe.bind_all_with_data(BVEvent.FILE_DELETE, func=self._handle_file_delete, add=True)
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
+        self._init_trash(basepath / __class__.TRASH_NAME)
         self.update_filetree()
         self._widgets.mainframe._widgets.filetree.fill_from_pathtree(self._pathtree)
         self.status_window(False)
 
+    def _init_trash(self, path: Path) -> None:
+        if not path.exists():
+            path.mkdir()
+
+        if path.is_dir():
+            self._trash_path = path
+        else:
+            print("trash directory is a file, could not initialize")
+
     def _handle_file_selected(self, ev: tk.Event) -> None:
-        if hasattr(ev.widget, "selection"):
-            p = Path(cast(ttk.Treeview, ev.widget).selection()[0])
+        tv = cast(ttk.Treeview, ev.widget)
+        """ sometimes there's no selection ie. if the selection is deleted by click menu"""
+        if hasattr(ev.widget, "selection") and len(tv.selection()):
+            p = Path(tv.selection()[0])
             if p.is_file():
                 self._selected_path = p
                 sidecar = MagicSidecar(p, __class__.METADATA_STREAM)
@@ -178,6 +194,15 @@ class App:
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
+
+    def _handle_file_delete(self, ev: tk.Event, data: str) -> None:
+        """data is the treeview iid which is the file path"""
+        if self._trash_path is None:
+            return
+
+        path = Path(data)
+        self._pathtree.dig_and_remove(path)
+        path.move(self._trash_path / path.name)
 
     def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
         self.play_file(self._selected_path, startms=int(data))

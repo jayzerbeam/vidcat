@@ -11,6 +11,9 @@ class PathTree:
     _files: list[Path]
 
     def __init__(self, root: Path) -> None:
+        if not root.exists():
+            raise FileNotFoundError("PathTree root {root} must exist")
+
         self._root = root
         self._dirs = {}
         self._files = []
@@ -48,7 +51,7 @@ class PathTree:
     def dig(self, relpath: Path) -> PathTree | None:
         """Dig through the PathTree to find the PathTree of the relative Path.
         This is here for efficiency of creating a new PathTree and scanning the file system to fill it.
-        If looking for a child file then Path.rglob() or the like is better a files in PathTree are pathlib.Path anyway."""
+        If looking for a child file then Path.rglob() or the like is better as files in PathTree are pathlib.Path anyway."""
         pt = self
         for p in relpath.parts:
             pt = pt.dir(p)
@@ -56,6 +59,43 @@ class PathTree:
                 return None
 
         return None if pt is self else pt
+
+    def remove(self, name: str) -> bool:
+        """Remove a file or dir from the IMMEDIATE PathTree (use dig_and_remove for recursive).
+        This only removes the PathTree entry, it does not delete the file.
+        Both paths must exist"""
+
+        p = self._root.joinpath(name)
+        if name in self._dirs:
+            del self._dirs[name]
+            return True
+        if p in self._files:
+            self._files.remove(p)
+            return True
+
+        return False
+
+    def dig_and_remove(self, path: Path) -> bool:
+        """Effectively .dig() then remove()
+        NOTE: path.absolute() against PathTree.root.resolve() so using symlinks may have unintended side effects"""
+        if not path.exists():
+            raise FileNotFoundError("{path} does not exist")
+
+        try:
+            abspath = path.absolute()
+            parts = path.relative_to(self._root.resolve()).parts
+        except ValueError:
+            return False
+        else:
+            if len(parts) == 0:
+                raise ValueError("There are no path parts for {path}. This shouldn't happen")
+
+            dug = self if len(parts) == 1 else self.dig(Path().joinpath(*parts[:-1]))
+            if dug is None:
+                return False
+            dug.remove(abspath.name)
+
+        return False
 
     def dir(self, name: str) -> PathTree | None:
         return self._dirs.get(name, None)
