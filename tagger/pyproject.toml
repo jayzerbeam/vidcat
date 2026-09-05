@@ -16,3 +16,5 @@ venvPath = "."
 venv = ".venv"
 [tool.ruff]
 line-length = 120
+[tool.ruff.lint]
+ignore = ["BLE001"]
