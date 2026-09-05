@@ -102,22 +102,33 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
 
 class VideoProperties(DataEvents, ttk.Frame):
     class _Widgets(NamedTuple):
+        row1: ttk.Frame
+        row2: ttk.Frame
+        file_path: ttk.Label
+        file_size: ttk.Label
         dimensions: ttk.Label
         duration: ttk.Label
-        file_size: ttk.Label
         metadata_size: ttk.Label
 
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
+        row1 = ttk.Frame(self)
+        row2 = ttk.Frame(self)
         self._widgets = __class__._Widgets(
-            dimensions=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.VIDEO_RES)),
-            duration=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.VIDEO_LEN)),
-            file_size=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.FILE_SIZE)),
-            metadata_size=ttk.Label(self, textvariable=tk.StringVar(name=TkVarNames.META_SIZE)),
+            row1=row1,
+            row2=row2,
+            file_path=ttk.Label(row1, textvariable=tk.StringVar(name=TkVarNames.FILE_PATH)),
+            file_size=ttk.Label(row1, textvariable=tk.StringVar(name=TkVarNames.FILE_SIZE)),
+            dimensions=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.VIDEO_RES)),
+            duration=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.VIDEO_LEN)),
+            metadata_size=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.META_SIZE)),
         )
+        self._widgets.row1.pack(fill=tk.X, side=tk.TOP)
+        self._widgets.row2.pack(fill=tk.X, side=tk.TOP)
+        self._widgets.file_path.pack(ipadx=4, side=tk.LEFT)
+        self._widgets.file_size.pack(ipadx=4, side=tk.LEFT)
         self._widgets.dimensions.pack(ipadx=4, side=tk.LEFT)
         self._widgets.duration.pack(ipadx=4, side=tk.LEFT)
-        self._widgets.file_size.pack(ipadx=4, side=tk.LEFT)
         self._widgets.metadata_size.pack(ipadx=4, side=tk.LEFT)
 
 

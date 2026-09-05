@@ -107,6 +107,7 @@ class App:
         status: StatusWindow
 
     class _Vars(NamedTuple):
+        file_path: tk.StringVar
         file_size: tk.StringVar
         meta_actors: tk.Variable
         meta_tags: tk.Variable
@@ -126,6 +127,7 @@ class App:
         self._selected_path = Path()
 
         self._vars = __class__._Vars(
+            file_path=tk.StringVar(root, name=TkVarNames.FILE_PATH),
             file_size=tk.StringVar(root, name=TkVarNames.FILE_SIZE),
             meta_actors=tk.Variable(root, name=TkVarNames.META_ACTORS),
             meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
@@ -174,7 +176,8 @@ class App:
                 self._selected_path = p
                 sidecar = MagicSidecar(p, __class__.METADATA_STREAM)
                 print(f"loading metadata for {p}")
-                self._vars.file_size.set(f"file size: {nice_bytesize(p.stat().st_size)}")
+                self._vars.file_path.set(f"path: {p}")
+                self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size)}")
                 self._vars.meta_size.set("metadata size: none")
                 self._metadata = deepcopy(__class__._EMPTY_METADATA)
 
