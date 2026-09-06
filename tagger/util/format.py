@@ -38,5 +38,8 @@ def nice_bytesize(size: int, largest_unit: str = "E", use_base2: bool = False, d
     u = "B"
     while v >= div:
         v /= div
-        u = units.pop() + ("iB" if use_base2 else "B")
-    return f"{round(v, decimals if decimals > 0 else None)}{u}"
+        u = units.pop()
+        if u == largest_unit:
+            break
+    u += "iB" if use_base2 else "B"
+    return f"{round(v, decimals if decimals > 0 else None)} {u}"

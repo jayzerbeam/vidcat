@@ -177,7 +177,7 @@ class App:
                 sidecar = MagicSidecar(p, __class__.METADATA_STREAM)
                 print(f"loading metadata for {p}")
                 self._vars.file_path.set(f"path: {p}")
-                self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size)}")
+                self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
                 self._vars.meta_size.set("metadata size: none")
                 self._metadata = deepcopy(__class__._EMPTY_METADATA)
 
