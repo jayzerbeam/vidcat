@@ -64,23 +64,28 @@ class VideoThumbnailer:
             raise ValueError(f"{self._path} has no video streams")
         vs = avcontainer.streams.video[0]
 
+        duration = vs.duration if vs.duration is not None else avcontainer.duration
+        if duration is None:
+            print(f"could not extract frames for {self._path.name}: does not have a duration")
+            return
+        if vs.time_base is None:
+            print(f"could not extract frames for {self._path.name}: does not have a time_base")
+            return
+
         if interval < 0:
-            interval = vs.duration / -interval  # type: ignore
+            interval = duration / -interval  # type: ignore
         else:
             interval = int(interval / vs.time_base)  # type: ignore
 
-        if not vs.duration or not vs.time_base:
-            return
-
         print(
-            f"{int(vs.duration * vs.time_base)} frames, {round(vs.duration * vs.time_base)}s, {float(vs.time_base):.2f}fps, interval {interval:.0f} ",
+            f"{int(duration * vs.time_base)} frames, {round(duration * vs.time_base)}s, {float(vs.time_base):.2f}fps, interval {interval:.0f} ",
             end="",
         )
 
         frames = []
         seek = 1 * vs.time_base
         progress_func(0.0)
-        while seek <= vs.duration:
+        while seek <= duration:
             avcontainer.seek(int(seek), stream=vs, backward=True, any_frame=False)
             frame = next(avcontainer.decode(vs))
             frames.append(
@@ -90,7 +95,7 @@ class VideoThumbnailer:
                     round(frame.pts * vs.time_base * 1000),
                 )
             )
-            progress_func(float(seek / vs.duration))
+            progress_func(float(seek / duration))
             print(".", end="")
             seek += interval
 
