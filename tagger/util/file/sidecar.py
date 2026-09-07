@@ -70,7 +70,9 @@ class MagicSidecar:
     def write(self, data: bytes) -> int:
         match platform.system():
             case Platform.WINDOWS:
-                self._sidecar_check()
+                if not hasattr(self, "_sidecar"):
+                    raise ValueError(f"no sidecare for {self._path}")
+
                 return self._sidecar.write_bytes(data)
 
             case Platform.LINUX | Platform.MAC:

@@ -234,9 +234,11 @@ class App:
             jpgs = vt.gen_jpgs()
             if jpgs is not None:
                 self._metadata["thumbnails"] = jpgs
-                self._widgets.mainframe.update_thumbs(jpgs)
 
-            self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
+            self._widgets.mainframe.event_generate(
+                BVEvent.GENERATE_THUMBS_COMPLETE
+            )  # widgets listen to this to remove their busy
+            self.update_widgets_from_metadata()
             self.status_window(False)
 
             """ a lot of buffers, objects, etc. are created here so invoking a garbage collection afterward seems
@@ -261,8 +263,8 @@ class App:
             self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
         except pickle.PickleError:
             print(f"failed to pickle metadata for {self._selected_path}")
-        except Exception:
-            print(f"failed to save metadata for {self._selected_path}")
+        except Exception as ex:
+            print(f"failed to save metadata for {self._selected_path}: {ex}")
 
     def _handle_scan_metadata(self, ev: tk.Event) -> None:
         self.status_window(True)

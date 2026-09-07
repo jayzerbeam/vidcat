@@ -85,7 +85,6 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         self._widgets.thumbnails.busy_hold(cursor=TkCursor.WAIT)
 
     def _handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
-        self.redraw_thumbs()
         if self._widgets.thumbnails.busy_status():
             self._widgets.thumbnails.busy_forget()
 
