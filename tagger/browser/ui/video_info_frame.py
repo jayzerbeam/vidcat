@@ -118,17 +118,19 @@ class VideoProperties(DataEvents, ttk.Frame):
             row1=row1,
             row2=row2,
             file_path=ttk.Label(row1, textvariable=tk.StringVar(name=TkVarNames.FILE_PATH)),
-            file_size=ttk.Label(row1, textvariable=tk.StringVar(name=TkVarNames.FILE_SIZE)),
+            file_size=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.FILE_SIZE)),
             dimensions=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.VIDEO_RES)),
             duration=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.VIDEO_LEN)),
             metadata_size=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.META_SIZE)),
         )
         self._widgets.row1.pack(fill=tk.X, side=tk.TOP)
         self._widgets.row2.pack(fill=tk.X, side=tk.TOP)
+        # row 1
         self._widgets.file_path.pack(ipadx=4, side=tk.LEFT)
-        self._widgets.file_size.pack(ipadx=4, side=tk.LEFT)
+        # row 2
         self._widgets.dimensions.pack(ipadx=4, side=tk.LEFT)
         self._widgets.duration.pack(ipadx=4, side=tk.LEFT)
+        self._widgets.file_size.pack(ipadx=4, side=tk.LEFT)
         self._widgets.metadata_size.pack(ipadx=4, side=tk.LEFT)
 
 

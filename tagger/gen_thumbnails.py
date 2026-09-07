@@ -49,7 +49,7 @@ class VideoMetadataer:
                 "thumbnails": [],
             }
 
-    def do_thumbnails(self, interval: int, thumb_height: int, overwrite: bool = True) -> None:
+    def do_thumbnails(self, interval: float, thumb_height: int, overwrite: bool = True) -> None:
         if not overwrite and self.metadata["thumbnails"]:
             return
 

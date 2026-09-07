@@ -176,7 +176,7 @@ class App:
                 self._selected_path = p
                 sidecar = MagicSidecar(p, __class__.METADATA_STREAM)
                 print(f"loading metadata for {p}")
-                self._vars.file_path.set(f"path: {p}")
+                self._vars.file_path.set(str(p))
                 self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
                 self._vars.meta_size.set("metadata size: none")
                 self._metadata = deepcopy(__class__._EMPTY_METADATA)
@@ -226,7 +226,7 @@ class App:
             self._metadata["video_properties"]["dimensions"] = vt.dimensions
             self._metadata["video_properties"]["duration"] = round(vt.duration, 2) if vt.duration is not None else 0
             vt.extract_frames(
-                interval=int(self._vars.thumb_interval.get()), progress_func=partial(_progress, "Extracting frames ")
+                interval=float(self._vars.thumb_interval.get()), progress_func=partial(_progress, "Extracting frames ")
             )
             vt.resize_frames(
                 resize_height=int(self._vars.thumb_height.get()), progress_func=partial(_progress, "Resizing frames")
