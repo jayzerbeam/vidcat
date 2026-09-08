@@ -143,6 +143,7 @@ class App:
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
         # self._widgets.mainframe.basepath = basepath
 
+        self._widgets.root.bind_all(VEvent.DIR_SELECT, func=self._handle_dir_selected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
         self._widgets.root.bind_all(BVEvent.GENERATE_THUMBS, func=self._handle_generate_thumbnails, add=True)
@@ -166,6 +167,14 @@ class App:
             self._trash_path = path
         else:
             print("trash directory is a file, could not initialize")
+
+    def _handle_dir_selected(self, ev: tk.Event) -> None:
+        self._vars.file_path.set("")
+        self._vars.file_size.set("size: none")
+        self._vars.meta_size.set("metadata size: none")
+        self._metadata = deepcopy(self._EMPTY_METADATA)
+        self._selected_path = Path("")
+        self.update_widgets_from_metadata()
 
     def _handle_file_selected(self, ev: tk.Event) -> None:
         tv = cast(ttk.Treeview, ev.widget)
@@ -355,8 +364,8 @@ class App:
         self._vars.meta_actors.set(self._metadata["actors"])
         self._vars.meta_tags.set(self._metadata["tags"])
         self._vars.video_len.set(f"length: {vlen}")
-        self._widgets.mainframe.update_thumbs(self._metadata["thumbnails"])
         self._vars.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
+        self._widgets.mainframe.update_thumbs(self._metadata["thumbnails"])
 
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(VID_EXTS)])

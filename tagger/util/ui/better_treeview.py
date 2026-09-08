@@ -107,15 +107,23 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         self._filters = []
         self._hidden_items = {}
 
-        def _click(evtype) -> None:
-            match evtype:
-                case "exec":
-                    self.treeview.event_generate(VirtualEventSequence.FILE_EXEC)
-                case "select" | _:
-                    self.treeview.event_generate(VirtualEventSequence.FILE_SELECT)
+        def _click(ev: tk.Event, type: str) -> None:
+            if len(self.treeview.selection()) == 0:
+                return
 
-        self.treeview.bind("<Double-Button-1>", lambda event: _click("exec"))
-        self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda event: _click("select"))
+            tags = self.treeview.item(self.treeview.selection()[0]).get("tags", [])
+            if "file" in tags:
+                match type:
+                    case "exec":
+                        self.treeview.event_generate(VirtualEventSequence.FILE_EXEC)
+                    case "select" | _:
+                        self.treeview.event_generate(VirtualEventSequence.FILE_SELECT)
+
+            if "dir" in tags:
+                self.treeview.event_generate(VirtualEventSequence.DIR_SELECT)
+
+        self.treeview.bind("<Double-Button-1>", lambda ev: _click(ev, "exec"))
+        self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda ev: _click(ev, "select"))
 
     def add_filter(self, regex: re.Pattern) -> None:
         if isinstance(regex, type(re.compile("null"))):
@@ -141,7 +149,7 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         _recurse("")
         return items
 
-    def fill_from_pathtree(self, root: PathTree) -> None:
+    def fill_from_pathtree(self, rootpt: PathTree) -> None:
         def _recurse(pt: PathTree, parent_iid: str) -> None:
             for d, child in pt.dirs():
                 if child.is_empty:
@@ -149,8 +157,8 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
 
                 iid = str(child.root.resolve())
                 self.treeview.insert(
-                    parent_iid,
-                    tk.END,
+                    parent=parent_iid,
+                    index=tk.END,
                     iid=iid,
                     text=f"[{d}]",
                     tags=["dir"],
@@ -159,15 +167,15 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
 
             for f in pt.files():
                 self.treeview.insert(
-                    parent_iid,
-                    tk.END,
+                    parent=parent_iid,
+                    index=tk.END,
                     iid=str(f.resolve()),
                     text=f.name,
                     tags=["file"],
                 )
 
         self.treeview.clear()
-        _recurse(root, "")
+        _recurse(rootpt, "")
 
     def hide(self, item) -> None:
         self._hidden_items[item] = self.treeview.parent(item)  # key => item, value => parent

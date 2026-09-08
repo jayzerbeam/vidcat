@@ -1,4 +1,6 @@
 add more arguments for ie. scan on start, etc.
 use config file
+rescan directory
+bind_all_with_data functionalit that just accepts the tkapp object
 move status bar inside main frame?
 multi-tagging?

@@ -75,9 +75,12 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             self._menu_iid = None
 
     def set_meta_column_vals(
-        self, item: str, duration: float, res: tuple[int, int], actors: StringListy, tags: StringListy
+        self, iid: str, duration: float, res: tuple[int, int], actors: StringListy, tags: StringListy
     ):
-        self.child.item(item, values=(clock_format(duration), f"{res[0]}x{res[1]}", ", ".join(actors), ", ".join(tags)))
+        if not self.child.exists(iid):
+            return
+
+        self.child.item(iid, values=(clock_format(duration), f"{res[0]}x{res[1]}", ", ".join(actors), ", ".join(tags)))
 
     def collapse_all(self) -> None:
         def _recurse(item: str):
