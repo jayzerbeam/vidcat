@@ -124,15 +124,18 @@ class PathTree:
         depth: int = 32,
         filters: Sequence[PathTreeFilter] | None = None,
     ) -> None:
-        for child in self._root.iterdir():
-            if filters is None or all(f(child) for f in filters):
-                if child.is_dir():
-                    gc = PathTree(root=child)
-                    if depth > 0:
-                        gc.scan(depth=depth - 1, filters=filters)
-                    self._dirs[child.name] = gc
-                else:
-                    self._files.append(child)
+        try:
+            for child in self._root.iterdir():
+                if filters is None or all(f(child) for f in filters):
+                    if child.is_dir():
+                        gc = PathTree(root=child)
+                        if depth > 0:
+                            gc.scan(depth=depth - 1, filters=filters)
+                        self._dirs[child.name] = gc
+                    else:
+                        self._files.append(child)
+        except (PermissionError, OSError) as ex:
+            print(f"error: could not access file while scanning: {ex}")
 
 
 def path_extension_filter(extensions: Sequence[str]) -> PathTreeFilter:
