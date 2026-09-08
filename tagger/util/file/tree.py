@@ -48,17 +48,26 @@ class PathTree:
     def is_empty(self) -> bool:
         return len(self._dirs) + len(self._files) == 0
 
-    def dig(self, relpath: Path) -> PathTree | None:
+    def dig(self, path: Path) -> PathTree | None:
         """Dig through the PathTree to find the PathTree of the relative Path.
         This is here for efficiency of creating a new PathTree and scanning the file system to fill it.
         If looking for a child file then Path.rglob() or the like is better as files in PathTree are pathlib.Path anyway."""
-        pt = self
-        for p in relpath.parts:
-            pt = pt.dir(p)
-            if pt == None:
-                return None
 
-        return None if pt is self else pt
+        if self._root.is_absolute() and not path.is_absolute():
+            path = path.absolute()
+
+        pt = self
+        try:
+            parts = path.relative_to(self._root).parts
+        except ValueError:
+            return None
+        else:
+            for p in parts:
+                pt = pt.dir(p)
+                if pt == None:
+                    return None
+
+            return None if pt is self else pt
 
     def remove(self, name: str) -> bool:
         """Remove a file or dir from the IMMEDIATE PathTree (use dig_and_remove for recursive).
@@ -78,12 +87,12 @@ class PathTree:
     def dig_and_remove(self, path: Path) -> bool:
         """Effectively .dig() then remove()
         NOTE: path.absolute() against PathTree.root.resolve() so using symlinks may have unintended side effects"""
-        if not path.exists():
-            raise FileNotFoundError("{path} does not exist")
+
+        if path.is_absolute() != self._root.is_absolute():
+            raise ValueError("PathTree path and path param must either both be absolute or not")
 
         try:
-            abspath = path.absolute()
-            parts = path.relative_to(self._root.resolve()).parts
+            parts = path.relative_to(self._root).parts
         except ValueError:
             return False
         else:
@@ -93,7 +102,7 @@ class PathTree:
             dug = self if len(parts) == 1 else self.dig(Path().joinpath(*parts[:-1]))
             if dug is None:
                 return False
-            dug.remove(abspath.name)
+            dug.remove(path.name)
 
         return False
 

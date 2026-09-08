@@ -155,7 +155,7 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
                 if child.is_empty:
                     continue
 
-                iid = str(child.root.resolve())
+                iid = str(child.root)
                 self.treeview.insert(
                     parent=parent_iid,
                     index=tk.END,
@@ -169,7 +169,7 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
                 self.treeview.insert(
                     parent=parent_iid,
                     index=tk.END,
-                    iid=str(f.resolve()),
+                    iid=str(f),
                     text=f.name,
                     tags=["file"],
                 )
