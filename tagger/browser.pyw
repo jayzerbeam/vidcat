@@ -152,6 +152,7 @@ class App:
         # bind_all_with_data is a Monkey patch but only on widgets, not root
         self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
         self._widgets.mainframe.bind_all_with_data(BVEvent.FILE_DELETE, func=self._handle_file_delete, add=True)
+        self._widgets.mainframe.bind_all_with_data(BVEvent.RESCAN_FILE_PATH, func=self._handle_rescan_files, add=True)
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._init_trash(basepath / __class__.TRASH_NAME)
@@ -218,6 +219,13 @@ class App:
 
     def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
         self.play_file(self._selected_path, startms=int(data))
+
+    def _handle_rescan_files(self, ev: tk.Event, data: str) -> None:
+        pt = self._pathtree.dig(Path(data))
+        if pt is not None:
+            pt.clear()
+            pt.scan(filters=[path_extension_filter(VID_EXTS)])
+            self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, data)
 
     def _handle_generate_thumbnails(self, ev: tk.Event) -> None:
         if self._selected_path is None or not self._selected_path.is_file():

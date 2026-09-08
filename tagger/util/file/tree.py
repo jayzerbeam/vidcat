@@ -48,6 +48,10 @@ class PathTree:
     def is_empty(self) -> bool:
         return len(self._dirs) + len(self._files) == 0
 
+    def clear(self) -> None:
+        self._dirs = {}
+        self._files = []
+
     def dig(self, path: Path) -> PathTree | None:
         """Dig through the PathTree to find the PathTree of the relative Path.
         This is here for efficiency of creating a new PathTree and scanning the file system to fill it.
@@ -117,15 +121,15 @@ class PathTree:
 
     def scan(
         self,
-        recursive: bool = True,
+        depth: int = 32,
         filters: Sequence[PathTreeFilter] | None = None,
     ) -> None:
         for child in self._root.iterdir():
             if filters is None or all(f(child) for f in filters):
                 if child.is_dir():
                     gc = PathTree(root=child)
-                    if recursive:
-                        gc.scan(recursive=recursive, filters=filters)
+                    if depth > 0:
+                        gc.scan(depth=depth - 1, filters=filters)
                     self._dirs[child.name] = gc
                 else:
                     self._files.append(child)

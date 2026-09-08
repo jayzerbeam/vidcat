@@ -39,9 +39,8 @@ class SortableTreeview(DataEvents, ttk.Treeview):
             del kw["sortable"]
         return super().config(*args, **kw)
 
-    def clear(self) -> None:
-        for item in self.get_children(""):
-            self.delete(item)
+    def clear(self, from_iid: str = ""):
+        self.delete(*self.get_children(from_iid))
 
     # TODO check out of bounds
     def sort_on_column(self, column: str) -> None:
@@ -149,7 +148,7 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         _recurse("")
         return items
 
-    def fill_from_pathtree(self, rootpt: PathTree) -> None:
+    def fill_from_pathtree(self, root_pt: PathTree, from_iid: str = "") -> None:
         def _recurse(pt: PathTree, parent_iid: str) -> None:
             for d, child in pt.dirs():
                 if child.is_empty:
@@ -174,8 +173,8 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
                     tags=["file"],
                 )
 
-        self.treeview.clear()
-        _recurse(rootpt, "")
+        self.treeview.clear(from_iid)
+        _recurse(root_pt, from_iid)
 
     def hide(self, item) -> None:
         self._hidden_items[item] = self.treeview.parent(item)  # key => item, value => parent
