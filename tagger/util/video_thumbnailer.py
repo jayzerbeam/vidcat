@@ -1,5 +1,6 @@
 import io
 from collections.abc import Callable, Sequence
+from contextlib import suppress
 from pathlib import Path
 
 import av
@@ -78,8 +79,7 @@ class VideoThumbnailer:
             interval = int(interval / vs.time_base)  # type: ignore
 
         print(
-            f"{int(duration * vs.time_base)} frames, {round(duration * vs.time_base)}s, {float(vs.time_base):.2f}fps, interval {interval:.0f} ",
-            end="",
+            f"{int(duration * vs.time_base)} frames, {round(duration * vs.time_base)}s, {float(vs.time_base):.2f}fps, interval {interval:.0f} "
         )
 
         frames = []
@@ -88,13 +88,12 @@ class VideoThumbnailer:
         while seek <= duration:
             avcontainer.seek(int(seek), stream=vs, backward=True, any_frame=False)
             frame = next(avcontainer.decode(vs))
-            frames.append(
-                (
-                    frame.to_image(),
-                    round(frame.pts / interval * vs.average_rate),
-                    round(frame.pts * vs.time_base * 1000),
-                )
-            )
+            frameno = framems = 0
+            with suppress(TypeError):
+                frameno = round(frame.pts / interval * vs.average_rate)
+            with suppress(TypeError):
+                framems = round(frame.pts * vs.time_base * 1000)
+            frames.append((frame.to_image(), frameno, framems))
             progress_func(float(seek / duration))
             print(".", end="")
             seek += interval
