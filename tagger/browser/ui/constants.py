@@ -12,7 +12,8 @@ class VirtualEventSequence(StrEnum):
     FILTERS_CLEAR = "<<FiltersClear>>"
     APPLY_HIGHHIGHT = "<<ApplyHighlight>>"
     FILE_DELETE = "<<FileDelete>>"
-    RESCAN_FILE_PATH = "<<RescanFilePath>>"
+    SCAN_PATH_FILES = "<<RescanPathFiles>>"
+    SCAN_PATH_METADATA = "<<ScanPathMetadata>>"
 
 
 class TkVarNames(StrEnum):

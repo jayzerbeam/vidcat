@@ -51,7 +51,14 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             file=tk.Menu(self, tearoff=0),
             dir=tk.Menu(self, tearoff=0),
         )
-        self._menus.dir.add_command(label="Rescan files from here", command=self._handle_rescan_pathtree)
+        self._menus.dir.add_command(
+            label="Scan files",
+            command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_FILES, data=self._menu_iid),
+        )
+        self._menus.dir.add_command(
+            label="Scan metadata",
+            command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_METADATA, data=self._menu_iid),
+        )
         self._menus.file.add_command(label="Remove", command=self._handle_file_delete)
 
     def _handle_right_click(self, ev: tk.Event) -> None:
@@ -72,9 +79,6 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
                 menu.tk_popup(ev.x_root, ev.y_root)
             finally:
                 menu.grab_release()
-
-    def _handle_rescan_pathtree(self) -> None:
-        self.event_generate(VirtualEventSequence.RESCAN_FILE_PATH, data=self._menu_iid)
 
     def _handle_file_delete(self):
         if self._menu_iid is not None:
