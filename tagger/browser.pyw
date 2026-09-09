@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+from contextlib import chdir
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
@@ -434,8 +435,10 @@ if __name__ == "__main__":
         print(f"{path} is not a directory")
         raise SystemExit
 
-    window = MessageWindow()
-    window.title(f"Video Browser ({path.resolve()})")
-    window.geometry("1200x1000")
-    app = App(window, path)
-    window.mainloop()
+    with chdir(path):
+        path = Path(".")
+        window = MessageWindow()
+        window.title(f"Video Browser ({path.resolve()})")
+        window.geometry("1200x1000")
+        app = App(window, path)
+        window.mainloop()
