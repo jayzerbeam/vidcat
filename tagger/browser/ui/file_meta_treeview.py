@@ -1,8 +1,8 @@
 import tkinter as tk
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Any, NamedTuple, cast
 
-from browser.ui.constants import VirtualEventSequence
+from browser.ui.constants import TkVarNames, VirtualEventSequence
 from util.format import clock_format
 from util.typing import StringListy
 from util.ui.better_treeview import FileTreeviewFrame
@@ -23,11 +23,24 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         dir: tk.Menu
         file: tk.Menu
 
-    _menus: _Menus
+    class _Vars(NamedTuple):
+        actors: tk.Variable
+        tags: tk.Variable
+
     _menu_iid: str | None
+    _menus: _Menus
+    _vars: _Vars
 
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, columns=("time", "res", "actors", "tags"), sortable=False, width=300, **kw)
+
+        self._vars = __class__._Vars(
+            actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
+            tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
+        )
+        self._vars.actors.trace_add(mode="write", callback=self.highlight_by_metadata)
+        self._vars.tags.trace_add(mode="write", callback=self.highlight_by_metadata)
+
         # disable propogation to set a treeview total width wider than the frame
         self.grid_propagate(False)
         self.pack_propagate(False)
@@ -88,7 +101,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
     def set_meta_column_vals(
         self, iid: str, duration: float, res: tuple[int, int], actors: StringListy, tags: StringListy
-    ):
+    ) -> None:
         if not self.child.exists(iid):
             return
 
@@ -104,14 +117,14 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
         _recurse("")
 
-    def apply_filters(self, actors: StringListy, tags: StringListy, operator: str = "AND"):
+    def apply_filters(self, actors: StringListy, tags: StringListy, operator: str = "AND") -> None:
         def _recurse(item):
             if self.treeview.tag_has("file", item):
                 itemconfig = self.treeview.item(item)
                 (item_actors, item_tags) = (
                     (
-                        itemconfig["values"][0].split(", "),
-                        itemconfig["values"][1].split(", "),
+                        itemconfig["values"][2].split(", "),
+                        itemconfig["values"][3].split(", "),
                     )
                     if len(itemconfig["values"])
                     else ([], [])
@@ -131,7 +144,11 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
         _recurse("")
 
-    def apply_highlight(self, actors: StringListy, tags: StringListy):
+    # def apply_highlight(self, actors: StringListy, tags: StringListy):
+    def highlight_by_metadata(self, *args: Any) -> None:
+        actors = self.winfo_toplevel().tk.splitlist(self._vars.actors.get())
+        tags = self.winfo_toplevel().tk.splitlist(self._vars.tags.get())
+
         def _highlight_item(item: str, highlighted: bool, see: bool = False):
             itemconfig = self.treeview.item(item)
             if "highlight" in itemconfig["tags"] and not highlighted:
@@ -154,8 +171,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
                 itemconfig = self.treeview.item(item)
                 (item_actors, item_tags) = (
                     (
-                        set(itemconfig["values"][0].split(", ")),
-                        set(itemconfig["values"][1].split(", ")),
+                        set(itemconfig["values"][2].split(", ")),
+                        set(itemconfig["values"][3].split(", ")),
                     )
                     if len(itemconfig["values"])
                     else (set(), set())

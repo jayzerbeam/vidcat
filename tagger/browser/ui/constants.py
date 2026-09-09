@@ -10,7 +10,6 @@ class VirtualEventSequence(StrEnum):
     FILTERS_AND = "<<FiltersAnd>>"
     FILTERS_OR = "<<FiltersOr>>"
     FILTERS_CLEAR = "<<FiltersClear>>"
-    APPLY_HIGHHIGHT = "<<ApplyHighlight>>"
     FILE_DELETE = "<<FileDelete>>"
     SCAN_PATH_FILES = "<<RescanPathFiles>>"
     SCAN_PATH_METADATA = "<<ScanPathMetadata>>"
@@ -19,6 +18,8 @@ class VirtualEventSequence(StrEnum):
 class TkVarNames(StrEnum):
     FILE_SIZE = "FILE_SIZE"
     FILE_PATH = "FILE_PATH"
+    HIGHLIGHTED_ACTORS = "HIGHLIGHTED_ACTORS"
+    HIGHLIGHTED_TAGS = "HIGHLIGHTED_TAGS"
     META_ACTORS = "METADATA_ACTORS"
     META_TAGS = "METADATA_TAGS"
     META_TITLE = "METADATA_TITLE"

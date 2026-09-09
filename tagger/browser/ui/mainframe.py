@@ -65,7 +65,6 @@ class MainFrame(DataEvents, ttk.Frame):
         self._widgets.filters.bind(VirtualEventSequence.FILTERS_AND, lambda event: self.apply_filters(operator="AND"))
         self._widgets.filters.bind(VirtualEventSequence.FILTERS_OR, lambda event: self.apply_filters(operator="OR"))
         self._widgets.filters.bind(VirtualEventSequence.FILTERS_CLEAR, self._handle_clear_filters)
-        self._widgets.filters.bind(VirtualEventSequence.APPLY_HIGHHIGHT, self._handle_apply_highlight)
 
     def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
         self._widgets.vidinfo.update_thumbs(thumbs)
@@ -74,13 +73,13 @@ class MainFrame(DataEvents, ttk.Frame):
         tv = self._widgets.filters._widgets.actors.treeview
         tv.clear()
         for i in sorted(items.keys()):
-            tv.insert("", tk.END, i, text=str(i), values=(items[i]))
+            tv.insert("", tk.END, i, text=str(i), values=(items[i],))
 
     def set_tags(self, items: dict) -> None:
         tv = self._widgets.filters._widgets.tags.treeview
         tv.clear()
         for i in sorted(items.keys()):
-            tv.insert("", tk.END, i, text=str(i), values=(items[i]))
+            tv.insert("", tk.END, i, text=str(i), values=(items[i],))
 
     def apply_filters(self, operator: str = "OR") -> None:
         self._widgets.filetree.apply_filters(
@@ -91,9 +90,3 @@ class MainFrame(DataEvents, ttk.Frame):
 
     def _handle_clear_filters(self, event: tk.Event) -> None:
         self._widgets.filetree.unhide_all()
-
-    def _handle_apply_highlight(self, event: tk.Event) -> None:
-        self._widgets.filetree.apply_highlight(
-            self._widgets.filters._widgets.actors.treeview.selection(),
-            self._widgets.filters._widgets.tags.treeview.selection(),
-        )

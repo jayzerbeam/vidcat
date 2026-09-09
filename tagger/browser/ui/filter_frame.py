@@ -1,9 +1,11 @@
+import tkinter as tk
 from tkinter import ttk
 from typing import NamedTuple
 
 from util.ui.better_treeview import ScrollableTreeviewFrame
 from util.ui.constants import VirtualEventSequence as VEvent
 
+from .constants import TkVarNames
 from .constants import VirtualEventSequence as BVEvent
 
 
@@ -17,9 +19,17 @@ class FilterFrame(ttk.Frame):
         actors: ScrollableTreeviewFrame
         tags: ScrollableTreeviewFrame
 
+    class _Vars(NamedTuple):
+        actors: tk.Variable
+        tags: tk.Variable
+
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
 
+        self._vars = __class__._Vars(
+            actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
+            tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
+        )
         actions = ttk.Frame(self)
         self._widgets: __class__._Widgets = __class__._Widgets(
             actions=actions,
@@ -42,17 +52,23 @@ class FilterFrame(ttk.Frame):
         self._widgets.filter_clear.config(command=lambda: self.event_generate(BVEvent.FILTERS_CLEAR))
         self._widgets.filter_clear.grid(column=3, row=0, sticky="E", padx=2, pady=2)
 
+        self._widgets.actors.grid(column=0, row=1, sticky="NSEW", padx=2, pady=2)
         self._widgets.actors.child.heading("#0", text="Actors")
         self._widgets.actors.child.heading("count", text="#")
         self._widgets.actors.child.column("count", minwidth=10, width=50, stretch=False)
-        self._widgets.actors.child.bind(VEvent.TREEVIEW_SELECT, lambda ev: self.event_generate(BVEvent.APPLY_HIGHHIGHT))
-        self._widgets.actors.grid(column=0, row=1, sticky="NSEW", padx=2, pady=2)
+        self._widgets.actors.child.bind(sequence=VEvent.TREEVIEW_SELECT, func=self._handle_actors_select)
         self._widgets.tags.child.heading("#0", text="Tags")
         self._widgets.tags.child.heading("count", text="#")
         self._widgets.tags.child.column("count", minwidth=10, width=50, stretch=False)
-        self._widgets.tags.child.bind(VEvent.TREEVIEW_SELECT, lambda ev: self.event_generate(BVEvent.APPLY_HIGHHIGHT))
+        self._widgets.tags.child.bind(VEvent.TREEVIEW_SELECT, self._handle_tags_select)
         self._widgets.tags.grid(column=1, row=1, sticky="NSEW", padx=2, pady=2)
 
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(1, weight=1)
+
+    def _handle_actors_select(self, ev: tk.Event) -> None:
+        self._vars.actors.set(self._widgets.actors.child.selection())
+
+    def _handle_tags_select(self, ev: tk.Event) -> None:
+        self._vars.tags.set(self._widgets.tags.child.selection())

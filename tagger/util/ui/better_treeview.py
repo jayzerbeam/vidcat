@@ -52,7 +52,7 @@ class SortableTreeview(DataEvents, ttk.Treeview):
         self._sort_dir = SortDir.DESC if self._sort_dir == SortDir.ASC else SortDir.ASC
         for item in self.get_children(""):
             itemconfig = self.item(item)
-            items.append((item, itemconfig["text"], itemconfig["values"]))
+            items.append((item, itemconfig["text"], *itemconfig["values"]))
             self.detach(item)
         items.sort(
             key=lambda item: item[int(column) + 1],
