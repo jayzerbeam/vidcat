@@ -72,7 +72,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             label="Scan metadata",
             command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_METADATA, data=self._menu_iid),
         )
-        self._menus.file.add_command(label="Remove", command=self._handle_file_delete)
+        self._menus.dir.add_command(label="Remove", command=self._handle_remove)
+        self._menus.file.add_command(label="Remove", command=self._handle_remove)
 
     def _handle_right_click(self, ev: tk.Event) -> None:
         iid = self.treeview.identify_row(ev.y)
@@ -85,6 +86,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             self._menus.file.entryconfigure(0, label=f"Remove {Path(iid).name}")
             menu = self._menus.file
         elif self.treeview.tag_has("dir", iid):
+            self._menus.dir.entryconfigure(2, label=f"Remove {Path(iid).name}")
             menu = self._menus.dir
 
         if menu is not None:
@@ -93,9 +95,9 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             finally:
                 menu.grab_release()
 
-    def _handle_file_delete(self):
+    def _handle_remove(self):
         if self._menu_iid is not None:
-            self.event_generate(VirtualEventSequence.FILE_DELETE, data=self._menu_iid)
+            self.event_generate(VirtualEventSequence.PATH_DELETE, data=self._menu_iid)
             self.treeview.delete(self._menu_iid)
             self._menu_iid = None
 

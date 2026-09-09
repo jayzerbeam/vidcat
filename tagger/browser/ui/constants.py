@@ -10,7 +10,7 @@ class VirtualEventSequence(StrEnum):
     FILTERS_AND = "<<FiltersAnd>>"
     FILTERS_OR = "<<FiltersOr>>"
     FILTERS_CLEAR = "<<FiltersClear>>"
-    FILE_DELETE = "<<FileDelete>>"
+    PATH_DELETE = "<<PathDelete>>"
     SCAN_PATH_FILES = "<<RescanPathFiles>>"
     SCAN_PATH_METADATA = "<<ScanPathMetadata>>"
 

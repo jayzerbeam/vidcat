@@ -152,7 +152,7 @@ class App:
         self._widgets.root.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
         # bind_all_with_data is a Monkey patch but only on widgets, not root
         self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
-        self._widgets.mainframe.bind_all_with_data(BVEvent.FILE_DELETE, func=self._handle_file_delete, add=True)
+        self._widgets.mainframe.bind_all_with_data(BVEvent.PATH_DELETE, func=self._handle_path_delete, add=True)
         self._widgets.mainframe.bind_all_with_data(BVEvent.SCAN_PATH_FILES, func=self._handle_scan_path_files, add=True)
         self._widgets.mainframe.bind_all_with_data(
             BVEvent.SCAN_PATH_METADATA, func=self._handle_scan_path_metadata, add=True
@@ -212,7 +212,7 @@ class App:
     def _handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
 
-    def _handle_file_delete(self, ev: tk.Event, data: str) -> None:
+    def _handle_path_delete(self, ev: tk.Event, data: str) -> None:
         """data is the treeview iid which is the file path"""
         if self._trash_path is None:
             return
