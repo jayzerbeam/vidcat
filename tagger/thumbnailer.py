@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Final
 
 from util.file.sidecar import MagicSidecar
-from util.video_thumbnailer import VideoThumbnailer
+from util.video import VideoThumbnailer
 
 VID_EXTS = (
     ".avi",

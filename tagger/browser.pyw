@@ -21,7 +21,7 @@ from util.format import nice_bytesize, nice_duration
 from util.ui.constants import TkCursor
 from util.ui.constants import VirtualEventSequence as VEvent
 from util.ui.message_system import MessageWindow
-from util.video_thumbnailer import VideoThumbnailer
+from util.video import VideoThumbnailer
 
 VID_EXTS: Final[tuple[str, ...]] = (
     ".avi",
