@@ -72,6 +72,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             label="Scan metadata",
             command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_METADATA, data=self._menu_iid),
         )
+        self._menus.dir.add_separator()
         self._menus.dir.add_command(label="Remove", command=self._handle_remove)
         self._menus.file.add_command(label="Remove", command=self._handle_remove)
 
@@ -86,7 +87,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             self._menus.file.entryconfigure(0, label=f"Remove {Path(iid).name}")
             menu = self._menus.file
         elif self.treeview.tag_has("dir", iid):
-            self._menus.dir.entryconfigure(2, label=f"Remove {Path(iid).name}")
+            self._menus.dir.entryconfigure(3, label=f"Remove {Path(iid).name}")
             menu = self._menus.dir
 
         if menu is not None:
