@@ -1,6 +1,8 @@
 import gc
 import os
 import pickle
+import platform
+import subprocess
 import sys
 import threading
 import time
@@ -12,7 +14,7 @@ from pathlib import Path
 from tkinter import StringVar, ttk
 from typing import Any, Final, NamedTuple, cast
 
-# from meta_editor import ThumbGen, VideoProperties
+from browser.config import CONFIG_NAME, Config
 from browser.ui import MainFrame, StatusWindow
 from browser.ui.constants import TkVarNames
 from browser.ui.constants import VirtualEventSequence as BVEvent
@@ -24,24 +26,8 @@ from util.ui.constants import VirtualEventSequence as VEvent
 from util.ui.message_system import MessageWindow
 from util.video import VideoThumbnailer
 
-VID_EXTS: Final[tuple[str, ...]] = (
-    ".avi",
-    ".mp4",
-    ".m4v",
-    ".mkv",
-    ".mpg",
-    ".mpeg",
-    ".wmv",
-    ".flv",
-    ".f4v",
-    ".mov",
-)
-
 
 class App:
-    VIDEO_PLAYER: Final[str] = "C:\\Program Files\\MPC-BE\\mpc-be64.exe"
-    METADATA_STREAM: Final[str] = "video_metadata"
-    TRASH_NAME: Final[str] = ".trash"
     _EMPTY_METADATA: Final[dict[str, Any]] = {
         "title": "",
         "video_properties": {"dimensions": (0, 0), "duration": 0},
@@ -50,6 +36,7 @@ class App:
         "thumbnails": [],
     }
 
+    _config: Config
     _pathtree: PathTree
     _trash_path: Path
     _metadata: dict[str, Any]
@@ -75,7 +62,8 @@ class App:
         video_len: StringVar
         video_res: StringVar
 
-    def __init__(self, root: tk.Tk, basepath: Path):
+    def __init__(self, root: tk.Tk, basepath: Path, config: Config):
+        self._config = config
         self._pathtree = PathTree(basepath)
         self._metadata = deepcopy(__class__._EMPTY_METADATA)
         self._file_meta_filters = {}
@@ -115,7 +103,7 @@ class App:
         )
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
-        self._init_trash(basepath / __class__.TRASH_NAME)
+        self._init_trash(config.trash_dir)
         self.update_filetree()
         self._widgets.mainframe._widgets.filetree.fill_from_pathtree(self._pathtree)
         self.status_window(False)
@@ -127,7 +115,8 @@ class App:
         if path.is_dir():
             self._trash_path = path
         else:
-            print("trash directory is a file, could not initialize")
+            # shouldn't happen, config does a trash path check
+            print("error:trash directory is not a directory, could not initialize")
 
     def _handle_dir_selected(self, ev: tk.Event) -> None:
         self._vars.file_path.set("")
@@ -144,7 +133,7 @@ class App:
             p = Path(tv.selection()[0])
             if p.is_file():
                 self._selected_path = p
-                sidecar = MagicSidecar(p, __class__.METADATA_STREAM)
+                sidecar = MagicSidecar(p, namespace=self._config.metadata_key)
                 print(f"loading metadata for {p}")
                 self._vars.file_path.set(str(p))
                 self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
@@ -178,13 +167,13 @@ class App:
         path.move(self._trash_path / path.name)
 
     def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
-        self.play_file(self._selected_path, startms=int(data))
+        self.play_file(self._selected_path, start_ms=int(data))
 
     def _handle_scan_path_files(self, ev: tk.Event, data: str) -> None:
         pt = self._pathtree.dig(Path(data))
         if pt is not None:
             pt.clear()
-            pt.scan(filters=[path_extension_filter(VID_EXTS)])
+            pt.scan(filters=[path_extension_filter(self._config.vid_exts)])
             self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, data)
 
     def _handle_scan_path_metadata(self, ev: tk.Event, data: str) -> None:
@@ -198,7 +187,7 @@ class App:
 
             for f in pt.files():
                 try:
-                    metadata = pickle.loads(MagicSidecar(f, __class__.METADATA_STREAM).read())
+                    metadata = pickle.loads(MagicSidecar(f, namespace=self._config.metadata_key).read())
                 except Exception as ex:
                     print(f"error: failed to load metadata for {f}: {ex}")
                 else:
@@ -260,7 +249,7 @@ class App:
         self.update_widgets_from_metadata()
         try:
             buf = pickle.dumps(self._metadata)
-            sidecar = MagicSidecar(self._selected_path, __class__.METADATA_STREAM)
+            sidecar = MagicSidecar(self._selected_path, namespace=self._config.metadata_key)
             sidecar.write(buf)
             self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
         except pickle.PickleError:
@@ -297,7 +286,7 @@ class App:
 
                 path = self._pathtree.root / item
                 if path.is_file():
-                    sidecar = MagicSidecar(path, namespace=__class__.METADATA_STREAM)
+                    sidecar = MagicSidecar(path, namespace=self._config.metadata_key)
                     if not sidecar.exists:
                         continue
 
@@ -327,19 +316,27 @@ class App:
 
         threading.Thread(target=_thread_entry, daemon=True).start()
 
-    def play_file(self, path: Path, startms: int = 0):
+    def play_file(self, path: Path, start_ms: int = 0):
         if not path.is_file():
             return
+        path = path.resolve()
 
-        os.spawnv(
-            os.P_NOWAIT,
-            __class__.VIDEO_PLAYER,
-            [
-                os.path.basename(__class__.VIDEO_PLAYER),
-                f'"{path}"',
-                f"/start {startms}",
-            ],
-        )
+        if self._config.vid_player is not None and self._config.vid_player.exists():
+            argv = [self._config.vid_player.name, f'"{path}"']
+            if len(self._config.vid_player_args) > 0:
+                argv.extend(
+                    s.replace("%t_ms", str(start_ms)).replace("%t_sec", str(start_ms / 1000))
+                    for s in self._config.vid_player_args
+                )
+            os.spawnv(os.P_NOWAIT, self._config.vid_player, argv)
+        else:
+            match platform.system():
+                case "Windows":
+                    os.startfile(path)
+                case "Darwin":
+                    subprocess.call(("open", path))
+                case _:  # linux
+                    subprocess.call(("xdg-open", path))
 
     def update_widgets_from_metadata(self) -> None:
         # todo don't reach down through widgets
@@ -361,7 +358,7 @@ class App:
         self._widgets.mainframe.update_thumbs(self._metadata["thumbnails"])
 
     def update_filetree(self) -> None:
-        self._pathtree.scan(filters=[path_extension_filter(VID_EXTS)])
+        self._pathtree.scan(filters=[path_extension_filter(self._config.vid_exts)])
 
     def status_window(self, active: bool) -> None:
         STATUS_SPACING: Final[int] = 80
@@ -391,10 +388,14 @@ if __name__ == "__main__":
         print(f"{path} is not a directory")
         raise SystemExit
 
+    cfgpath = (Path(__file__).parent / CONFIG_NAME).resolve()
     with chdir(path):
+        cfg = Config()
+        cfg.load(cfgpath)
+
         path = Path(".")
         window = MessageWindow()
         window.title(f"Video Browser ({path.resolve()})")
         window.geometry("1200x1000")
-        app = App(window, path)
+        app = App(window, basepath=path, config=cfg)
         window.mainloop()
