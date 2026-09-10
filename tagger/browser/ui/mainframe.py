@@ -70,6 +70,7 @@ class MainFrame(DataEvents, ttk.Frame):
         self._widgets.vidinfo.update_thumbs(thumbs)
 
     def set_actors(self, items: dict):
+        # TODO I don't like this, should find a better way
         tv = self._widgets.filters._widgets.actors.treeview
         tv.clear()
         for i in sorted(items.keys()):
