@@ -1,15 +1,19 @@
 {
 	"metadata_key_comment": "The json key used when saving metadata. Recommend NOT changing.",
 	"metadata_key": "video_metadata",
+	"thumb_height_comment": "The default pixel height for thumbnails.",
+	"thumb_height": 200,
+	"thumb_interval_comment": "Default interval for thumbnails. Positive is seconds, negative is fixed number.",
+	"thumb_interval": -30,
 	"trash_dir_comment": "Trash dir for removing files through the browser. Can be relative or absolute.",
 	"trash_dir": ".trash",
-	"vid_player_comment": "Path to your video player. Will be executed with the first argument as the path to video file. Leave blank to use system defined player",
+	"vid_player_comment": "Path to your video player. Will be executed with the first argument as the path to video file. Leave blank to use system defined player.",
 	"vid_player": "",
 	"vid_player_args_comment": "Arguments to pass to the vid_player. Only valid when vid_player is not empty. %t_sec and %t_ms will be substituted with times of the clicked frame",
 	"vid_player_args": [
 		"/start %t_ms"
 	],
-	"vid_exts_comment": "Whitelist of file extensions for the file tree",
+	"vid_exts_comment": "Whitelist of file extensions for the file tree.",
 	"vid_exts": [
 		".avi",
 		".mp4",

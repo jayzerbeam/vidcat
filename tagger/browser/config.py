@@ -3,6 +3,10 @@ from pathlib import Path
 from typing import Final
 
 CONFIG_NAME: Final[str] = "browser.cfg.json"
+DEFAULT_METADATA_KEY: Final[str] = "video_metadata"  # for the json within the sidecar files
+DEFAULT_THUMB_HEIGHT: Final[int] = 200
+DEFAULT_THUMB_INTERVAL: Final[int] = -30
+DEFAULT_TRASH_DIR: Final[str] = ".trash"  # can be absolute or relative
 DEFAULT_VID_EXTS: Final[tuple[str, ...]] = (
     ".avi",
     ".mp4",
@@ -15,29 +19,33 @@ DEFAULT_VID_EXTS: Final[tuple[str, ...]] = (
     ".f4v",
     ".mov",
 )
-DEFAULT_METADATA_KEY: Final[str] = "video_metadata"  # for the json within the sidecar files
-DEFAULT_TRASH_DIR: Final[str] = ".trash"  # can be absolute or relative
 
 
 class Config:
+    _metadata_key: str
+    _thumb_height: int
+    _thumb_interval: int
+    _trash_dir: Path
     _vid_exts: tuple[str, ...]
     _vid_player: Path | None
     _vid_player_args: tuple[str, ...]
-    _metadata_key: str
-    _trash_dir: Path
 
     def __init__(self) -> None:
+        self._metadata_key = DEFAULT_METADATA_KEY
+        self._thumb_height = DEFAULT_THUMB_HEIGHT
+        self._thumb_interval = DEFAULT_THUMB_INTERVAL
+        self._trash_dir = Path(DEFAULT_TRASH_DIR)
         self._vid_exts = DEFAULT_VID_EXTS
         self._vid_player = None
         self._vid_player_args = ()
-        self._metadata_key = DEFAULT_METADATA_KEY
-        self._trash_dir = Path(DEFAULT_TRASH_DIR)
 
     def load(self, path: Path) -> None:
         try:
             with path.open("r") as f:
                 data = json.load(f)
                 self._metadata_key = data.get("metadata_key", DEFAULT_METADATA_KEY)
+                self._thumb_height = data.get("thumb_height", DEFAULT_THUMB_HEIGHT)
+                self._thumb_interval = data.get("thumb_interval", DEFAULT_THUMB_INTERVAL)
 
                 self._trash_dir = Path(data.get("trash_dir", DEFAULT_TRASH_DIR))
                 if not self._trash_dir.is_dir():
@@ -57,6 +65,14 @@ class Config:
     @property
     def metadata_key(self) -> str:
         return self._metadata_key
+
+    @property
+    def thumb_height(self) -> int:
+        return self._thumb_height
+
+    @property
+    def thumb_interval(self) -> int:
+        return self._thumb_interval
 
     @property
     def trash_dir(self) -> Path:

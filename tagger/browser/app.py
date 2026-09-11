@@ -78,8 +78,8 @@ class App:
             meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
             meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
             meta_size=tk.StringVar(root, name=TkVarNames.META_SIZE),
-            thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value="-30"),
-            thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value="200"),
+            thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value=str(self._config.thumb_interval)),
+            thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value=str(self._config.thumb_height)),
             video_len=tk.StringVar(root, name=TkVarNames.VIDEO_LEN),
             video_res=tk.StringVar(root, name=TkVarNames.VIDEO_RES),
         )
