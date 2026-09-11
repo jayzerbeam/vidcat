@@ -3,8 +3,12 @@ from enum import StrEnum
 
 class VirtualEventSequence(StrEnum):
     PLAY_FROM_MS = "<<PalyFromMs>>"
-    GENERATE_THUMBS = "<<GenerateThumbs>>"
-    GENERATE_THUMBS_COMPLETE = "<<GenerateThumbsComplete>>"
+    GEN_THUMBS = "<<GenerateThumbs>>"
+    GEN_THUMBS_COMPLETE = "<<GenerateThumbsComplete>>"
+    GEN_ALL_THUMBS = "<<GenerateAllThumbs>>"
+    GEN_ALL_THUMBS_RECURSIVE = "<<GenerateAllThumbsRecursive>>"
+    GEN_MISSING_THUMBS = "<<GenerateMissingThumbs>>"
+    GEN_MISSING_THUMBS_RECURSIVE = "<<GenerateMissingThumbsRecursive>>"
     SCAN_METADATA = "<<ScanMetadata>>"
     SAVE_METADATA = "<<SaveMetadata>>"
     FILTERS_AND = "<<FiltersAnd>>"

@@ -20,7 +20,7 @@ class MagicSidecar:
     _sidecar: Path
     _namespace: str
 
-    def __init__(self, path: Path, namespace: str) -> None:
+    def __init__(self, path: Path, namespace: str):
         """Create a new magic sidecar file for path
 
         path: the the Path of the main file

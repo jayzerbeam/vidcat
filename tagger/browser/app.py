@@ -6,9 +6,11 @@ import subprocess
 import threading
 import time
 import tkinter as tk
+import traceback
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
+from queue import Queue
 from tkinter import StringVar, ttk
 from typing import Any, Final, NamedTuple, cast
 
@@ -17,7 +19,7 @@ from util.file.tree import PathTree, path_extension_filter
 from util.format import nice_bytesize, nice_duration
 from util.ui.constants import TkCursor
 from util.ui.constants import VirtualEventSequence as VEvent
-from util.video import VideoThumbnailer
+from util.video import ProgressFunc, VideoThumbnailer
 
 from .config import Config
 from .ui import MainFrame, StatusWindow
@@ -84,15 +86,26 @@ class App:
 
         self._widgets = __class__._Widgets(root=root, mainframe=MainFrame(root), status=StatusWindow(root))
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
-        # self._widgets.mainframe.basepath = basepath
 
         self._widgets.root.bind_all(VEvent.DIR_SELECT, func=self._handle_dir_selected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
-        self._widgets.root.bind_all(BVEvent.GENERATE_THUMBS, func=self._handle_generate_thumbnails, add=True)
+        self._widgets.root.bind_all(BVEvent.GEN_THUMBS, func=self._handle_gen_thumbs, add=True)
         self._widgets.root.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
         self._widgets.root.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
         # bind_all_with_data is a Monkey patch but only on widgets, not root
+        self._widgets.mainframe.bind_all_with_data(
+            BVEvent.GEN_MISSING_THUMBS, func=partial(self._handle_gen_thumbs_bulk, force=False, depth=0)
+        )
+        self._widgets.mainframe.bind_all_with_data(
+            BVEvent.GEN_MISSING_THUMBS_RECURSIVE, func=partial(self._handle_gen_thumbs_bulk, force=False, depth=16)
+        )
+        self._widgets.mainframe.bind_all_with_data(
+            BVEvent.GEN_ALL_THUMBS, func=partial(self._handle_gen_thumbs_bulk, force=True, depth=0)
+        )
+        self._widgets.mainframe.bind_all_with_data(
+            BVEvent.GEN_ALL_THUMBS_RECURSIVE, func=partial(self._handle_gen_thumbs_bulk, force=True, depth=16)
+        )
         self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
         self._widgets.mainframe.bind_all_with_data(BVEvent.PATH_DELETE, func=self._handle_path_delete, add=True)
         self._widgets.mainframe.bind_all_with_data(BVEvent.SCAN_PATH_FILES, func=self._handle_scan_path_files, add=True)
@@ -186,6 +199,8 @@ class App:
             for f in pt.files():
                 try:
                     metadata = pickle.loads(MagicSidecar(f, namespace=self._config.metadata_key).read())
+                except FileNotFoundError:
+                    pass
                 except Exception as ex:
                     print(f"error: failed to load metadata for {f}: {ex}")
                 else:
@@ -199,33 +214,89 @@ class App:
 
         threading.Thread(target=lambda: _recurse(pt), daemon=True).start()
 
-    def _handle_generate_thumbnails(self, ev: tk.Event) -> None:
+    def _handle_gen_thumbs_bulk(
+        self, ev: tk.Event, data: str, force: bool = False, depth: int = 0, *args, **kwargs
+    ) -> None:
+        pt = self._pathtree.dig(Path(data))
+        if pt is None:
+            return
+
+        fq = Queue()
+        self.status_window(True)
+        self._widgets.mainframe.busy_hold(cursor=TkCursor.WATCH)
+
+        def _recurse(pt: PathTree, depth: int) -> None:
+            if depth > 0:
+                for d, child in pt.dirs():
+                    _recurse(child, depth - 1)
+
+            for f in pt.files():
+                fq.put(f)
+
+        def _thread() -> None:
+            def _xprog(f: float) -> None:
+                self._widgets.status.progress = c / total + (1 / total * (0.5 * f))
+
+            def _rprog(f: float) -> None:
+                self._widgets.status.progress = c / total + (1 / total * (0.5 * f + 0.5))
+
+            total = fq.qsize()
+            c = 0
+
+            while not fq.empty():
+                f = fq.get()
+                try:
+                    sidecar = MagicSidecar(f, namespace=self._config.metadata_key)
+                    if sidecar.exists and force is False:
+                        continue
+                    self._widgets.status.info = f"[{c} / {total}] {f}"
+                    metadata = self._generate_metadata(f, extract_progress_func=_xprog, resize_progress_func=_rprog)
+                    sidecar.write(pickle.dumps(metadata))
+                    self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
+                        str(f),
+                        metadata["video_properties"]["duration"],
+                        metadata["video_properties"]["dimensions"],
+                        metadata["actors"],
+                        metadata["tags"],
+                    )
+                    c = total - fq.qsize()
+                    self._widgets.status.progress = c / total
+                except Exception as ex:
+                    print(f"error: failed to generate metadata for {f}: {ex}")
+                    traceback.print_exc()
+                    continue
+
+            self._widgets.mainframe.busy_forget()
+            self.status_window(False)
+
+        _recurse(pt, depth=depth)
+        threading.Thread(target=_thread, daemon=True).start()
+
+    def _handle_gen_thumbs(self, ev: tk.Event) -> None:
         if self._selected_path is None or not self._selected_path.is_file():
-            self._widgets.mainframe.event_generate(BVEvent.GENERATE_THUMBS_COMPLETE)
+            self._widgets.mainframe.event_generate(BVEvent.GEN_THUMBS_COMPLETE)
             return
 
         # probably not thread-safe
         def _thread_entry():
-            def _progress(prefix: str, p: float) -> None:
+            def _progress(p: float, prefix: str) -> None:
                 self._widgets.status.progress = p
                 self._widgets.status.info = f"{prefix} {p * 100:.1f}%"
 
-            vt = VideoThumbnailer(self._selected_path)
-            self._metadata["video_properties"] = {}
-            self._metadata["video_properties"]["dimensions"] = vt.dimensions
-            self._metadata["video_properties"]["duration"] = round(vt.duration, 2) if vt.duration is not None else 0
-            vt.extract_frames(
-                interval=float(self._vars.thumb_interval.get()), progress_func=partial(_progress, "Extracting frames ")
-            )
-            vt.resize_frames(
-                resize_height=int(self._vars.thumb_height.get()), progress_func=partial(_progress, "Resizing frames")
-            )
-            jpgs = vt.gen_jpgs()
-            if jpgs is not None:
-                self._metadata["thumbnails"] = jpgs
+            try:
+                metadata = self._generate_metadata(
+                    self._selected_path,
+                    extract_progress_func=partial(_progress, prefix="Extracting frames..."),
+                    resize_progress_func=partial(_progress, prefix="Resizing frames..."),
+                )
+            except Exception as ex:
+                print(f"error: failed to generate metadata for {self._selected_path}: {ex}")
+                traceback.print_exc()
+            else:
+                self._metadata = metadata
 
             self._widgets.mainframe.event_generate(
-                BVEvent.GENERATE_THUMBS_COMPLETE
+                BVEvent.GEN_THUMBS_COMPLETE
             )  # widgets listen to this to remove their busy
             self.update_widgets_from_metadata()
             self.status_window(False)
@@ -313,6 +384,25 @@ class App:
             self.status_window(False)
 
         threading.Thread(target=_thread_entry, daemon=True).start()
+
+    def _generate_metadata(
+        self,
+        path: Path,
+        extract_progress_func: ProgressFunc = lambda f: None,
+        resize_progress_func: ProgressFunc = lambda f: None,
+    ) -> dict[str, Any]:
+        metadata = deepcopy(__class__._EMPTY_METADATA)
+        vt = VideoThumbnailer(path)
+        metadata["video_properties"] = {}
+        metadata["video_properties"]["dimensions"] = vt.dimensions
+        metadata["video_properties"]["duration"] = round(vt.duration, 2) if vt.duration is not None else 0
+        vt.extract_frames(interval=float(self._vars.thumb_interval.get()), progress_func=extract_progress_func)
+        vt.resize_frames(resize_height=int(self._vars.thumb_height.get()), progress_func=resize_progress_func)
+        jpgs = vt.gen_jpgs()
+        if jpgs is not None:
+            metadata["thumbnails"] = jpgs
+
+        return metadata
 
     def play_file(self, path: Path, start_ms: int = 0):
         if not path.is_file():

@@ -58,7 +58,7 @@ class MainFrame(DataEvents, ttk.Frame):
             if event.keysym == "s":
                 self.event_generate(VirtualEventSequence.SAVE_METADATA)
             if event.keysym == "g":
-                self.event_generate(VirtualEventSequence.GENERATE_THUMBS)
+                self.event_generate(VirtualEventSequence.GEN_THUMBS)
 
         self.bind_all("<Control-KeyPress>", _ctrlkey)
 

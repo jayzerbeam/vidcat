@@ -21,6 +21,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
     class _Menus(NamedTuple):
         dir: tk.Menu
+        dir_scan: tk.Menu
+        dir_thumb: tk.Menu
         file: tk.Menu
 
     class _Vars(NamedTuple):
@@ -54,27 +56,48 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self.treeview.column("#2", minwidth=10, width=70, stretch=False)
         self.treeview.column("#3", minwidth=10, width=100, stretch=False)
         self.treeview.column("#4", minwidth=10, width=100, stretch=False)
-        # self.tag_configure('dir', background = '#EEE')
         self.treeview.tag_configure("highlight", background="#DFD")
         is_mac = self.winfo_toplevel().tk.call("tk", "windowingsystem") == "aqua"
         self.treeview.bind("<Button-2>" if is_mac else "<Button-3>", self._handle_right_click)
 
         self._menu_iid = None
         self._menus = __class__._Menus(
-            file=tk.Menu(self, tearoff=0),
             dir=tk.Menu(self, tearoff=0),
+            dir_scan=tk.Menu(self, tearoff=0),
+            dir_thumb=tk.Menu(self, tearoff=0),
+            file=tk.Menu(self, tearoff=0),
         )
-        self._menus.dir.add_command(
-            label="Scan files",
+        self._menus.dir_scan.add_command(
+            label="Files",
             command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_FILES, data=self._menu_iid),
         )
-        self._menus.dir.add_command(
-            label="Scan metadata",
+        self._menus.dir_scan.add_command(
+            label="Video Metadata",
             command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_METADATA, data=self._menu_iid),
         )
+        self._menus.dir_thumb.add_command(
+            label="missing",
+            command=lambda: self.event_generate(VirtualEventSequence.GEN_MISSING_THUMBS, data=self._menu_iid),
+        )
+        self._menus.dir_thumb.add_command(
+            label="missing (recursive)",
+            command=lambda: self.event_generate(VirtualEventSequence.GEN_MISSING_THUMBS_RECURSIVE, data=self._menu_iid),
+        )
+        self._menus.dir_thumb.add_command(
+            label="all",
+            command=lambda: self.event_generate(VirtualEventSequence.GEN_ALL_THUMBS, data=self._menu_iid),
+        )
+        self._menus.dir_thumb.add_command(
+            label="all (recursive)",
+            command=lambda: self.event_generate(VirtualEventSequence.GEN_ALL_THUMBS_RECURSIVE, data=self._menu_iid),
+        )
+
+        self._menus.dir.add_cascade(label="Reload...", menu=self._menus.dir_scan)
+        self._menus.dir.add_cascade(label="Generate thumbnails ...", menu=self._menus.dir_thumb)
         self._menus.dir.add_separator()
-        self._menus.dir.add_command(label="Remove", command=self._handle_remove)
-        self._menus.file.add_command(label="Remove", command=self._handle_remove)
+        self._menus.dir.add_command(label="Trash", command=self._handle_remove)
+
+        self._menus.file.add_command(label="Trash", command=self._handle_remove)
 
     def _handle_right_click(self, ev: tk.Event) -> None:
         iid = self.treeview.identify_row(ev.y)
@@ -84,10 +107,10 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self._menu_iid = iid
         menu = None
         if self.treeview.tag_has("file", iid):
-            self._menus.file.entryconfigure(0, label=f"Remove {Path(iid).name}")
+            self._menus.file.entryconfigure(0, label=f"Trash {Path(iid).name}")
             menu = self._menus.file
         elif self.treeview.tag_has("dir", iid):
-            self._menus.dir.entryconfigure(3, label=f"Remove {Path(iid).name}")
+            self._menus.dir.entryconfigure(3, label=f"Trash {Path(iid).name}")
             menu = self._menus.dir
 
         if menu is not None:
