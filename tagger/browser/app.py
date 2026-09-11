@@ -14,11 +14,11 @@ from queue import Queue
 from tkinter import StringVar, ttk
 from typing import Any, Final, NamedTuple, cast
 
+from ui.constants import TkCursor
+from ui.constants import VirtualEventSequence as VEvent
 from util.file.sidecar import MagicSidecar
 from util.file.tree import PathTree, path_extension_filter
 from util.format import nice_bytesize, nice_duration
-from util.ui.constants import TkCursor
-from util.ui.constants import VirtualEventSequence as VEvent
 from util.video import ProgressFunc, VideoThumbnailer
 
 from .config import Config

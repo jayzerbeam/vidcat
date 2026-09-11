@@ -7,10 +7,10 @@ from typing import NamedTuple
 from PIL import Image, ImageTk
 
 from browser.ui.constants import TkVarNames, VirtualEventSequence
-from util.ui.better_frames import ImagesFrame
-from util.ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
-from util.ui.constants import TkCursor
-from util.ui.tk_event_data import DataEvents
+from ui.better_frames import ImagesFrame
+from ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
+from ui.constants import TkCursor
+from ui.tk_event_data import DataEvents
 
 
 class VideoInfoFrame(DataEvents, ttk.Frame):

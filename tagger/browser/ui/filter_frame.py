@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 from typing import NamedTuple
 
-from util.ui.better_treeview import ScrollableTreeviewFrame
-from util.ui.constants import VirtualEventSequence as VEvent
+from ui.better_treeview import ScrollableTreeviewFrame
+from ui.constants import VirtualEventSequence as VEvent
 
 from .constants import TkVarNames
 from .constants import VirtualEventSequence as BVEvent

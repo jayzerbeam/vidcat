@@ -6,7 +6,7 @@ from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
 
-from util.ui.tk_event_data import DataEvents
+from ui.tk_event_data import DataEvents
 
 from .constants import VirtualEventSequence
 from .file_meta_treeview import FileMetaTreeviewFrame

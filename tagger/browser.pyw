@@ -5,7 +5,7 @@ from typing import Final
 
 from browser.app import App
 from browser.config import CONFIG_NAME, Config
-from util.ui.message_system import MessageWindow
+from ui.message_system import MessageWindow
 
 SCRIPT_DIR: Final[Path] = Path(__file__).parent
 

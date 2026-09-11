@@ -3,9 +3,9 @@ from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 from browser.ui.constants import TkVarNames, VirtualEventSequence
+from ui.better_treeview import FileTreeviewFrame
 from util.format import clock_format
 from util.typing import StringListy
-from util.ui.better_treeview import FileTreeviewFrame
 
 
 def any_in_list(s1: set, s2: set, case_sensitive: bool = False) -> bool:
