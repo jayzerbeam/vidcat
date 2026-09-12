@@ -1,3 +1,4 @@
+import traceback
 from datetime import timedelta
 
 
@@ -15,11 +16,16 @@ def nice_duration(seconds: int) -> str:
     return formatted.strip()
 
 
-def clock_format(seconds: float, with_decimal: bool = False) -> str:
-    s = str(timedelta(seconds=seconds)).removeprefix("0:")
-    if not with_decimal:
-        s = s.split(".")[0]
-    return s
+def clock_format(seconds: float, with_decimal: bool = False) -> str | None:
+    try:
+        s = str(timedelta(seconds=seconds)).removeprefix("0:")
+    except OverflowError:
+        traceback.print_exc()
+        return None
+    else:
+        if not with_decimal:
+            s = s.split(".")[0]
+        return s
 
 
 def nice_bytesize(size: int, largest_unit: str = "E", use_base2: bool = False, decimals: int = 0) -> str:
