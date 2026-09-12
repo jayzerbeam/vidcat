@@ -14,7 +14,7 @@ from ui.tk_event_data import DataEvents
 
 
 class VideoInfoFrame(DataEvents, ttk.Frame):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         props: VideoProperties
         title: LabeledEntry
         lists: ActorTagPane
@@ -23,7 +23,7 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         generate: ThumbGen
         save: ttk.Button
 
-    class _Vars(NamedTuple):
+    class __Vars(NamedTuple):
         title: StringVar
 
     _thumbs: tuple  # tuple[ImageTk.PhotoImage, int, int] | tuple[()]
@@ -33,12 +33,12 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         self._thumbs = ()
         self._play_from_ms = 0
 
-        self._vars = __class__._Vars(
+        self._vars = __class__.__Vars(
             title=StringVar(name=TkVarNames.META_TITLE),
         )
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
-        self._widgets = __class__._Widgets(
+        self._widgets = __class__.__Widgets(
             props=VideoProperties(self),
             title=LabeledEntry(
                 self,
@@ -98,7 +98,7 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
 
 
 class VideoProperties(DataEvents, ttk.Frame):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         row1: ttk.Frame
         row2: ttk.Frame
         file_path: ttk.Label
@@ -111,7 +111,7 @@ class VideoProperties(DataEvents, ttk.Frame):
         super().__init__(parent, *args, **kw)
         row1 = ttk.Frame(self)
         row2 = ttk.Frame(self)
-        self._widgets = __class__._Widgets(
+        self._widgets = __class__.__Widgets(
             row1=row1,
             row2=row2,
             file_path=ttk.Label(row1, textvariable=tk.StringVar(name=TkVarNames.FILE_PATH)),
@@ -132,7 +132,7 @@ class VideoProperties(DataEvents, ttk.Frame):
 
 
 class ActorTagPane(DataEvents, ttk.PanedWindow):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         actors: EditableList
         tags: EditableList
 
@@ -145,7 +145,7 @@ class ActorTagPane(DataEvents, ttk.PanedWindow):
             else:
                 return entry
 
-        self._widgets = __class__._Widgets(
+        self._widgets = __class__.__Widgets(
             actors=EditableList(
                 self,
                 "Actors",
@@ -183,12 +183,12 @@ class ActorTagPane(DataEvents, ttk.PanedWindow):
 
 
 class ThumbGen(DataEvents, ttk.Frame):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         interval: LabeledEntry
         height: LabeledEntry
         button: ttk.Button
 
-    class _Vars(NamedTuple):
+    class __Vars(NamedTuple):
         interval: StringVar
         height: StringVar
 
@@ -198,11 +198,11 @@ class ThumbGen(DataEvents, ttk.Frame):
             self.event_generate(VirtualEventSequence.GEN_THUMBS)
 
         super().__init__(parent, *args, **kw)
-        self._vars = __class__._Vars(
+        self._vars = __class__.__Vars(
             interval=StringVar(name="THUMB_INTERVAL"),
             height=StringVar(name="THUMB_HEIGHT"),
         )
-        self._widgets = __class__._Widgets(
+        self._widgets = __class__.__Widgets(
             interval=LabeledEntry(
                 self,
                 layout=LabeledEntryLayout.ONE_LINE,

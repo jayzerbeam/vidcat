@@ -4,7 +4,7 @@ from typing import NamedTuple
 
 
 class StatusWindow(tk.Toplevel):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         frame: ttk.Frame
         progress: ttk.Progressbar
         status: ttk.Label
@@ -18,7 +18,7 @@ class StatusWindow(tk.Toplevel):
 
         self.status_text = StringVar()
         frame = ttk.Frame(self)
-        self._widgets = __class__._Widgets(
+        self._widgets = __class__.__Widgets(
             frame=frame,
             progress=ttk.Progressbar(frame, maximum=1.0),
             status=ttk.Label(frame, textvariable=self.status_text),

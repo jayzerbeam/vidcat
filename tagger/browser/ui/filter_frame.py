@@ -10,7 +10,7 @@ from .constants import VirtualEventSequence as BVEvent
 
 
 class FilterFrame(ttk.Frame):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         actions: ttk.Frame
         scan: ttk.Button
         filter_and: ttk.Button
@@ -19,19 +19,19 @@ class FilterFrame(ttk.Frame):
         actors: ScrollableTreeviewFrame
         tags: ScrollableTreeviewFrame
 
-    class _Vars(NamedTuple):
+    class __Vars(NamedTuple):
         actors: tk.Variable
         tags: tk.Variable
 
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
 
-        self._vars = __class__._Vars(
+        self._vars = __class__.__Vars(
             actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
             tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
         )
         actions = ttk.Frame(self)
-        self._widgets: __class__._Widgets = __class__._Widgets(
+        self._widgets: __class__.__Widgets = __class__.__Widgets(
             actions=actions,
             scan=ttk.Button(actions, text="Scan"),
             filter_and=ttk.Button(actions, text="Filter AND"),

@@ -11,7 +11,7 @@ ScrollableWidget = tk.Canvas | ttk.Treeview | tk.Entry | tk.Listbox
 class ScrollableWidgetFrame[T: ScrollableWidget](DataEvents, ttk.Frame):
     _scroll_step: int
 
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         child: T
         xscrollbar: ttk.Scrollbar | None
         yscrollbar: ttk.Scrollbar | None
@@ -42,7 +42,7 @@ class ScrollableWidgetFrame[T: ScrollableWidget](DataEvents, ttk.Frame):
             yscroll.grid(column=1, row=0, sticky="NS")
             child.config(yscrollcommand=yscroll.set)
 
-        self._widgets = __class__._Widgets(child=child, xscrollbar=xscroll, yscrollbar=yscroll)
+        self._widgets = __class__.__Widgets(child=child, xscrollbar=xscroll, yscrollbar=yscroll)
 
         def _mwheel(ev: tk.Event) -> None:
             if yscrollable and hasattr(child, "yview"):  # this may automatically be handled

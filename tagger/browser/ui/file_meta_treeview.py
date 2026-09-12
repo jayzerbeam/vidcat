@@ -25,18 +25,18 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         dir_thumb: tk.Menu
         file: tk.Menu
 
-    class _Vars(NamedTuple):
+    class __Vars(NamedTuple):
         actors: tk.Variable
         tags: tk.Variable
 
     _menu_iid: str | None
     _menus: _Menus
-    _vars: _Vars
+    _vars: __Vars
 
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, columns=("time", "res", "actors", "tags"), sortable=False, width=300, **kw)
 
-        self._vars = __class__._Vars(
+        self._vars = __class__.__Vars(
             actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
             tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
         )
@@ -46,6 +46,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         # disable propogation to set a treeview total width wider than the frame
         self.grid_propagate(False)
         self.pack_propagate(False)
+        self.treeview.configure(selectmode=tk.EXTENDED)
         self.treeview.heading("#0", text="Path")
         self.treeview.heading("#1", text="Time")
         self.treeview.heading("#2", text="Res")

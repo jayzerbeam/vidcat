@@ -15,7 +15,7 @@ from .video_info_frame import VideoInfoFrame
 
 
 class MainFrame(DataEvents, ttk.Frame):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         pane: ttk.PanedWindow
         filetree: FileMetaTreeviewFrame
         tabs: ttk.Notebook
@@ -36,7 +36,7 @@ class MainFrame(DataEvents, ttk.Frame):
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         tabs = ttk.Notebook(pane)
-        self._widgets = __class__._Widgets(
+        self._widgets = __class__.__Widgets(
             pane=pane,
             filetree=FileMetaTreeviewFrame(pane),
             tabs=tabs,

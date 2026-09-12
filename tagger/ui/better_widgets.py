@@ -14,7 +14,7 @@ class LabeledEntryLayout(Enum):
 
 
 class LabeledEntry(DataEvents, ttk.Frame):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         label: ttk.Label
         entry: ttk.Entry
 
@@ -28,7 +28,7 @@ class LabeledEntry(DataEvents, ttk.Frame):
         **kw,
     ):
         super().__init__(parent, *args, **kw)
-        self._widgets = __class__._Widgets(
+        self._widgets = __class__.__Widgets(
             label=ttk.Label(self),
             entry=ttk.Entry(self),
         )
@@ -56,13 +56,13 @@ class LabeledEntry(DataEvents, ttk.Frame):
 
 
 class EditableList(DataEvents, tk.Frame):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         label: ttk.Label
         entry: ttk.Entry
         list: tk.Listbox
 
     _sorted: bool
-    _widgets: _Widgets
+    _widgets: __Widgets
     _entry_filter: Callable[[str], str]
 
     def __init__(
@@ -80,7 +80,7 @@ class EditableList(DataEvents, tk.Frame):
         if listboxconf is None:
             listboxconf = {}
 
-        self._widgets = __class__._Widgets(
+        self._widgets = __class__.__Widgets(
             label=ttk.Label(self, text=label),
             entry=ttk.Entry(self),
             list=tk.Listbox(self, height=0, width=0, **listboxconf),
@@ -164,13 +164,13 @@ class EditableList(DataEvents, tk.Frame):
 
 # somewhat inefficient: rebuilds the whole button widgets with any path change
 class FilePathSelector(DataEvents, ttk.Frame):
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         path_widgets: list[ttk.Widget]
 
     def __init__(self, parent, path=None):
         super().__init__(parent)
         self.path = path
-        self._widgets = __class__._Widgets(path_widgets=[])
+        self._widgets = __class__.__Widgets(path_widgets=[])
         if path:
             self.set_path(path)
 

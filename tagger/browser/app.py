@@ -45,12 +45,12 @@ class App:
     _all_actors: list[str]
     _selected_path: Path
 
-    class _Widgets(NamedTuple):
+    class __Widgets(NamedTuple):
         root: tk.Tk
         mainframe: MainFrame
         status: StatusWindow
 
-    class _Vars(NamedTuple):
+    class __Vars(NamedTuple):
         file_path: tk.StringVar
         file_size: tk.StringVar
         meta_actors: tk.Variable
@@ -71,7 +71,7 @@ class App:
         self._all_actors = []
         self._selected_path = Path()
 
-        self._vars = __class__._Vars(
+        self._vars = __class__.__Vars(
             file_path=tk.StringVar(root, name=TkVarNames.FILE_PATH),
             file_size=tk.StringVar(root, name=TkVarNames.FILE_SIZE),
             meta_actors=tk.Variable(root, name=TkVarNames.META_ACTORS),
@@ -84,7 +84,7 @@ class App:
             video_res=tk.StringVar(root, name=TkVarNames.VIDEO_RES),
         )
 
-        self._widgets = __class__._Widgets(root=root, mainframe=MainFrame(root), status=StatusWindow(root))
+        self._widgets = __class__.__Widgets(root=root, mainframe=MainFrame(root), status=StatusWindow(root))
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
 
         self._widgets.root.bind_all(VEvent.DIR_SELECT, func=self._handle_dir_selected, add=True)
