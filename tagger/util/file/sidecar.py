@@ -43,7 +43,7 @@ class MagicSidecar:
     def _sidecar_check(self) -> None:
         # this shouldn't ever happen
         if not hasattr(self, "_sidecar"):
-            raise ValueError(f"no sidecare for {self._path}")
+            raise ValueError(f"no sidecar for {self._path}")
 
         if not self._sidecar.exists():
             raise FileNotFoundError(f"{self._namespace} alternate data stream does not exist for {self._path}")

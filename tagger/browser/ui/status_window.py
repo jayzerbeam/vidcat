@@ -12,7 +12,7 @@ class StatusWindow(tk.Toplevel):
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
         self.overrideredirect(True)  # no titlebar, borders
-        self.resizable(False, False)
+        self.resizable(width=False, height=False)
         self.title("Status")
         self.group(parent)
 

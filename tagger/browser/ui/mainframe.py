@@ -45,7 +45,7 @@ class MainFrame(DataEvents, ttk.Frame):
         )
         self._widgets.pane.add(self._widgets.filetree)
         self._widgets.pane.add(self._widgets.tabs)
-        self._widgets.pane.pack(fill=tk.BOTH, expand=True)
+        self._widgets.pane.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
 
         self._widgets.tabs.add(self._widgets.filters, text="Filters")
         self._widgets.tabs.add(self._widgets.vidinfo, text="Video Info")

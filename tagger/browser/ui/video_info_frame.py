@@ -63,9 +63,9 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         self._widgets.title.grid(row=1, sticky="EW")
         self._widgets.pane.add(self._widgets.lists)
         self._widgets.pane.add(self._widgets.thumbnails)
-        self._widgets.pane.grid(row=2, column=0, sticky="NSEW", pady=4, padx=4)
-        self._widgets.generate.grid(row=3, column=0, sticky="EW", pady=4, padx=4)
-        self._widgets.save.grid(row=3, column=0, sticky="E", pady=4, padx=4, ipadx=4)
+        self._widgets.pane.grid(row=2, column=0, sticky="NSEW")
+        self._widgets.generate.grid(row=3, column=0, sticky="EW")
+        self._widgets.save.grid(row=3, column=0, sticky="E")
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)

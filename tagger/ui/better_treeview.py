@@ -121,8 +121,8 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
             if "dir" in tags:
                 self.treeview.event_generate(VirtualEventSequence.DIR_SELECT)
 
-        self.treeview.bind("<Double-Button-1>", lambda ev: _click(ev, "exec"))
-        self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda ev: _click(ev, "select"))
+        self.treeview.bind("<Double-Button-1>", lambda ev: _click(ev, "exec"), add=True)
+        self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda ev: _click(ev, "select"), add=True)
 
     def add_filter(self, regex: re.Pattern) -> None:
         if isinstance(regex, type(re.compile("null"))):

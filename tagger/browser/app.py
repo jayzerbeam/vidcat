@@ -8,10 +8,11 @@ import time
 import tkinter as tk
 import traceback
 from copy import deepcopy
+from enum import StrEnum
 from functools import partial
 from pathlib import Path
 from queue import Queue
-from tkinter import StringVar, ttk
+from tkinter import ttk
 from typing import Any, Final, NamedTuple, cast
 
 from ui.constants import TkCursor
@@ -22,9 +23,16 @@ from util.format import nice_bytesize, nice_duration
 from util.video import ProgressFunc, VideoThumbnailer
 
 from .config import Config
-from .ui import MainFrame, StatusWindow
+from .ui import InputWindow, MainFrame, StatusWindow
 from .ui.constants import TkVarNames
 from .ui.constants import VirtualEventSequence as BVEvent
+
+
+class BulkAction(StrEnum):
+    ADD_ACTOR = "ADD_ACTOR"
+    DEL_ACTOR = "DEL_ACTOR"
+    ADD_TAG = "ADD_TAG"
+    DEL_TAG = "DEL_TAG"
 
 
 class App:
@@ -49,18 +57,20 @@ class App:
         root: tk.Tk
         mainframe: MainFrame
         status: StatusWindow
+        input: InputWindow
 
     class __Vars(NamedTuple):
         file_path: tk.StringVar
         file_size: tk.StringVar
         meta_actors: tk.Variable
         meta_tags: tk.Variable
-        meta_title: StringVar
-        meta_size: StringVar
-        thumb_interval: StringVar
-        thumb_height: StringVar
-        video_len: StringVar
-        video_res: StringVar
+        meta_title: tk.StringVar
+        meta_size: tk.StringVar
+        selected_paths: tk.Variable
+        thumb_interval: tk.StringVar
+        thumb_height: tk.StringVar
+        video_len: tk.StringVar
+        video_res: tk.StringVar
 
     def __init__(self, root: tk.Tk, basepath: Path, config: Config):
         self._config = config
@@ -78,13 +88,19 @@ class App:
             meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
             meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
             meta_size=tk.StringVar(root, name=TkVarNames.META_SIZE),
+            selected_paths=tk.Variable(root, name=TkVarNames.SELECTED_PATHS),
             thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value=str(self._config.thumb_interval)),
             thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value=str(self._config.thumb_height)),
             video_len=tk.StringVar(root, name=TkVarNames.VIDEO_LEN),
             video_res=tk.StringVar(root, name=TkVarNames.VIDEO_RES),
         )
 
-        self._widgets = __class__.__Widgets(root=root, mainframe=MainFrame(root), status=StatusWindow(root))
+        self._widgets = __class__.__Widgets(
+            root=root,
+            mainframe=MainFrame(root),
+            status=StatusWindow(root),
+            input=InputWindow(root),
+        )
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
 
         self._widgets.root.bind_all(VEvent.DIR_SELECT, func=self._handle_dir_selected, add=True)
@@ -93,6 +109,18 @@ class App:
         self._widgets.root.bind_all(BVEvent.GEN_THUMBS, func=self._handle_gen_thumbs, add=True)
         self._widgets.root.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
         self._widgets.root.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
+        self._widgets.root.bind_all(
+            BVEvent.BULK_ADD_ACTOR, func=partial(self._handle_bulk_meta, action=BulkAction.ADD_ACTOR), add=True
+        )
+        self._widgets.root.bind_all(
+            BVEvent.BULK_DEL_ACTOR, func=partial(self._handle_bulk_meta, action=BulkAction.DEL_ACTOR), add=True
+        )
+        self._widgets.root.bind_all(
+            BVEvent.BULK_ADD_TAG, func=partial(self._handle_bulk_meta, action=BulkAction.ADD_TAG), add=True
+        )
+        self._widgets.root.bind_all(
+            BVEvent.BULK_DEL_TAG, func=partial(self._handle_bulk_meta, action=BulkAction.DEL_TAG), add=True
+        )
         # bind_all_with_data is a Monkey patch but only on widgets, not root
         self._widgets.mainframe.bind_all_with_data(
             BVEvent.GEN_MISSING_THUMBS, func=partial(self._handle_gen_thumbs_bulk, force=False, depth=0)
@@ -114,10 +142,13 @@ class App:
         )
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
+        self._widgets.input.transient(self._widgets.mainframe)  # type: ignore
+        self.input_window(False)
+        self.status_window(False)
+
         self._init_trash(config.trash_dir)
         self.update_filetree()
         self._widgets.mainframe._widgets.filetree.fill_from_pathtree(self._pathtree)
-        self.status_window(False)
 
     def _init_trash(self, path: Path) -> None:
         if not path.exists():
@@ -173,9 +204,19 @@ class App:
         if self._trash_path is None:
             return
 
-        path = Path(data)
-        self._pathtree.dig_and_remove(path)
-        path.move(self._trash_path / path.name)
+        files = tuple(
+            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(f).is_file()
+        )
+        if len(files) == 0:
+            return
+
+        for f in files:
+            # container folder may have been moved
+            if not f.exists():
+                continue
+
+            self._pathtree.dig_and_remove(f)
+            f.move(self._trash_path / f.name)
 
     def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
         self.play_file(self._selected_path, start_ms=int(data))
@@ -203,6 +244,7 @@ class App:
                     pass
                 except Exception as ex:
                     print(f"error: failed to load metadata for {f}: {ex}")
+                    traceback.print_exc()
                 else:
                     self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
                         str(f),
@@ -213,6 +255,77 @@ class App:
                     )
 
         threading.Thread(target=lambda: _recurse(pt), daemon=True).start()
+
+    def _handle_bulk_meta(self, ev: tk.Event, action: str) -> None:
+        files = tuple(
+            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(f).is_file()
+        )
+
+        match action:
+            case BulkAction.ADD_ACTOR:
+                self._widgets.input.title_text = "Add Actor"
+                self._widgets.input.label_text = "Enter actor to add"
+            case BulkAction.DEL_ACTOR:
+                self._widgets.input.title_text = "Remove Actor"
+                self._widgets.input.label_text = "Enter actor to remove"
+            case BulkAction.ADD_TAG:
+                self._widgets.input.title_text = "Add Tag"
+                self._widgets.input.label_text = "Enter tag to add"
+            case BulkAction.DEL_TAG:
+                self._widgets.input.title_text = "Remove Tag"
+                self._widgets.input.label_text = "Enter tag to remove"
+
+        val = self._widgets.input.block_for_input(parent=self._widgets.mainframe)
+        if val is None:
+            return
+
+        for f in files:
+            sidecar = MagicSidecar(f, namespace=self._config.metadata_key)
+            metadata = deepcopy(self._EMPTY_METADATA)
+            try:
+                metadata = pickle.loads(sidecar.read())
+            except FileNotFoundError:
+                pass
+            except Exception as ex:
+                print(f"error: failed to load metadata for {f}: {ex}")
+                traceback.print_exc()
+                continue
+
+            # sometimes the value is a tuple, coerce back to list
+            actors = list(metadata.get("actors", []))
+            tags = list(metadata.get("tags", []))
+            match action:
+                case BulkAction.ADD_ACTOR:
+                    if val not in actors:
+                        actors.append(val)
+                        metadata["actors"] = sorted(actors)
+                case BulkAction.DEL_ACTOR:
+                    actors.remove(val)
+                    metadata["actors"] = actors
+                case BulkAction.ADD_TAG:
+                    tag = val.lower()
+                    if tag not in tags:
+                        tags.append(tag)
+                        metadata["tags"] = sorted(tags)
+                case BulkAction.DEL_TAG:
+                    tags.remove(val.lower())
+                    metadata["tags"] = tags
+
+            try:
+                print(f"updating metdata for {f}")
+                sidecar.write(pickle.dumps(metadata))
+            except Exception as ex:
+                print(f"error: failed to write metadata for {f}: {ex}")
+                traceback.print_exc()
+                continue
+            else:
+                self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
+                    str(f),
+                    metadata["video_properties"]["duration"],
+                    metadata["video_properties"]["dimensions"],
+                    metadata["actors"],
+                    metadata["tags"],
+                )
 
     def _handle_gen_thumbs_bulk(
         self, ev: tk.Event, data: str, force: bool = False, depth: int = 0, *args, **kwargs
@@ -447,6 +560,18 @@ class App:
 
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(self._config.vid_exts)])
+
+    def update_selected_files_metadata(self, action: str, value: str) -> None:
+        pass
+
+    def input_window(self, active: bool, title: str = "", label: str = "") -> None:
+        if active:
+            self._widgets.input.title_text = title
+            self._widgets.input.label_text = label
+            self._widgets.input.update_idletasks()
+            self._widgets.input.block_for_input(parent=self._widgets.mainframe)
+        else:
+            self._widgets.input.withdraw()
 
     def status_window(self, active: bool) -> None:
         STATUS_SPACING: Final[int] = 80
