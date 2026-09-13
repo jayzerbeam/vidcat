@@ -33,6 +33,7 @@ class BulkAction(StrEnum):
     DEL_ACTOR = "DEL_ACTOR"
     ADD_TAG = "ADD_TAG"
     DEL_TAG = "DEL_TAG"
+    DEL_METADATA = "DEL_METADATA"
 
 
 class App:
@@ -120,6 +121,9 @@ class App:
         )
         self._widgets.root.bind_all(
             BVEvent.BULK_DEL_TAG, func=partial(self._handle_bulk_meta, action=BulkAction.DEL_TAG), add=True
+        )
+        self._widgets.root.bind_all(
+            BVEvent.BULK_DEL_METADATA, func=partial(self._handle_bulk_meta, action=BulkAction.DEL_METADATA), add=True
         )
         # bind_all_with_data is a Monkey patch but only on widgets, not root
         self._widgets.mainframe.bind_all_with_data(
@@ -276,57 +280,67 @@ class App:
                 self._widgets.input.title_text = "Remove Tag"
                 self._widgets.input.label_text = "Enter tag to remove"
 
-        val = self._widgets.input.block_for_input(parent=self._widgets.mainframe)
-        if val is None:
-            return
+        if action == BulkAction.DEL_METADATA:
+            for f in files:
+                try:
+                    MagicSidecar(f, namespace=self._config.metadata_key).delete()
+                except Exception as ex:
+                    print(f"error: failed to delete metadata for {f}: {ex}")
+                    traceback.print_exc()
+                else:
+                    self._widgets.mainframe._widgets.filetree.set_meta_column_vals(str(f), 0, (0, 0), [], [])
+        else:
+            val = self._widgets.input.block_for_input(parent=self._widgets.mainframe)
+            if val is None:
+                return
 
-        for f in files:
-            sidecar = MagicSidecar(f, namespace=self._config.metadata_key)
-            metadata = deepcopy(self._EMPTY_METADATA)
-            try:
-                metadata = pickle.loads(sidecar.read())
-            except FileNotFoundError:
-                pass
-            except Exception as ex:
-                print(f"error: failed to load metadata for {f}: {ex}")
-                traceback.print_exc()
-                continue
+            for f in files:
+                sidecar = MagicSidecar(f, namespace=self._config.metadata_key)
+                metadata = deepcopy(self._EMPTY_METADATA)
+                try:
+                    metadata = pickle.loads(sidecar.read())
+                except FileNotFoundError:
+                    pass
+                except Exception as ex:
+                    print(f"error: failed to load metadata for {f}: {ex}")
+                    traceback.print_exc()
+                    continue
 
-            # sometimes the value is a tuple, coerce back to list
-            actors = list(metadata.get("actors", []))
-            tags = list(metadata.get("tags", []))
-            match action:
-                case BulkAction.ADD_ACTOR:
-                    if val not in actors:
-                        actors.append(val)
-                        metadata["actors"] = sorted(actors)
-                case BulkAction.DEL_ACTOR:
-                    actors.remove(val)
-                    metadata["actors"] = actors
-                case BulkAction.ADD_TAG:
-                    tag = val.lower()
-                    if tag not in tags:
-                        tags.append(tag)
-                        metadata["tags"] = sorted(tags)
-                case BulkAction.DEL_TAG:
-                    tags.remove(val.lower())
-                    metadata["tags"] = tags
+                # sometimes the value is a tuple, coerce back to list
+                actors = list(metadata.get("actors", []))
+                tags = list(metadata.get("tags", []))
+                match action:
+                    case BulkAction.ADD_ACTOR:
+                        if val not in actors:
+                            actors.append(val)
+                            metadata["actors"] = sorted(actors)
+                    case BulkAction.DEL_ACTOR:
+                        actors.remove(val)
+                        metadata["actors"] = actors
+                    case BulkAction.ADD_TAG:
+                        tag = val.lower()
+                        if tag not in tags:
+                            tags.append(tag)
+                            metadata["tags"] = sorted(tags)
+                    case BulkAction.DEL_TAG:
+                        tags.remove(val.lower())
+                        metadata["tags"] = tags
 
-            try:
-                print(f"updating metdata for {f}")
-                sidecar.write(pickle.dumps(metadata))
-            except Exception as ex:
-                print(f"error: failed to write metadata for {f}: {ex}")
-                traceback.print_exc()
-                continue
-            else:
-                self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
-                    str(f),
-                    metadata["video_properties"]["duration"],
-                    metadata["video_properties"]["dimensions"],
-                    metadata["actors"],
-                    metadata["tags"],
-                )
+                try:
+                    print(f"updating metdata for {f}")
+                    sidecar.write(pickle.dumps(metadata))
+                except Exception as ex:
+                    print(f"error: failed to write metadata for {f}: {ex}")
+                    traceback.print_exc()
+                    continue
+                else:
+                    self._widgets.mainframe._widgets.filetree.set_meta_column_vals(
+                        str(f),
+                        metadata["video_properties"]["duration"],
+                        metadata["video_properties"]["dimensions"],
+                        metadata["actors"],
+                        metadata["tags"],
+                    )
 
     def _handle_gen_thumbs_bulk(
         self, ev: tk.Event, data: str, force: bool = False, depth: int = 0, *args, **kwargs

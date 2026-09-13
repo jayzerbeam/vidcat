@@ -7,6 +7,7 @@ class VirtualEventSequence(StrEnum):
     BULK_DEL_ACTOR = "<<BulkDelActor>>"
     BULK_ADD_TAG = "<<BulkAddTag>>"
     BULK_DEL_TAG = "<<BulkDelTag>>"
+    BULK_DEL_METADATA = "<<BulkDelMetadata>>"
     GEN_ALL_THUMBS = "<<GenerateAllThumbs>>"
     GEN_ALL_THUMBS_RECURSIVE = "<<GenerateAllThumbsRecursive>>"
     GEN_MISSING_THUMBS = "<<GenerateMissingThumbs>>"

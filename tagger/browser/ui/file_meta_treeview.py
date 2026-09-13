@@ -122,6 +122,10 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self._menus.file_meta.add_command(
             label="Del tag", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_TAG)
         )
+        self._menus.file_meta.add_separator()
+        self._menus.file_meta.add_command(
+            label="Clean", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_METADATA)
+        )
         self._menus.file.add_cascade(label="Metadata...", menu=self._menus.file_meta)
         self._menus.file.add_separator()
         self._menus.file.add_command(label="Trash", command=self._handle_remove)
