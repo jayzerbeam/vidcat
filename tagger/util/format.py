@@ -49,3 +49,15 @@ def nice_bytesize(size: int, largest_unit: str = "E", use_base2: bool = False, d
             break
     u += "iB" if use_base2 else "B"
     return f"{round(v, decimals if decimals > 0 else None)} {u}"
+
+
+def ellipsize(s: str, maxlen: int) -> str:
+    if len(s) <= maxlen:
+        return s
+    elif maxlen <= 3:  # too short for ellipses
+        return s[:maxlen]
+    else:
+        if maxlen % 2 == 1:
+            return s[0 : int(maxlen / 2 - 1)] + "..." + s[-int(maxlen / 2 - 1) :]
+        else:
+            return s[0 : int(maxlen / 2 - 1)] + "..." + s[-int(maxlen / 2 - 2) :]

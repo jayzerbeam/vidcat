@@ -203,20 +203,21 @@ class App:
         """data is the treeview iid which is the file path"""
         if self._trash_path is None:
             return
-
-        files = tuple(
-            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(f).is_file()
+        paths = tuple(
+            Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(p).exists()
         )
-        if len(files) == 0:
+        # paths = tuple(Path(p) for p in literal_eval(data) if Path(p).is_file())
+
+        if len(paths) == 0:
             return
 
-        for f in files:
+        for p in paths:
             # container folder may have been moved
-            if not f.exists():
+            if not p.exists():
                 continue
 
-            self._pathtree.dig_and_remove(f)
-            f.move(self._trash_path / f.name)
+            self._pathtree.dig_and_remove(p)
+            p.move(self._trash_path / p.name)
 
     def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
         self.play_file(self._selected_path, start_ms=int(data))
