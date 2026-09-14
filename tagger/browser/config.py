@@ -46,10 +46,7 @@ class Config:
                 self._metadata_key = data.get("metadata_key", DEFAULT_METADATA_KEY)
                 self._thumb_height = data.get("thumb_height", DEFAULT_THUMB_HEIGHT)
                 self._thumb_interval = data.get("thumb_interval", DEFAULT_THUMB_INTERVAL)
-
                 self._trash_dir = Path(data.get("trash_dir", DEFAULT_TRASH_DIR))
-                if not self._trash_dir.is_dir():
-                    self._trash_dir = Path(DEFAULT_TRASH_DIR)
 
                 if "vid_player" in data and Path(data["vid_player"]).exists():
                     self._vid_player = Path(data["vid_player"])
