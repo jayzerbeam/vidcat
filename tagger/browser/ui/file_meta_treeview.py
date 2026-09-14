@@ -21,11 +21,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
     """A FileTreeviewFrame that adds columns and functionality for actors and tags"""
 
     class _Menus(NamedTuple):
-        dir: tk.Menu
-        dir_scan: tk.Menu
-        dir_thumb: tk.Menu
-        file: tk.Menu
-        file_meta: tk.Menu
+        context: tk.Menu
+        context_meta: tk.Menu
 
     class __Vars(NamedTuple):
         actors: tk.Variable
@@ -71,64 +68,45 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         )
 
         self._clicked_iid = None
+        ctxmenu = tk.Menu(self, tearoff=0)
         self._menus = __class__._Menus(
-            dir=tk.Menu(self, tearoff=0),
-            dir_scan=tk.Menu(self, tearoff=0),
-            dir_thumb=tk.Menu(self, tearoff=0),
-            file=tk.Menu(self, tearoff=0),
-            file_meta=tk.Menu(self, tearoff=0),
+            context=ctxmenu,
+            context_meta=tk.Menu(ctxmenu, tearoff=0),
         )
-        self._menus.dir_scan.add_command(
-            label="Files",
+        self._menus.context.add_command(label="[info]")
+        self._menus.context.add_separator()
+        self._menus.context.add_command(
+            label="Refresh files",
             command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_FILES, data=self._clicked_iid),
         )
-        self._menus.dir_scan.add_command(
-            label="Video Metadata",
+        self._menus.context.add_command(
+            label="Refresh metadata",
             command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_METADATA, data=self._clicked_iid),
         )
-        self._menus.dir_thumb.add_command(
-            label="missing",
-            command=lambda: self.event_generate(VirtualEventSequence.GEN_MISSING_THUMBS, data=self._clicked_iid),
-        )
-        self._menus.dir_thumb.add_command(
-            label="missing (recursive)",
-            command=lambda: self.event_generate(
-                VirtualEventSequence.GEN_MISSING_THUMBS_RECURSIVE, data=self._clicked_iid
-            ),
-        )
-        self._menus.dir_thumb.add_command(
-            label="all",
-            command=lambda: self.event_generate(VirtualEventSequence.GEN_ALL_THUMBS, data=self._clicked_iid),
-        )
-        self._menus.dir_thumb.add_command(
-            label="all (recursive)",
-            command=lambda: self.event_generate(VirtualEventSequence.GEN_ALL_THUMBS_RECURSIVE, data=self._clicked_iid),
-        )
+        self._menus.context.add_separator()
+        self._menus.context.add_cascade(label="Metadata...", menu=self._menus.context_meta)
+        self._menus.context.add_separator()
+        self._menus.context.add_command(label="Send to trash", command=self._handle_remove)
 
-        self._menus.dir.add_cascade(label="Reload...", menu=self._menus.dir_scan)
-        self._menus.dir.add_cascade(label="Generate thumbnails...", menu=self._menus.dir_thumb)
-        self._menus.dir.add_separator()
-        self._menus.dir.add_command(label="Trash", command=self._handle_remove)
-
-        self._menus.file_meta.add_command(
+        self._menus.context_meta.add_command(
             label="Add actor", command=lambda: self.event_generate(VirtualEventSequence.BULK_ADD_ACTOR)
         )
-        self._menus.file_meta.add_command(
+        self._menus.context_meta.add_command(
             label="Del actor", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_ACTOR)
         )
-        self._menus.file_meta.add_command(
+        self._menus.context_meta.add_command(
             label="Add tag", command=lambda: self.event_generate(VirtualEventSequence.BULK_ADD_TAG)
         )
-        self._menus.file_meta.add_command(
+        self._menus.context_meta.add_command(
             label="Del tag", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_TAG)
         )
-        self._menus.file_meta.add_separator()
-        self._menus.file_meta.add_command(
+        self._menus.context_meta.add_command(
+            label="Generate Thumbnails", command=lambda: self.event_generate(VirtualEventSequence.BULK_GEN_THUMBS)
+        )
+        self._menus.context_meta.add_separator()
+        self._menus.context_meta.add_command(
             label="Clean", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_METADATA)
         )
-        self._menus.file.add_cascade(label="Metadata...", menu=self._menus.file_meta)
-        self._menus.file.add_separator()
-        self._menus.file.add_command(label="Trash", command=self._handle_remove)
 
     def _handle_right_click(self, ev: tk.Event) -> None:
         iid = self.treeview.identify_row(ev.y)
@@ -139,23 +117,25 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             self._vars.selected_paths.set(self.treeview.selection())
 
         self._clicked_iid = iid
-        menu = None
         if len(self.treeview.selection()) == 1:
             item_display_text = ellipsize(Path(iid).name, 32)
+            if self.treeview.tag_has("dir", iid):
+                item_display_text = "[" + item_display_text + "]"
         else:
             item_display_text = f"<{len(self.treeview.selection())} items>"
-        if self.treeview.tag_has("file", iid):
-            self._menus.file.entryconfigure(2, label=f"Trash {item_display_text}")
-            menu = self._menus.file
-        elif self.treeview.tag_has("dir", iid):
-            self._menus.dir.entryconfigure(3, label=f"Trash {item_display_text}")
-            menu = self._menus.dir
+        self._menus.context.entryconfigure(0, label=f"{item_display_text}")
 
-        if menu is not None:
-            try:
-                menu.tk_popup(ev.x_root, ev.y_root)
-            finally:
-                menu.grab_release()
+        if not self.treeview.tag_has("dir", iid):
+            self._menus.context.entryconfigure(2, state=tk.DISABLED)
+            self._menus.context.entryconfigure(3, state=tk.DISABLED)
+        else:
+            self._menus.context.entryconfigure(2, state=tk.ACTIVE)
+            self._menus.context.entryconfigure(3, state=tk.ACTIVE)
+
+        try:
+            self._menus.context.tk_popup(ev.x_root, ev.y_root)
+        finally:
+            self._menus.context.grab_release()
 
     def _handle_remove(self):
         if len(self.treeview.selection()) == 0:
@@ -167,7 +147,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             iid = self.treeview.selection()[0]
             self.treeview.delete(iid)
 
-    def set_meta_column_vals(
+    def update_item_cols(
         self, iid: str, duration: float, res: tuple[int, int], actors: StringListy, tags: StringListy
     ) -> None:
         if not self.child.exists(iid):

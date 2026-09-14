@@ -92,13 +92,12 @@ class InputWindow(tk.Toplevel):
 
     def block_for_input(self, parent: tk.Widget) -> str | None:
         self._widgets.entry.delete(0, tk.END)
-        self._widgets.entry.focus_set()
         self.deiconify()
         self.update_idletasks()
         self.grab_set()
-        if parent:
-            self.lift(parent)
-            parent.wait_variable(self._vars.input)
+        self.lift(parent)
+        self._widgets.entry.focus_set()
+        parent.wait_variable(self._vars.input)
         self.grab_release()
 
         return None if not self._closed_ok else self._vars.input.get()
