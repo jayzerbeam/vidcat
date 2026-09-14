@@ -27,6 +27,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
     class __Vars(NamedTuple):
         actors: tk.Variable
         tags: tk.Variable
+        clicked_path: tk.StringVar
         selected_paths: tk.Variable
 
     _clicked_iid: str | None
@@ -39,6 +40,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self._vars = __class__.__Vars(
             actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
             tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
+            clicked_path=tk.StringVar(name=TkVarNames.CLICKED_PATH),
             selected_paths=tk.Variable(name=TkVarNames.SELECTED_PATHS),
         )
         self._vars.actors.trace_add(mode="write", callback=self.highlight_by_metadata)
@@ -60,6 +62,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self.treeview.column("#4", minwidth=10, width=100, stretch=False)
         self.treeview.tag_configure("highlight", background="#DFD")
         is_mac = self.winfo_toplevel().tk.call("tk", "windowingsystem") == "aqua"
+        self.treeview.bind("<Button-1>", self._handle_click)
         self.treeview.bind("<Button-2>" if is_mac else "<Button-3>", self._handle_right_click)
         self.treeview.bind(
             TKVES.TREEVIEW_SELECT,
@@ -76,12 +79,10 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self._menus.context.add_command(label="[info]")
         self._menus.context.add_separator()
         self._menus.context.add_command(
-            label="Refresh files",
-            command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_FILES, data=self._clicked_iid),
+            label="Refresh files", command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_FILES)
         )
         self._menus.context.add_command(
-            label="Refresh metadata",
-            command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_METADATA, data=self._clicked_iid),
+            label="Refresh metadata", command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_METADATA)
         )
         self._menus.context.add_separator()
         self._menus.context.add_cascade(label="Metadata...", menu=self._menus.context_meta)
@@ -108,6 +109,13 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             label="Clean", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_METADATA)
         )
 
+    def _handle_click(self, ev: tk.Event) -> None:
+        iid = self.treeview.identify_row(ev.y)
+        if iid is None:
+            return
+        self._vars.clicked_path.set(iid)
+        self._clicked_iid = iid
+
     def _handle_right_click(self, ev: tk.Event) -> None:
         iid = self.treeview.identify_row(ev.y)
         if iid is None:
@@ -117,6 +125,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             self._vars.selected_paths.set(self.treeview.selection())
 
         self._clicked_iid = iid
+        self._vars.clicked_path.set(iid)
         if len(self.treeview.selection()) == 1:
             item_display_text = ellipsize(Path(iid).name, 32)
             if self.treeview.tag_has("dir", iid):
@@ -142,7 +151,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             return
 
         self._vars.selected_paths.set(self.treeview.selection())
-        self.event_generate(VirtualEventSequence.PATH_DELETE, data=self.treeview.selection())
+        self.event_generate(VirtualEventSequence.PATH_DELETE)
         while len(self.treeview.selection()) > 0:
             iid = self.treeview.selection()[0]
             self.treeview.delete(iid)

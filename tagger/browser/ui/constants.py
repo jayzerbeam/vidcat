@@ -32,6 +32,7 @@ class TkVarNames(StrEnum):
     # treeview related
     HIGHLIGHTED_ACTORS = "HIGHLIGHTED_ACTORS"
     HIGHLIGHTED_TAGS = "HIGHLIGHTED_TAGS"
+    CLICKED_PATH = "CLICKED_PATH"
     SELECTED_PATHS = "SELECTED_PATHS"
 
     # video props/metadata

@@ -68,6 +68,7 @@ class App:
         meta_tags: tk.Variable
         meta_title: tk.StringVar
         meta_size: tk.StringVar
+        clicked_path: tk.StringVar
         selected_paths: tk.Variable
         thumb_interval: tk.StringVar
         thumb_height: tk.StringVar
@@ -90,6 +91,7 @@ class App:
             meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
             meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
             meta_size=tk.StringVar(root, name=TkVarNames.META_SIZE),
+            clicked_path=tk.StringVar(root, name=TkVarNames.CLICKED_PATH),
             selected_paths=tk.Variable(root, name=TkVarNames.SELECTED_PATHS),
             thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value=str(self._config.thumb_interval)),
             thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value=str(self._config.thumb_height)),
@@ -125,13 +127,11 @@ class App:
         )
         self._widgets.root.bind_all(BVEvent.BULK_GEN_THUMBS, func=self._handle_bulk_thumbs, add=True)
         self._widgets.root.bind_all(BVEvent.BULK_DEL_METADATA, func=self._handle_bulk_del_meta, add=True)
+        self._widgets.root.bind_all(BVEvent.PATH_DELETE, func=self._handle_path_delete, add=True)
+        self._widgets.root.bind_all(BVEvent.SCAN_PATH_FILES, func=self._handle_scan_path_files, add=True)
+        self._widgets.root.bind_all(BVEvent.SCAN_PATH_METADATA, func=self._handle_scan_path_metadata, add=True)
         # bind_all_with_data is a Monkey patch but only on widgets, not root
         self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
-        self._widgets.mainframe.bind_all_with_data(BVEvent.PATH_DELETE, func=self._handle_path_delete, add=True)
-        self._widgets.mainframe.bind_all_with_data(BVEvent.SCAN_PATH_FILES, func=self._handle_scan_path_files, add=True)
-        self._widgets.mainframe.bind_all_with_data(
-            BVEvent.SCAN_PATH_METADATA, func=self._handle_scan_path_metadata, add=True
-        )
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.input.transient(self._widgets.mainframe)  # type: ignore
@@ -191,14 +191,13 @@ class App:
     def _handle_file_exec(self, ev: tk.Event) -> None:
         self.play_file(self._selected_path)
 
-    def _handle_path_delete(self, ev: tk.Event, data: str) -> None:
+    def _handle_path_delete(self, ev: tk.Event) -> None:
         """data is the treeview iid which is the file path"""
         if self._trash_path is None:
             return
         paths = tuple(
             Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(p).exists()
         )
-        # paths = tuple(Path(p) for p in literal_eval(data) if Path(p).is_file())
 
         if len(paths) == 0:
             return
@@ -214,15 +213,16 @@ class App:
     def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
         self.play_file(self._selected_path, start_ms=int(data))
 
-    def _handle_scan_path_files(self, ev: tk.Event, data: str) -> None:
-        pt = self._pathtree.dig(Path(data))
+    def _handle_scan_path_files(self, ev: tk.Event) -> None:
+        iid = self._vars.clicked_path.get()
+        pt = self._pathtree.dig(Path(iid))
         if pt is not None:
             pt.clear()
             pt.scan(filters=[path_extension_filter(self._config.vid_exts)])
-            self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, data)
+            self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, iid)
 
-    def _handle_scan_path_metadata(self, ev: tk.Event, data: str) -> None:
-        pt = self._pathtree.dig(Path(data))
+    def _handle_scan_path_metadata(self, ev: tk.Event) -> None:
+        pt = self._pathtree.dig(Path(self._vars.clicked_path.get()))
         if pt is None:
             return
 
