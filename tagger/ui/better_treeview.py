@@ -25,13 +25,13 @@ class SortableTreeview(DataEvents, ttk.Treeview):
         self._sortable = sortable
         super().__init__(parent, *args, **kwargs)
 
-        def _click(event) -> None:
-            region = self.identify("region", event.x, event.y)
-            column = self.identify_column(event.x)
+        def _click(ev: tk.Event) -> None:
+            region = self.identify("region", ev.x, ev.y)
+            column = self.identify_column(ev.x)
             if region == "heading":
                 self.sort_on_column(column)
 
-        self.bind("<Button-1>", _click)
+        self.bind("<Button-1>", _click, add=True)
 
     def config(self, *args, **kw):
         if "sortable" in kw:
@@ -114,14 +114,15 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
             if "file" in tags:
                 match type:
                     case "exec":
-                        self.treeview.event_generate(VirtualEventSequence.FILE_EXEC)
+                        self.treeview.event_generate(VirtualEventSequence.FILE_EXEC, x=ev.x, y=ev.y)
                     case "select" | _:
-                        self.treeview.event_generate(VirtualEventSequence.FILE_SELECT)
+                        self.treeview.event_generate(VirtualEventSequence.FILE_SELECT, x=ev.x, y=ev.y)
 
             if "dir" in tags:
                 self.treeview.event_generate(VirtualEventSequence.DIR_SELECT)
 
         self.treeview.bind("<Double-Button-1>", lambda ev: _click(ev, "exec"), add=True)
+        # self.treeview.bind("<Button-1>", lambda ev: _click(ev, "select"), add=True)
         self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, lambda ev: _click(ev, "select"), add=True)
 
     def add_filter(self, regex: re.Pattern) -> None:

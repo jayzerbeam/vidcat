@@ -27,10 +27,9 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
     class __Vars(NamedTuple):
         actors: tk.Variable
         tags: tk.Variable
-        clicked_path: tk.StringVar
+        context_path: tk.StringVar
         selected_paths: tk.Variable
 
-    _clicked_iid: str | None
     _menus: _Menus
     _vars: __Vars
 
@@ -40,7 +39,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self._vars = __class__.__Vars(
             actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
             tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
-            clicked_path=tk.StringVar(name=TkVarNames.CLICKED_PATH),
+            context_path=tk.StringVar(name=TkVarNames.CONTEXT_PATH),
             selected_paths=tk.Variable(name=TkVarNames.SELECTED_PATHS),
         )
         self._vars.actors.trace_add(mode="write", callback=self.highlight_by_metadata)
@@ -62,15 +61,13 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self.treeview.column("#4", minwidth=10, width=100, stretch=False)
         self.treeview.tag_configure("highlight", background="#DFD")
         is_mac = self.winfo_toplevel().tk.call("tk", "windowingsystem") == "aqua"
-        self.treeview.bind("<Button-1>", self._handle_click)
-        self.treeview.bind("<Button-2>" if is_mac else "<Button-3>", self._handle_right_click)
+        self.treeview.bind("<Button-2>" if is_mac else "<Button-3>", self._handle_right_click, add=True)
         self.treeview.bind(
             TKVES.TREEVIEW_SELECT,
             func=lambda ev: self._vars.selected_paths.set(self.treeview.selection()),
             add=True,
         )
 
-        self._clicked_iid = None
         ctxmenu = tk.Menu(self, tearoff=0)
         self._menus = __class__._Menus(
             context=ctxmenu,
@@ -109,13 +106,6 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             label="Clean", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_METADATA)
         )
 
-    def _handle_click(self, ev: tk.Event) -> None:
-        iid = self.treeview.identify_row(ev.y)
-        if iid is None:
-            return
-        self._vars.clicked_path.set(iid)
-        self._clicked_iid = iid
-
     def _handle_right_click(self, ev: tk.Event) -> None:
         iid = self.treeview.identify_row(ev.y)
         if iid is None:
@@ -124,8 +114,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             self.treeview.selection_set(iid)
             self._vars.selected_paths.set(self.treeview.selection())
 
-        self._clicked_iid = iid
-        self._vars.clicked_path.set(iid)
+        self._vars.context_path.set(iid)
         if len(self.treeview.selection()) == 1:
             item_display_text = ellipsize(Path(iid).name, 32)
             if self.treeview.tag_has("dir", iid):
@@ -134,7 +123,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             item_display_text = f"<{len(self.treeview.selection())} items>"
         self._menus.context.entryconfigure(0, label=f"{item_display_text}")
 
-        if not self.treeview.tag_has("dir", iid):
+        if not self.treeview.tag_has("dir", iid) or len(self.treeview.selection()) > 1:
             self._menus.context.entryconfigure(2, state=tk.DISABLED)
             self._menus.context.entryconfigure(3, state=tk.DISABLED)
         else:

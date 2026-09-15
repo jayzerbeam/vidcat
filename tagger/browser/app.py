@@ -53,7 +53,7 @@ class App:
     _file_meta_filters: dict
     _all_tags: list[str]
     _all_actors: list[str]
-    _selected_path: Path
+    _selected_path: Path  # for vid info tab
 
     class __Widgets(NamedTuple):
         root: tk.Tk
@@ -68,7 +68,7 @@ class App:
         meta_tags: tk.Variable
         meta_title: tk.StringVar
         meta_size: tk.StringVar
-        clicked_path: tk.StringVar
+        context_path: tk.StringVar
         selected_paths: tk.Variable
         thumb_interval: tk.StringVar
         thumb_height: tk.StringVar
@@ -91,7 +91,7 @@ class App:
             meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
             meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
             meta_size=tk.StringVar(root, name=TkVarNames.META_SIZE),
-            clicked_path=tk.StringVar(root, name=TkVarNames.CLICKED_PATH),
+            context_path=tk.StringVar(root, name=TkVarNames.CONTEXT_PATH),
             selected_paths=tk.Variable(root, name=TkVarNames.SELECTED_PATHS),
             thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value=str(self._config.thumb_interval)),
             thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value=str(self._config.thumb_height)),
@@ -163,33 +163,42 @@ class App:
     def _handle_file_selected(self, ev: tk.Event) -> None:
         tv = cast(ttk.Treeview, ev.widget)
         """ sometimes there's no selection ie. if the selection is deleted by click menu"""
-        if hasattr(ev.widget, "selection") and len(tv.selection()):
-            p = Path(tv.selection()[0])
-            if p.is_file():
-                self._selected_path = p
-                sidecar = MagicSidecar(p, namespace=self._config.metadata_key)
-                print(f"loading metadata for {p}")
-                self._vars.file_path.set(str(p))
-                self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
-                self._vars.meta_size.set("metadata size: none")
-                self._metadata = deepcopy(_EMPTY_METADATA)
+        if hasattr(ev.widget, "selection") and len(tv.selection()) == 0:
+            return
 
-                try:
-                    buf = sidecar.read()
-                    self._metadata = pickle.loads(buf)
-                    self._vars.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
-                except FileNotFoundError:
-                    self._metadata = deepcopy(_EMPTY_METADATA)
-                    print(f"{p} does not have a magic sidecar")
-                except pickle.UnpicklingError:
-                    print(f"{p} does not have valid pickle data, using default")
-                except Exception as ex:
-                    print(f"{p} failed to load metadata: {ex}")
-                finally:
-                    self.update_widgets_from_metadata()
+        p = Path(tv.selection()[0])
+        if p.is_file():
+            self._selected_path = p
+            sidecar = MagicSidecar(p, namespace=self._config.metadata_key)
+            print(f"loading metadata for {p}")
+            self._vars.file_path.set(str(p))
+            self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
+            self._vars.meta_size.set("metadata size: none")
+            self._metadata = deepcopy(_EMPTY_METADATA)
+
+            try:
+                buf = sidecar.read()
+                self._metadata = pickle.loads(buf)
+                self._vars.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
+            except FileNotFoundError:
+                self._metadata = deepcopy(_EMPTY_METADATA)
+                print(f"{p} does not have a magic sidecar")
+            except pickle.UnpicklingError:
+                print(f"{p} does not have valid pickle data, using default")
+            except Exception as ex:
+                print(f"{p} failed to load metadata: {ex}")
+            finally:
+                self.update_widgets_from_metadata()
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
-        self.play_file(self._selected_path)
+        tv = cast(ttk.Treeview, ev.widget)
+        """ sometimes there's no selection ie. if the selection is deleted by click menu"""
+        if hasattr(ev.widget, "selection") and len(tv.selection()) == 0:
+            return
+
+        p = Path(tv.selection()[0])
+        if p.is_file():
+            self.play_file(p)
 
     def _handle_path_delete(self, ev: tk.Event) -> None:
         """data is the treeview iid which is the file path"""
@@ -211,18 +220,27 @@ class App:
             p.move(self._trash_path / p.name)
 
     def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
-        self.play_file(self._selected_path, start_ms=int(data))
+        if self._selected_path.is_file():
+            self.play_file(self._selected_path, start_ms=int(data))
 
     def _handle_scan_path_files(self, ev: tk.Event) -> None:
-        iid = self._vars.clicked_path.get()
-        pt = self._pathtree.dig(Path(iid))
+        iid = self._vars.context_path.get()
+        p = Path(iid)
+        if not p.is_dir():
+            return
+
+        pt = self._pathtree.dig(p)
         if pt is not None:
             pt.clear()
             pt.scan(filters=[path_extension_filter(self._config.vid_exts)])
             self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, iid)
 
     def _handle_scan_path_metadata(self, ev: tk.Event) -> None:
-        pt = self._pathtree.dig(Path(self._vars.clicked_path.get()))
+        p = Path(self._vars.context_path.get())
+        if not p.is_dir():
+            return
+
+        pt = self._pathtree.dig(p)
         if pt is None:
             return
 
