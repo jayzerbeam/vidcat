@@ -68,8 +68,9 @@ class App:
         meta_tags: tk.Variable
         meta_title: tk.StringVar
         meta_size: tk.StringVar
-        context_path: tk.StringVar
-        selected_paths: tk.Variable
+        triggered_iid: tk.StringVar
+        context_iid: tk.StringVar
+        selected_iids: tk.Variable
         thumb_interval: tk.StringVar
         thumb_height: tk.StringVar
         video_len: tk.StringVar
@@ -91,8 +92,9 @@ class App:
             meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
             meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
             meta_size=tk.StringVar(root, name=TkVarNames.META_SIZE),
-            context_path=tk.StringVar(root, name=TkVarNames.CONTEXT_PATH),
-            selected_paths=tk.Variable(root, name=TkVarNames.SELECTED_PATHS),
+            triggered_iid=tk.StringVar(root, name=TkVarNames.TRIGGERED_IID),
+            context_iid=tk.StringVar(root, name=TkVarNames.CONTEXT_IID),
+            selected_iids=tk.Variable(root, name=TkVarNames.SELECTED_IIDS),
             thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value=str(self._config.thumb_interval)),
             thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value=str(self._config.thumb_height)),
             video_len=tk.StringVar(root, name=TkVarNames.VIDEO_LEN),
@@ -109,6 +111,7 @@ class App:
 
         self._widgets.root.bind_all(VEvent.DIR_SELECT, func=self._handle_dir_selected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
+        self._widgets.root.bind_all(VEvent.FILE_DESELECT, func=self._handle_file_deselected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
         self._widgets.root.bind_all(BVEvent.GEN_THUMBS, func=self._handle_gen_thumbs, add=True)
         self._widgets.root.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
@@ -153,50 +156,39 @@ class App:
             print("error:trash directory is not a directory, could not initialize")
 
     def _handle_dir_selected(self, ev: tk.Event) -> None:
-        self._vars.file_path.set("")
-        self._vars.file_size.set("size: none")
-        self._vars.meta_size.set("metadata size: none")
-        self._metadata = deepcopy(_EMPTY_METADATA)
-        self._selected_path = Path("")
-        self.update_widgets_from_metadata()
+        self.clear_vidinfo()
 
     def _handle_file_selected(self, ev: tk.Event) -> None:
         tv = cast(ttk.Treeview, ev.widget)
-        """ sometimes there's no selection ie. if the selection is deleted by click menu"""
-        if hasattr(ev.widget, "selection") and len(tv.selection()) == 0:
+        if not hasattr(ev.widget, "selection"):
             return
 
-        p = Path(tv.selection()[0])
-        if p.is_file():
-            self._selected_path = p
-            sidecar = MagicSidecar(p, namespace=self._config.metadata_key)
-            print(f"loading metadata for {p}")
-            self._vars.file_path.set(str(p))
-            self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
-            self._vars.meta_size.set("metadata size: none")
-            self._metadata = deepcopy(_EMPTY_METADATA)
+        iid = self._vars.triggered_iid.get()
+        if iid not in tv.selection():  # sanity check: shouldn't happen
+            iid = tv.selection()[0]
 
-            try:
-                buf = sidecar.read()
-                self._metadata = pickle.loads(buf)
-                self._vars.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
-            except FileNotFoundError:
-                self._metadata = deepcopy(_EMPTY_METADATA)
-                print(f"{p} does not have a magic sidecar")
-            except pickle.UnpicklingError:
-                print(f"{p} does not have valid pickle data, using default")
-            except Exception as ex:
-                print(f"{p} failed to load metadata: {ex}")
-            finally:
-                self.update_widgets_from_metadata()
+        self.load_metadata(Path(iid))
+
+    def _handle_file_deselected(self, ev: tk.Event) -> None:
+        tv = cast(ttk.Treeview, ev.widget)
+        if not hasattr(ev.widget, "selection"):
+            return
+
+        if len(tv.selection()) > 0:
+            self.load_metadata(Path(tv.selection()[0]))
+        else:
+            self.clear_vidinfo()
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
         tv = cast(ttk.Treeview, ev.widget)
-        """ sometimes there's no selection ie. if the selection is deleted by click menu"""
-        if hasattr(ev.widget, "selection") and len(tv.selection()) == 0:
+        if not hasattr(ev.widget, "selection"):
             return
 
-        p = Path(tv.selection()[0])
+        iid = self._vars.triggered_iid.get()
+        if iid not in tv.selection():
+            iid = tv.selection()[0]
+
+        p = Path(iid)
         if p.is_file():
             self.play_file(p)
 
@@ -205,7 +197,7 @@ class App:
         if self._trash_path is None:
             return
         paths = tuple(
-            Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(p).exists()
+            Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(p).exists()
         )
 
         if len(paths) == 0:
@@ -224,7 +216,7 @@ class App:
             self.play_file(self._selected_path, start_ms=int(data))
 
     def _handle_scan_path_files(self, ev: tk.Event) -> None:
-        iid = self._vars.context_path.get()
+        iid = self._vars.context_iid.get()
         p = Path(iid)
         if not p.is_dir():
             return
@@ -236,7 +228,7 @@ class App:
             self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, iid)
 
     def _handle_scan_path_metadata(self, ev: tk.Event) -> None:
-        p = Path(self._vars.context_path.get())
+        p = Path(self._vars.context_iid.get())
         if not p.is_dir():
             return
 
@@ -269,7 +261,7 @@ class App:
 
     def _handle_bulk_del_meta(self, ev: tk.Event) -> None:
         files = tuple(
-            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(f).is_file()
+            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(f).is_file()
         )
 
         for f in files:
@@ -283,14 +275,14 @@ class App:
 
     def _handle_bulk_thumbs(self, ev: tk.Event) -> None:
         files = tuple(
-            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(f).is_file()
+            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(f).is_file()
         )
 
         self.gen_thumbs_bulk(files)
 
     def _handle_bulk_meta_list(self, ev: tk.Event, action: str) -> None:
         files = tuple(
-            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_paths.get()) if Path(f).is_file()
+            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(f).is_file()
         )
 
         match action:
@@ -571,6 +563,38 @@ class App:
                     subprocess.call(("open", path))
                 case _:  # linux
                     subprocess.call(("xdg-open", path))
+
+    def load_metadata(self, p: Path) -> None:
+        if p.is_file():
+            self._selected_path = p
+            sidecar = MagicSidecar(p, namespace=self._config.metadata_key)
+            print(f"loading metadata for {p}")
+            self._vars.file_path.set(str(p))
+            self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
+            self._vars.meta_size.set("metadata size: none")
+            self._metadata = deepcopy(_EMPTY_METADATA)
+
+            try:
+                buf = sidecar.read()
+                self._metadata = pickle.loads(buf)
+                self._vars.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
+            except FileNotFoundError:
+                self._metadata = deepcopy(_EMPTY_METADATA)
+                print(f"{p} does not have a magic sidecar")
+            except pickle.UnpicklingError:
+                print(f"{p} does not have valid pickle data, using default")
+            except Exception as ex:
+                print(f"{p} failed to load metadata: {ex}")
+            finally:
+                self.update_widgets_from_metadata()
+
+    def clear_vidinfo(self) -> None:
+        self._vars.file_path.set("")
+        self._vars.file_size.set("size: none")
+        self._vars.meta_size.set("metadata size: none")
+        self._metadata = deepcopy(_EMPTY_METADATA)
+        self._selected_path = Path("")
+        self.update_widgets_from_metadata()
 
     def update_widgets_from_metadata(self) -> None:
         # todo don't reach down through widgets

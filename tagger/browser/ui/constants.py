@@ -29,11 +29,16 @@ class VirtualEventSequence(StrEnum):
 
 
 class TkVarNames(StrEnum):
+    """These are var names for tk.Variables bound by both the App and various widgets.
+    Creating multiple instances of the widgets could be problematic as the tk vars are bound to constant var names
+    """
+
     # treeview related
     HIGHLIGHTED_ACTORS = "HIGHLIGHTED_ACTORS"
     HIGHLIGHTED_TAGS = "HIGHLIGHTED_TAGS"
-    CONTEXT_PATH = "CONTEXT_PATH"
-    SELECTED_PATHS = "SELECTED_PATHS"
+    CONTEXT_IID = "CONTEXT_IID"
+    SELECTED_IIDS = "SELECTED_IIDS"
+    TRIGGERED_IID = "TRIGGERED_IID"
 
     # video props/metadata
     FILE_SIZE = "FILE_SIZE"

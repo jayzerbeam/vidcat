@@ -27,20 +27,31 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
     class __Vars(NamedTuple):
         actors: tk.Variable
         tags: tk.Variable
-        context_path: tk.StringVar
-        selected_paths: tk.Variable
+        triggered_iid: tk.StringVar
+        context_iid: tk.StringVar
+        selected_iids: tk.Variable
 
     _menus: _Menus
     _vars: __Vars
 
     def __init__(self, parent, *args, **kw):
-        super().__init__(parent, *args, columns=("time", "res", "actors", "tags"), sortable=False, width=300, **kw)
+        aiid = tk.StringVar(name=TkVarNames.TRIGGERED_IID)
+        super().__init__(
+            parent,
+            *args,
+            triggered_iid_var=aiid,
+            columns=("time", "res", "actors", "tags"),
+            sortable=False,
+            width=300,
+            **kw,
+        )
 
         self._vars = __class__.__Vars(
             actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
             tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
-            context_path=tk.StringVar(name=TkVarNames.CONTEXT_PATH),
-            selected_paths=tk.Variable(name=TkVarNames.SELECTED_PATHS),
+            triggered_iid=aiid,
+            context_iid=tk.StringVar(name=TkVarNames.CONTEXT_IID),
+            selected_iids=tk.Variable(name=TkVarNames.SELECTED_IIDS),
         )
         self._vars.actors.trace_add(mode="write", callback=self.highlight_by_metadata)
         self._vars.tags.trace_add(mode="write", callback=self.highlight_by_metadata)
@@ -63,9 +74,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         is_mac = self.winfo_toplevel().tk.call("tk", "windowingsystem") == "aqua"
         self.treeview.bind("<Button-2>" if is_mac else "<Button-3>", self._handle_right_click, add=True)
         self.treeview.bind(
-            TKVES.TREEVIEW_SELECT,
-            func=lambda ev: self._vars.selected_paths.set(self.treeview.selection()),
-            add=True,
+            TKVES.TREEVIEW_SELECT, func=lambda ev: self._vars.selected_iids.set(self.treeview.selection()), add=True
         )
 
         ctxmenu = tk.Menu(self, tearoff=0)
@@ -112,9 +121,9 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             return
         if not iid in self.treeview.selection():
             self.treeview.selection_set(iid)
-            self._vars.selected_paths.set(self.treeview.selection())
+            self._vars.selected_iids.set(self.treeview.selection())
 
-        self._vars.context_path.set(iid)
+        self._vars.context_iid.set(iid)
         if len(self.treeview.selection()) == 1:
             item_display_text = ellipsize(Path(iid).name, 32)
             if self.treeview.tag_has("dir", iid):
@@ -139,7 +148,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         if len(self.treeview.selection()) == 0:
             return
 
-        self._vars.selected_paths.set(self.treeview.selection())
+        self._vars.selected_iids.set(self.treeview.selection())
         self.event_generate(VirtualEventSequence.PATH_DELETE)
         while len(self.treeview.selection()) > 0:
             iid = self.treeview.selection()[0]
