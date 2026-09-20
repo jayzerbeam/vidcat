@@ -117,7 +117,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
     def _handle_right_click(self, ev: tk.Event) -> None:
         iid = self.treeview.identify_row(ev.y)
-        if iid is None:
+        if iid == "":
             return
         if not iid in self.treeview.selection():
             self.treeview.selection_set(iid)
