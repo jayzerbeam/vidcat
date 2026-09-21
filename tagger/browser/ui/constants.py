@@ -3,6 +3,7 @@ from enum import StrEnum
 
 class VirtualEventSequence(StrEnum):
     # treeivew menu actions
+    GOTO_PATH = "<<GotoPath>>"
     BULK_ADD_ACTOR = "<<BulkAddActor>>"
     BULK_DEL_ACTOR = "<<BulkDelActor>>"
     BULK_ADD_TAG = "<<BulkAddTag>>"

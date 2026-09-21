@@ -82,7 +82,9 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             context=ctxmenu,
             context_meta=tk.Menu(ctxmenu, tearoff=0),
         )
-        self._menus.context.add_command(label="[info]")
+        self._menus.context.add_command(
+            label="[info]", command=lambda: self.event_generate(VirtualEventSequence.GOTO_PATH)
+        )
         self._menus.context.add_separator()
         self._menus.context.add_command(
             label="Refresh files", command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_FILES)

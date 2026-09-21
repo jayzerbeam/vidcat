@@ -113,20 +113,21 @@ class App:
         self._widgets.root.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_DESELECT, func=self._handle_file_deselected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
+        self._widgets.root.bind_all(BVEvent.GOTO_PATH, func=self._handle_goto_path, add=True)
         self._widgets.root.bind_all(BVEvent.GEN_THUMBS, func=self._handle_gen_thumbs, add=True)
         self._widgets.root.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
         self._widgets.root.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
         self._widgets.root.bind_all(
-            BVEvent.BULK_ADD_ACTOR, func=partial(self._handle_bulk_meta_list, action=BulkAction.ADD_ACTOR), add=True
+            BVEvent.BULK_ADD_ACTOR, func=partial(self._handle_bulk_edit_meta, action=BulkAction.ADD_ACTOR), add=True
         )
         self._widgets.root.bind_all(
-            BVEvent.BULK_DEL_ACTOR, func=partial(self._handle_bulk_meta_list, action=BulkAction.DEL_ACTOR), add=True
+            BVEvent.BULK_DEL_ACTOR, func=partial(self._handle_bulk_edit_meta, action=BulkAction.DEL_ACTOR), add=True
         )
         self._widgets.root.bind_all(
-            BVEvent.BULK_ADD_TAG, func=partial(self._handle_bulk_meta_list, action=BulkAction.ADD_TAG), add=True
+            BVEvent.BULK_ADD_TAG, func=partial(self._handle_bulk_edit_meta, action=BulkAction.ADD_TAG), add=True
         )
         self._widgets.root.bind_all(
-            BVEvent.BULK_DEL_TAG, func=partial(self._handle_bulk_meta_list, action=BulkAction.DEL_TAG), add=True
+            BVEvent.BULK_DEL_TAG, func=partial(self._handle_bulk_edit_meta, action=BulkAction.DEL_TAG), add=True
         )
         self._widgets.root.bind_all(BVEvent.BULK_GEN_THUMBS, func=self._handle_bulk_thumbs, add=True)
         self._widgets.root.bind_all(BVEvent.BULK_DEL_METADATA, func=self._handle_bulk_del_meta, add=True)
@@ -178,6 +179,10 @@ class App:
             self.load_metadata(Path(tv.selection()[0]))
         else:
             self.clear_vidinfo()
+
+    def _handle_goto_path(self, ev: tk.Event) -> None:
+        iid = self._vars.context_iid.get()
+        self.goto_path(Path(iid))
 
     def _handle_file_exec(self, ev: tk.Event) -> None:
         tv = cast(ttk.Treeview, ev.widget)
@@ -296,7 +301,7 @@ class App:
 
         self.gen_thumbs_bulk(files)
 
-    def _handle_bulk_meta_list(self, ev: tk.Event, action: str) -> None:
+    def _handle_bulk_edit_meta(self, ev: tk.Event, action: str) -> None:
         files = tuple(
             Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(f).is_file()
         )
@@ -558,7 +563,25 @@ class App:
 
         threading.Thread(target=_thread, daemon=True).start()
 
-    def play_file(self, path: Path, start_ms: int = 0):
+    def goto_path(self, path: Path) -> None:
+        """open path in system file explorer"""
+        if not path.exists():
+            return
+        path = path.resolve()
+
+        match platform.system():
+            case "Windows":
+                os.startfile(path)
+            case "Darwin":
+                subprocess.Popen(["open", path])
+            case _:  # linux
+                try:
+                    subprocess.Popen(["xdg-open", path])
+                except FileNotFoundError as ex:
+                    print(f"error: failed to open {path}: {ex}")
+
+    def play_file(self, path: Path, start_ms: int = 0) -> None:
+        """play video file"""
         if not path.is_file():
             return
         path = path.resolve()
