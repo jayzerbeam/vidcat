@@ -236,11 +236,18 @@ class App:
         if pt is None:
             return
 
-        def _recurse(pt: PathTree) -> None:
-            for d, child in pt.dirs():
-                _recurse(child)
+        fq = Queue()
 
-            for f in pt.files():
+        def _thread(pt: PathTree) -> None:
+            _recurse(pt)
+
+            total = fq.qsize()
+            c = 0
+            while not fq.empty():
+                f = fq.get()
+                c += 1
+                self._widgets.status.info = f"[{c} / {total}] {f.name}"
+                self._widgets.status.progress = c / total
                 try:
                     metadata = pickle.loads(MagicSidecar(f, namespace=self._config.metadata_key).read())
                 except FileNotFoundError:
@@ -256,8 +263,17 @@ class App:
                         metadata["actors"],
                         metadata["tags"],
                     )
+            self.status_window(False)
 
-        threading.Thread(target=lambda: _recurse(pt), daemon=True).start()
+        def _recurse(pt: PathTree) -> None:
+            for d, child in pt.dirs():
+                _recurse(child)
+
+            for f in pt.files():
+                fq.put(f)
+
+        self.status_window(True)
+        threading.Thread(target=lambda: _thread(pt), daemon=True).start()
 
     def _handle_bulk_del_meta(self, ev: tk.Event) -> None:
         files = tuple(
