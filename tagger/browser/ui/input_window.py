@@ -16,9 +16,9 @@ class InputWindow(tk.Toplevel):
         label: tk.StringVar
         input: tk.StringVar  # this is not bound to the entry, instead filled on OK
 
+    _closed_ok: bool
     _widgets: __Widgets
     _vars: __Vars
-    _closed_ok: bool
 
     def __init__(self, root: tk.Tk, *args, **kw):
         super().__init__(root, *args, **kw)

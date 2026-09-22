@@ -27,6 +27,8 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         title: StringVar
 
     _thumbs: tuple  # tuple[ImageTk.PhotoImage, int, int] | tuple[()]
+    _widgets: __Widgets
+    _vars: __Vars
 
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)

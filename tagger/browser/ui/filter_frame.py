@@ -23,6 +23,9 @@ class FilterFrame(ttk.Frame):
         actors: tk.Variable
         tags: tk.Variable
 
+    _widgets: __Widgets
+    _vars: __Vars
+
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
 
@@ -52,11 +55,11 @@ class FilterFrame(ttk.Frame):
         self._widgets.filter_clear.config(command=lambda: self.event_generate(BVEvent.FILTERS_CLEAR))
         self._widgets.filter_clear.grid(column=3, row=0, sticky="E", padx=2, pady=2)
 
-        self._widgets.actors.grid(column=0, row=1, sticky="NSEW", padx=2, pady=2)
         self._widgets.actors.child.heading("#0", text="Actors")
         self._widgets.actors.child.heading("count", text="#")
         self._widgets.actors.child.column("count", minwidth=10, width=50, stretch=False)
         self._widgets.actors.child.bind(sequence=VEvent.TREEVIEW_SELECT, func=self._handle_actors_select)
+        self._widgets.actors.grid(column=0, row=1, sticky="NSEW", padx=2, pady=2)
         self._widgets.tags.child.heading("#0", text="Tags")
         self._widgets.tags.child.heading("count", text="#")
         self._widgets.tags.child.column("count", minwidth=10, width=50, stretch=False)

@@ -9,6 +9,8 @@ class StatusWindow(tk.Toplevel):
         progress: ttk.Progressbar
         status: ttk.Label
 
+    _widgets: __Widgets
+
     def __init__(self, parent, *args, **kw):
         super().__init__(parent, *args, **kw)
         self.overrideredirect(True)  # no titlebar, borders
