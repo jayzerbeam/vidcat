@@ -193,6 +193,10 @@ class VideoReader:
     def duration(self) -> float | None:
         return float(self._last_pts * self._stream.time_base)
 
+    @property
+    def frame_rate(self) -> float:
+        return float(self._stream.average_rate)
+
     def frame_at(self, time_s: float) -> Image.Image | None:
         """Decode and return the frame at (or just before) the given time in seconds"""
         duration = self.duration

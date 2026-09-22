@@ -16,16 +16,21 @@ def nice_duration(seconds: int) -> str:
     return formatted.strip()
 
 
-def clock_format(seconds: float, with_decimal: bool = False) -> str | None:
+def clock_format(seconds: float, decimals: int = 0) -> str | None:
     try:
         s = str(timedelta(seconds=seconds)).removeprefix("0:")
     except OverflowError:
         traceback.print_exc()
         return None
     else:
-        if not with_decimal:
-            s = s.split(".")[0]
-        return s
+        if decimals > 0:
+            sp = s.split(".")
+            if len(sp) > 1:
+                return f"{sp[0]}.{sp[1][:decimals]}"
+            else:
+                return f"{s}.000"
+        else:
+            return s
 
 
 def nice_bytesize(size: int, largest_unit: str = "E", use_base2: bool = False, decimals: int = 0) -> str:

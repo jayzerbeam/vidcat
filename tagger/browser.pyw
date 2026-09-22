@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
         path = Path(".")
         window = MessageWindow()
-        window.title(f"Video Browser ({path.resolve()})")
+        window.title(f"Vid Cat ({path.resolve()})")
         window.geometry("1200x1000")
         app = App(window, basepath=path, config=cfg)
         window.mainloop()

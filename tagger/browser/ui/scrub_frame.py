@@ -9,12 +9,16 @@ from typing import Any, NamedTuple
 from PIL import Image, ImageTk
 
 from ui.tk_decorator import tk_debounce
+from util.format import clock_format
 from util.video import VideoReader
+
+from .constants import VirtualEventSequence
 
 
 class _ScrubRequest(StrEnum):
     LOAD = "load"
     SEEK = "seek"
+    CLOSE = "close"
     STOP = "stop"
 
 
@@ -22,10 +26,14 @@ class ScrubFrame(ttk.Frame):
     class __Widgets(NamedTuple):
         video: tk.Canvas
         seek: ttk.Scale
+        controls: ttk.Frame
+        open: ttk.Button
+        position: ttk.Label
 
     _widgets: __Widgets
     _path: Path | None
     _duration_ms: float
+    _frame_rate: float
     _current_frame: Image.Image | None
     _frame_image: ImageTk.PhotoImage | None
     _load_seq: int
@@ -39,6 +47,7 @@ class ScrubFrame(ttk.Frame):
         super().__init__(*args, **kwargs)
         self._path = None
         self._duration_ms = 0.0
+        self._frame_rate = 0.0
         self._current_frame = None
         self._frame_image = None
         self._load_seq = 0
@@ -47,17 +56,26 @@ class ScrubFrame(ttk.Frame):
         self._results = queue.Queue()
         self._poll_after = None
 
+        ctrlfrm = ttk.Frame(self)
         self._widgets = __class__.__Widgets(
             video=tk.Canvas(self),
-            seek=ttk.Scale(self, orient=tk.HORIZONTAL, from_=0.0, to=1.0, command=self._handle_seek),
+            seek=ttk.Scale(self, orient=tk.HORIZONTAL, to=1.0, command=self._handle_seek),
+            controls=ctrlfrm,
+            open=ttk.Button(ctrlfrm, text="Open", command=self._handle_open),
+            position=ttk.Label(ctrlfrm, anchor=tk.E, width=24),
         )
         self._widgets.seek.state(["disabled"])
+        self._widgets.open.state(["disabled"])
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        self._widgets.video.grid(column=0, row=0, padx=4, pady=4, sticky="NSEW")
-        self._widgets.seek.grid(column=0, row=1, padx=4, pady=4, sticky="EW")
+        self._widgets.video.grid(column=0, row=0, columnspan=2, padx=4, pady=(4, 0), sticky="NSEW")
+        self._widgets.seek.grid(column=0, row=1, padx=(4, 4), sticky="EW")
+        self._widgets.controls.grid(column=0, row=2, padx=(4, 4), pady=(0, 4), sticky="EW")
+        self._widgets.controls.columnconfigure(0, weight=1)
+        self._widgets.open.grid(column=0, row=0, sticky="W")
+        self._widgets.position.grid(column=1, row=0, sticky="E")
         self._widgets.video.bind("<Configure>", self._handle_video_configure, add=True)
 
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
@@ -71,9 +89,12 @@ class ScrubFrame(ttk.Frame):
 
         self._path = path
         self._duration_ms = 0.0
+        self._frame_rate = 0.0
         self._current_frame = None
         self._widgets.video.delete("frame")
         self._widgets.seek.state(["disabled"])
+        self._widgets.open.state(["disabled"])
+        self._update_time_label(None)
 
         self._load_seq += 1
         self._requests.put((_ScrubRequest.LOAD, self._load_seq, path))
@@ -81,12 +102,16 @@ class ScrubFrame(ttk.Frame):
     def clear(self) -> None:
         self._path = None
         self._duration_ms = 0.0
+        self._frame_rate = 0.0
         self._current_frame = None
         self._widgets.video.delete("frame")
         self._widgets.seek.state(["disabled"])
+        self._widgets.open.state(["disabled"])
+        self._update_time_label(None)
 
-        # invalidate any pending load result
+        # invalidate any pending load result and release the file handle
         self._load_seq += 1
+        self._requests.put((_ScrubRequest.CLOSE, 0, None))
 
     def _worker_loop(self) -> None:
         reader: VideoReader | None = None
@@ -106,7 +131,7 @@ class ScrubFrame(ttk.Frame):
                 except Exception as ex:
                     print(f"error: failed to load {payload} for scrubbing: {ex}")
                     continue
-                self._results.put((_ScrubRequest.LOAD, seq, reader.duration, frame))
+                self._results.put((_ScrubRequest.LOAD, seq, reader.duration, reader.frame_rate, frame))
             elif kind is _ScrubRequest.SEEK:
                 if reader is None:
                     continue
@@ -114,7 +139,11 @@ class ScrubFrame(ttk.Frame):
                 if not self._requests.empty():
                     continue
                 frame = reader.frame_at(payload)
-                self._results.put((_ScrubRequest.SEEK, seq, frame))
+                self._results.put((_ScrubRequest.SEEK, seq, payload, frame))
+            elif kind is _ScrubRequest.CLOSE:
+                if reader is not None:
+                    reader.close()
+                    reader = None
 
         if reader is not None:
             reader.close()
@@ -128,19 +157,36 @@ class ScrubFrame(ttk.Frame):
                 self._apply_frame(seq, *rest)
         self._poll_after = self.after(30, self._poll_results)
 
-    def _apply_loaded(self, seq: int, duration: float | None, frame: Image.Image | None) -> None:
+    def _apply_loaded(self, seq: int, duration: float | None, frame_rate: float, frame: Image.Image | None) -> None:
         if seq != self._load_seq:
             return
 
         self._duration_ms = (duration or 0.0) * 1000
+        self._frame_rate = frame_rate
         if self._duration_ms > 0:
             self._widgets.seek.state(["!disabled"])
+            self._widgets.open.state(["!disabled"])
+        self._update_time_label(0.0)
         self._draw_frame(frame)
 
-    def _apply_frame(self, seq: int, frame: Image.Image | None) -> None:
+    def _apply_frame(self, seq: int, time_s: float, frame: Image.Image | None) -> None:
         if seq != self._seek_seq:
             return
+        self._update_time_label(time_s)
         self._draw_frame(frame)
+
+    def _update_time_label(self, time_s: float | None) -> None:
+        if time_s is None:
+            self._widgets.position.config(text="")
+            return
+        frameno = round(time_s * self._frame_rate)
+        self._widgets.position.config(text=f"{clock_format(time_s, decimals=3)}  frame {frameno}")
+
+    def _handle_open(self) -> None:
+        if self._path is None or self._duration_ms <= 0:
+            return
+        ms = round(float(self._widgets.seek.get()) * self._duration_ms)
+        self.event_generate(VirtualEventSequence.PLAY_FROM_MS, data=ms)
 
     @tk_debounce(50, leading=True)
     def _handle_seek(self, pos: str) -> None:
@@ -151,8 +197,10 @@ class ScrubFrame(ttk.Frame):
         except ValueError:
             return
 
+        time_s = fraction * (self._duration_ms / 1000)
+        self._update_time_label(time_s)
         self._seek_seq += 1
-        self._requests.put((_ScrubRequest.SEEK, self._seek_seq, fraction * (self._duration_ms / 1000)))
+        self._requests.put((_ScrubRequest.SEEK, self._seek_seq, time_s))
 
     @tk_debounce(100, leading=False)
     def _handle_video_configure(self, ev: tk.Event) -> None:
