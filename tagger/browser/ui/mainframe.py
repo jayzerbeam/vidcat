@@ -11,6 +11,7 @@ from ui.tk_event_data import DataEvents
 from .constants import VirtualEventSequence
 from .file_meta_treeview import FileMetaTreeviewFrame
 from .filter_frame import FilterFrame
+from .scrub_frame import ScrubFrame
 from .video_info_frame import VideoInfoFrame
 
 
@@ -21,8 +22,10 @@ class MainFrame(DataEvents, ttk.Frame):
         tabs: ttk.Notebook
         vidinfo: VideoInfoFrame
         filters: FilterFrame
+        scrubber: ScrubFrame
 
     _basepath: Path | None
+    _widgets: __Widgets
 
     def __init__(
         self,
@@ -40,8 +43,9 @@ class MainFrame(DataEvents, ttk.Frame):
             pane=pane,
             filetree=FileMetaTreeviewFrame(pane),
             tabs=tabs,
-            vidinfo=VideoInfoFrame(tabs),
             filters=FilterFrame(tabs),
+            vidinfo=VideoInfoFrame(tabs),
+            scrubber=ScrubFrame(tabs),
         )
         self._widgets.pane.add(self._widgets.filetree)
         self._widgets.pane.add(self._widgets.tabs)
@@ -49,6 +53,7 @@ class MainFrame(DataEvents, ttk.Frame):
 
         self._widgets.tabs.add(self._widgets.filters, text="Filters")
         self._widgets.tabs.add(self._widgets.vidinfo, text="Video Info")
+        self._widgets.tabs.add(self._widgets.scrubber, text="Scrub")
         self._widgets.tabs.select(1)
 
         self.columnconfigure(0, weight=1)
@@ -68,6 +73,12 @@ class MainFrame(DataEvents, ttk.Frame):
 
     def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
         self._widgets.vidinfo.update_thumbs(thumbs)
+
+    def update_scrubber(self, path: Path) -> None:
+        self._widgets.scrubber.load(path)
+
+    def clear_scrubber(self) -> None:
+        self._widgets.scrubber.clear()
 
     def set_actors(self, items: dict):
         # TODO I don't like this, should find a better way

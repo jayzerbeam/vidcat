@@ -627,6 +627,8 @@ class App:
             finally:
                 self.update_widgets_from_metadata()
 
+            self._widgets.mainframe.update_scrubber(p)
+
     def clear_vidinfo(self) -> None:
         self._vars.file_path.set("")
         self._vars.file_size.set("size: none")
@@ -634,6 +636,7 @@ class App:
         self._metadata = deepcopy(_EMPTY_METADATA)
         self._selected_path = Path("")
         self.update_widgets_from_metadata()
+        self._widgets.mainframe.clear_scrubber()
 
     def update_widgets_from_metadata(self) -> None:
         # todo don't reach down through widgets

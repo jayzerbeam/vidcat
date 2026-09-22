@@ -3,6 +3,7 @@ from collections.abc import Callable, Sequence
 from contextlib import suppress
 from fractions import Fraction
 from pathlib import Path
+from typing import Any
 
 import av
 from PIL import Image
@@ -159,3 +160,55 @@ class VideoThumbnailer:
 
         print(f" {s}/{len(self._frames)}")
         return jpgs
+
+
+class VideoReader:
+    """Random access frame reader for scrubbing.
+
+    A video container and its decoder are not safe for concurrent use, so an instance
+    must be used from a single thread and closed on that same thread.
+    """
+
+    _path: Path
+    _container: Any
+    _stream: Any
+    _last_pts: int
+
+    def __init__(self, path: Path):
+        self._path = path
+        self._container = av.open(path)
+        if len(self._container.streams.video) == 0:
+            raise ValueError(f"{self._path} has no video streams")
+        self._stream = self._container.streams.video[0]
+
+        self._container.seek(1 << 48, stream=self._stream)
+        pkt = next(self._container.demux(self._stream))
+        self._last_pts = pkt.pts
+
+    @property
+    def dimensions(self) -> tuple[int, int]:
+        return (self._stream.width, self._stream.height)
+
+    @property
+    def duration(self) -> float | None:
+        return float(self._last_pts * self._stream.time_base)
+
+    def frame_at(self, time_s: float) -> Image.Image | None:
+        """Decode and return the frame at (or just before) the given time in seconds"""
+        duration = self.duration
+        if duration is not None:
+            time_s = min(max(time_s, 0.0), duration)
+
+        try:
+            self._container.seek(
+                int(time_s / self._stream.time_base), stream=self._stream, backward=True, any_frame=False
+            )
+            frame = next(self._container.decode(self._stream))
+        except Exception as ex:
+            print(f"error: failed to decode frame at {time_s}s from {self._path}: {ex}")
+            return None
+
+        return frame.to_image()
+
+    def close(self) -> None:
+        self._container.close()
