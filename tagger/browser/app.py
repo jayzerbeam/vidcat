@@ -208,13 +208,29 @@ class App:
         if len(paths) == 0:
             return
 
+        if self._selected_path in paths:
+            self.clear_vidinfo()
+            self._widgets.mainframe.clear_scrubber(wait=True)
+
+        removed = self._send_to_trash(paths)
+        if removed:
+            self._widgets.mainframe.remove_filetree_items(removed)
+
+    def _send_to_trash(self, paths: Sequence[Path]) -> list[Path]:
+        removed: list[Path] = []
         for p in paths:
             # container folder may have been moved
             if not p.exists():
                 continue
 
+            try:
+                p.move(self._trash_path / p.name)
+            except OSError as ex:
+                print(f"error: failed to move {p} to trash: {ex}")
+                continue
             self._pathtree.dig_and_remove(p)
-            p.move(self._trash_path / p.name)
+            removed.append(p)
+        return removed
 
     def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
         if self._selected_path.is_file():

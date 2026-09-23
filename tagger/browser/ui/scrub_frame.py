@@ -99,7 +99,7 @@ class ScrubFrame(ttk.Frame):
         self._load_seq += 1
         self._requests.put((_ScrubRequest.LOAD, self._load_seq, path))
 
-    def clear(self) -> None:
+    def clear(self, wait: bool = False, timeout: float = 2.0) -> bool:
         self._path = None
         self._duration_ms = 0.0
         self._frame_rate = 0.0
@@ -111,7 +111,11 @@ class ScrubFrame(ttk.Frame):
 
         # invalidate any pending load result and release the file handle
         self._load_seq += 1
-        self._requests.put((_ScrubRequest.CLOSE, 0, None))
+        done = threading.Event() if wait else None
+        self._requests.put((_ScrubRequest.CLOSE, 0, done))
+        if done is not None:
+            return done.wait(timeout)
+        return True
 
     def _worker_loop(self) -> None:
         reader: VideoReader | None = None
@@ -141,9 +145,13 @@ class ScrubFrame(ttk.Frame):
                 frame = reader.frame_at(payload)
                 self._results.put((_ScrubRequest.SEEK, seq, payload, frame))
             elif kind is _ScrubRequest.CLOSE:
-                if reader is not None:
-                    reader.close()
-                    reader = None
+                try:
+                    if reader is not None:
+                        reader.close()
+                        reader = None
+                finally:
+                    if payload is not None:
+                        payload.set()
 
         if reader is not None:
             reader.close()

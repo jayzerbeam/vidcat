@@ -77,8 +77,11 @@ class MainFrame(DataEvents, ttk.Frame):
     def update_scrubber(self, path: Path) -> None:
         self._widgets.scrubber.load(path)
 
-    def clear_scrubber(self) -> None:
-        self._widgets.scrubber.clear()
+    def clear_scrubber(self, wait: bool = False, timeout: float = 2.0) -> bool:
+        return self._widgets.scrubber.clear(wait=wait, timeout=timeout)
+
+    def remove_filetree_items(self, paths: Sequence[Path]) -> None:
+        self._widgets.filetree.remove_items([str(p) for p in paths])
 
     def set_actors(self, items: dict):
         # TODO I don't like this, should find a better way

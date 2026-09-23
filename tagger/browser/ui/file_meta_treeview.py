@@ -1,4 +1,5 @@
 import tkinter as tk
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
@@ -146,15 +147,17 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         finally:
             self._menus.context.grab_release()
 
-    def _handle_remove(self):
-        if len(self.treeview.selection()) == 0:
+    def _handle_remove(self) -> None:
+        if not self.treeview.selection():
             return
 
         self._vars.selected_iids.set(self.treeview.selection())
         self.event_generate(VirtualEventSequence.PATH_DELETE)
-        while len(self.treeview.selection()) > 0:
-            iid = self.treeview.selection()[0]
-            self.treeview.delete(iid)
+
+    def remove_items(self, iids: Sequence[str]) -> None:
+        existing = [iid for iid in iids if self.treeview.exists(iid)]
+        if existing:
+            self.treeview.delete(*existing)
 
     def update_item_cols(
         self, iid: str, duration: float, res: tuple[int, int], actors: StringListy, tags: StringListy
