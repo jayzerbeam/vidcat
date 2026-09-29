@@ -2,6 +2,7 @@
 **/.ignore/**
 **/.mypy_cache/**
 **/.ruff_cache/**
+vidcat.cfg.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

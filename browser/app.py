@@ -369,8 +369,9 @@ class App:
                         tags.append(tag)
                         metadata["tags"] = sorted(tags)
                 case BulkAction.DEL_TAG:
-                    tags.remove(val.lower())
-                    metadata["tags"] = tags
+                    if val.lower() in tags:
+                        tags.remove(val.lower())
+                        metadata["tags"] = tags
 
             try:
                 print(f"updating metdata for {f}")

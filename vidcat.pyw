@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import Final
 
 from browser.app import App
-from browser.config import CONFIG_NAME, Config
+from browser.config import Config
 from ui.message_system import MessageWindow
 
+CONFIG_NAME: Final[str] = "vidcat.cfg.json"
 SCRIPT_DIR: Final[Path] = Path(__file__).parent
 
 if __name__ == "__main__":
@@ -39,7 +40,7 @@ if __name__ == "__main__":
 
         path = Path(".")
         window = MessageWindow()
-        window.title(f"Vid Cat ({path.resolve()})")
+        window.title(f"VidCat ({path.resolve()})")
         window.geometry("1200x1000")
         app = App(window, basepath=path, config=cfg)
         window.mainloop()

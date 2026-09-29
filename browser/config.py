@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 from typing import Final
 
-CONFIG_NAME: Final[str] = "browser.cfg.json"
 DEFAULT_METADATA_KEY: Final[str] = "video_metadata"  # for the json within the sidecar files
 DEFAULT_THUMB_HEIGHT: Final[int] = 200
 DEFAULT_THUMB_INTERVAL: Final[int] = -30

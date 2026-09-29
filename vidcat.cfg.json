@@ -1,0 +1,22 @@
+{
+	"metadata_key": "video_metadata",
+	"thumb_height": 200,
+	"thumb_interval": -30,
+	"trash_dir": "E:\\.trash",
+	"vid_player": "C:\\Program Files\\MPC-HC\\mpc-hc64.exe",
+	"vid_player_args": [
+		"/start %t_ms"
+	],
+	"vid_exts": [
+		".avi",
+		".mp4",
+		".m4v",
+		".mkv",
+		".mpg",
+		".mpeg",
+		".wmv",
+		".flv",
+		".f4v",
+		".mov"
+	]
+}
