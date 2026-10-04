@@ -9,7 +9,6 @@ import tkinter as tk
 import traceback
 from collections.abc import Sequence
 from copy import deepcopy
-from enum import StrEnum
 from functools import partial
 from pathlib import Path
 from queue import Queue
@@ -25,16 +24,10 @@ from util.video import ProgressFunc, VideoThumbnailer
 
 from .config import Config
 from .ui import InputWindow, MainFrame, StatusWindow
+from .ui.actions import AppActions, BulkAction, UiContext
 from .ui.constants import TkVarNames
 from .ui.constants import VirtualEventSequence as BVEvent
-
-
-class BulkAction(StrEnum):
-    ADD_ACTOR = "ADD_ACTOR"
-    DEL_ACTOR = "DEL_ACTOR"
-    ADD_TAG = "ADD_TAG"
-    DEL_TAG = "DEL_TAG"
-
+from .ui.state import UiState
 
 _EMPTY_METADATA: Final[dict[str, Any]] = {
     "title": "",
@@ -54,6 +47,7 @@ class App:
     _all_tags: list[str]
     _all_actors: list[str]
     _selected_path: Path  # for vid info tab
+    _state: UiState
 
     class __Widgets(NamedTuple):
         root: tk.Tk
@@ -85,6 +79,8 @@ class App:
         self._all_actors = []
         self._selected_path = Path()
 
+        self._state = UiState(root, thumb_interval=config.thumb_interval, thumb_height=config.thumb_height)
+
         self._vars = __class__.__Vars(
             file_path=tk.StringVar(root, name=TkVarNames.FILE_PATH),
             file_size=tk.StringVar(root, name=TkVarNames.FILE_SIZE),
@@ -101,9 +97,10 @@ class App:
             video_res=tk.StringVar(root, name=TkVarNames.VIDEO_RES),
         )
 
+        actions: AppActions = self  # App structurally implements AppActions without inheriting from it
         self._widgets = __class__.__Widgets(
             root=root,
-            mainframe=MainFrame(root),
+            mainframe=MainFrame(root, UiContext(state=self._state, actions=actions)),
             status=StatusWindow(root),
             input=InputWindow(root),
         )
@@ -156,54 +153,28 @@ class App:
             # shouldn't happen, config does a trash path check
             print("error:trash directory is not a directory, could not initialize")
 
-    def _handle_dir_selected(self, ev: tk.Event) -> None:
+    def select_paths(self, paths: Sequence[Path]) -> None:
+        for p in paths:
+            if p.is_file():
+                self.load_metadata(p)
+                return
         self.clear_vidinfo()
 
-    def _handle_file_selected(self, ev: tk.Event) -> None:
-        tv = cast(ttk.Treeview, ev.widget)
-        if not hasattr(ev.widget, "selection"):
-            return
+    def activate_path(self, path: Path) -> None:
+        if path.is_file():
+            self.play_file(path)
 
-        iid = self._vars.triggered_iid.get()
-        if iid not in tv.selection():  # sanity check: shouldn't happen
-            iid = tv.selection()[0]
+    def show_in_explorer(self, path: Path) -> None:
+        self.goto_path(path)
 
-        self.load_metadata(Path(iid))
+    def play_from_ms(self, ms: int) -> None:
+        if self._selected_path.is_file():
+            self.play_file(self._selected_path, start_ms=ms)
 
-    def _handle_file_deselected(self, ev: tk.Event) -> None:
-        tv = cast(ttk.Treeview, ev.widget)
-        if not hasattr(ev.widget, "selection"):
-            return
-
-        if len(tv.selection()) > 0:
-            self.load_metadata(Path(tv.selection()[0]))
-        else:
-            self.clear_vidinfo()
-
-    def _handle_goto_path(self, ev: tk.Event) -> None:
-        iid = self._vars.context_iid.get()
-        self.goto_path(Path(iid))
-
-    def _handle_file_exec(self, ev: tk.Event) -> None:
-        tv = cast(ttk.Treeview, ev.widget)
-        if not hasattr(ev.widget, "selection"):
-            return
-
-        iid = self._vars.triggered_iid.get()
-        if iid not in tv.selection():
-            iid = tv.selection()[0]
-
-        p = Path(iid)
-        if p.is_file():
-            self.play_file(p)
-
-    def _handle_path_delete(self, ev: tk.Event) -> None:
-        """data is the treeview iid which is the file path"""
+    def delete_paths(self, paths: Sequence[Path]) -> None:
+        """Move paths to the trash and remove them from the file tree."""
         if self._trash_path is None:
             return
-        paths = tuple(
-            Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(p).exists()
-        )
 
         if len(paths) == 0:
             return
@@ -232,28 +203,21 @@ class App:
             removed.append(p)
         return removed
 
-    def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
-        if self._selected_path.is_file():
-            self.play_file(self._selected_path, start_ms=int(data))
-
-    def _handle_scan_path_files(self, ev: tk.Event) -> None:
-        iid = self._vars.context_iid.get()
-        p = Path(iid)
-        if not p.is_dir():
+    def rescan_path(self, path: Path) -> None:
+        if not path.is_dir():
             return
 
-        pt = self._pathtree.dig(p)
+        pt = self._pathtree.dig(path)
         if pt is not None:
             pt.clear()
             pt.scan(filters=[path_extension_filter(self._config.vid_exts)])
-            self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, iid)
+            self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, str(path))
 
-    def _handle_scan_path_metadata(self, ev: tk.Event) -> None:
-        p = Path(self._vars.context_iid.get())
-        if not p.is_dir():
+    def scan_path_metadata(self, path: Path) -> None:
+        if not path.is_dir():
             return
 
-        pt = self._pathtree.dig(p)
+        pt = self._pathtree.dig(path)
         if pt is None:
             return
 
@@ -296,10 +260,8 @@ class App:
         self.status_window(True)
         threading.Thread(target=lambda: _thread(pt), daemon=True).start()
 
-    def _handle_bulk_del_meta(self, ev: tk.Event) -> None:
-        files = tuple(
-            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(f).is_file()
-        )
+    def delete_metadata(self, paths: Sequence[Path]) -> None:
+        files = tuple(p for p in paths if p.is_file())
 
         for f in files:
             try:
@@ -310,17 +272,13 @@ class App:
             else:
                 self._widgets.mainframe._widgets.filetree.update_item_cols(str(f), 0, (0, 0), [], [])
 
-    def _handle_bulk_thumbs(self, ev: tk.Event) -> None:
-        files = tuple(
-            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(f).is_file()
-        )
+    def generate_thumbnails_bulk(self, paths: Sequence[Path]) -> None:
+        files = tuple(p for p in paths if p.is_file())
 
         self.gen_thumbs_bulk(files)
 
-    def _handle_bulk_edit_meta(self, ev: tk.Event, action: str) -> None:
-        files = tuple(
-            Path(f) for f in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(f).is_file()
-        )
+    def edit_metadata(self, action: BulkAction, paths: Sequence[Path]) -> None:
+        files = tuple(p for p in paths if p.is_file())
 
         match action:
             case BulkAction.ADD_ACTOR:
@@ -389,7 +347,7 @@ class App:
                     metadata["tags"],
                 )
 
-    def _handle_gen_thumbs(self, ev: tk.Event) -> None:
+    def generate_thumbnails(self) -> None:
         if self._selected_path is None or not self._selected_path.is_file():
             self._widgets.mainframe.event_generate(BVEvent.GEN_THUMBS_COMPLETE)
             return
@@ -425,7 +383,10 @@ class App:
         self.status_window(True)
         threading.Thread(target=_thread_entry, daemon=True).start()
 
-    def _handle_save_metadata(self, ev: tk.Event) -> None:
+    def _handle_gen_thumbs(self, ev: tk.Event) -> None:
+        self.generate_thumbnails()
+
+    def save_metadata(self) -> None:
         print(f"saving metadata for {self._selected_path}")
 
         # thumbnails are updated on generation
@@ -443,7 +404,10 @@ class App:
         except Exception as ex:
             print(f"failed to save metadata for {self._selected_path}: {ex}")
 
-    def _handle_scan_metadata(self, ev: tk.Event) -> None:
+    def _handle_save_metadata(self, ev: tk.Event) -> None:
+        self.save_metadata()
+
+    def scan_metadata(self) -> None:
         self.status_window(True)
         self._widgets.mainframe.busy_hold(cursor=TkCursor.WATCH)
         self._widgets.mainframe._widgets.filetree.unhide_all()
@@ -501,6 +465,80 @@ class App:
             self.status_window(False)
 
         threading.Thread(target=_thread_entry, daemon=True).start()
+
+    def _handle_scan_metadata(self, ev: tk.Event) -> None:
+        self.scan_metadata()
+
+    def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: str = "OR") -> None:
+        """Temporary deep access; removed in task 08 when FilterFrame owns filter state."""
+        self._widgets.mainframe._widgets.filetree.apply_filters(list(actors), list(tags), operator=operator)
+
+    def clear_filters(self) -> None:
+        """Temporary deep access; removed in task 08 when FilterFrame owns filter state."""
+        self._widgets.mainframe._widgets.filetree.unhide_all()
+
+    def _handle_dir_selected(self, ev: tk.Event) -> None:
+        self.clear_vidinfo()
+
+    def _handle_file_selected(self, ev: tk.Event) -> None:
+        tv = cast(ttk.Treeview, ev.widget)
+        if not hasattr(ev.widget, "selection"):
+            return
+
+        iid = self._vars.triggered_iid.get()
+        if iid not in tv.selection():  # sanity check: shouldn't happen
+            iid = tv.selection()[0]
+
+        self.select_paths((Path(iid),))
+
+    def _handle_file_deselected(self, ev: tk.Event) -> None:
+        tv = cast(ttk.Treeview, ev.widget)
+        if not hasattr(ev.widget, "selection"):
+            return
+
+        self.select_paths(tuple(Path(p) for p in tv.selection()))
+
+    def _handle_goto_path(self, ev: tk.Event) -> None:
+        self.show_in_explorer(Path(self._vars.context_iid.get()))
+
+    def _handle_file_exec(self, ev: tk.Event) -> None:
+        tv = cast(ttk.Treeview, ev.widget)
+        if not hasattr(ev.widget, "selection"):
+            return
+
+        iid = self._vars.triggered_iid.get()
+        if iid not in tv.selection():
+            iid = tv.selection()[0]
+
+        self.activate_path(Path(iid))
+
+    def _handle_path_delete(self, ev: tk.Event) -> None:
+        """data is the treeview iid which is the file path"""
+        paths = tuple(
+            Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(p).exists()
+        )
+        self.delete_paths(paths)
+
+    def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
+        self.play_from_ms(int(data))
+
+    def _handle_scan_path_files(self, ev: tk.Event) -> None:
+        self.rescan_path(Path(self._vars.context_iid.get()))
+
+    def _handle_scan_path_metadata(self, ev: tk.Event) -> None:
+        self.scan_path_metadata(Path(self._vars.context_iid.get()))
+
+    def _handle_bulk_del_meta(self, ev: tk.Event) -> None:
+        paths = tuple(Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()))
+        self.delete_metadata(paths)
+
+    def _handle_bulk_thumbs(self, ev: tk.Event) -> None:
+        paths = tuple(Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()))
+        self.generate_thumbnails_bulk(paths)
+
+    def _handle_bulk_edit_meta(self, ev: tk.Event, action: BulkAction) -> None:
+        paths = tuple(Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()))
+        self.edit_metadata(action, paths)
 
     def _generate_video_metadata(
         self,

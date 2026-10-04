@@ -6,8 +6,10 @@ from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
 
+from ui.constants import TkCursor
 from ui.tk_event_data import DataEvents
 
+from .actions import UiContext
 from .constants import VirtualEventSequence
 from .file_meta_treeview import FileMetaTreeviewFrame
 from .filter_frame import FilterFrame
@@ -24,18 +26,19 @@ class MainFrame(DataEvents, ttk.Frame):
         filters: FilterFrame
         scrubber: ScrubFrame
 
-    _basepath: Path | None
+    _ctx: UiContext
     _widgets: __Widgets
 
     def __init__(
         self,
         parent: tk.Frame | tk.Tk,
-        basepath: Path | None = None,
+        ctx: UiContext,
         *args: Any,
         **kw: Any,
     ):
         super().__init__(parent, *args, **kw)
-        self._basepath = basepath
+        self._ctx = ctx
+        ctx.state.busy_changed.connect(self._handle_busy)
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         tabs = ttk.Notebook(pane)
@@ -102,6 +105,12 @@ class MainFrame(DataEvents, ttk.Frame):
             self._widgets.filters._widgets.tags.treeview.selection(),
             operator=operator,
         )
+
+    def _handle_busy(self, busy: bool) -> None:
+        if busy:
+            self.busy_hold(cursor=TkCursor.WATCH)
+        else:
+            self.busy_forget()
 
     def _handle_clear_filters(self, event: tk.Event) -> None:
         self._widgets.filetree.unhide_all()
