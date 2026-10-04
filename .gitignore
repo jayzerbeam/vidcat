@@ -1,5 +1,5 @@
 **/.local
-**/.ignore/**
+**/.ignored
 **/.mypy_cache/**
 **/.ruff_cache/**
 vidcat.cfg.json
