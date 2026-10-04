@@ -95,7 +95,6 @@ class App:
         self._widgets.root.bind_all(VEvent.FILE_DESELECT, func=self._handle_file_deselected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
         self._widgets.root.bind_all(BVEvent.GOTO_PATH, func=self._handle_goto_path, add=True)
-        self._widgets.root.bind_all(BVEvent.GEN_THUMBS, func=self._handle_gen_thumbs, add=True)
         self._widgets.root.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
         self._widgets.root.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
         self._widgets.root.bind_all(
@@ -331,7 +330,6 @@ class App:
 
     def generate_thumbnails(self) -> None:
         if self._selected_path is None or not self._selected_path.is_file():
-            self._widgets.mainframe.event_generate(BVEvent.GEN_THUMBS_COMPLETE)
             return
 
         # probably not thread-safe
@@ -352,21 +350,17 @@ class App:
             else:
                 self._metadata |= metadata
 
-            self._widgets.mainframe.event_generate(
-                BVEvent.GEN_THUMBS_COMPLETE
-            )  # widgets listen to this to remove their busy
             self.update_widgets_from_metadata()
             self.status_window(False)
+            self._state.busy_changed.emit(False)
 
             """ a lot of buffers, objects, etc. are created here so invoking a garbage collection afterward seems
                 to keep memory usage from ballooning"""
             gc.collect()
 
         self.status_window(True)
+        self._state.busy_changed.emit(True)
         threading.Thread(target=_thread_entry, daemon=True).start()
-
-    def _handle_gen_thumbs(self, ev: tk.Event) -> None:
-        self.generate_thumbnails()
 
     def save_metadata(self) -> None:
         print(f"saving metadata for {self._selected_path}")
@@ -530,8 +524,8 @@ class App:
         m["video_properties"] = {}
         m["video_properties"]["dimensions"] = vt.dimensions
         m["video_properties"]["duration"] = round(vt.duration, 2) if vt.duration is not None else 0
-        vt.extract_frames(interval=float(self._vars.thumb_interval.get()), progress_func=extract_progress_func)
-        vt.resize_frames(resize_height=int(self._vars.thumb_height.get()), progress_func=resize_progress_func)
+        vt.extract_frames(interval=float(self._state.thumb_interval.get()), progress_func=extract_progress_func)
+        vt.resize_frames(resize_height=int(self._state.thumb_height.get()), progress_func=resize_progress_func)
         jpgs = vt.gen_jpgs()
         if jpgs is not None:
             m["thumbnails"] = jpgs

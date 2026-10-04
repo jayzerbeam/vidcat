@@ -9,7 +9,6 @@ from PIL import Image, ImageTk
 from browser.ui.constants import VirtualEventSequence
 from ui.better_frames import ImagesFrame
 from ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
-from ui.constants import TkCursor
 from ui.tk_event_data import DataEvents
 
 from .actions import UiContext
@@ -54,15 +53,13 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
             lists=ActorTagPane(pane, ctx, orient=tk.VERTICAL, width=200),
             pane=pane,
             thumbnails=ImagesFrame(self, per_row=0),
-            generate=ThumbGen(self),
+            generate=ThumbGen(self, ctx),
             save=ttk.Button(
                 self,
                 text="Save",
                 command=lambda self=self: self.event_generate(VirtualEventSequence.SAVE_METADATA),
             ),
         )
-        self.bind_all(VirtualEventSequence.GEN_THUMBS, func=self._handle_generate_thumbs, add=True)
-        self.bind_all(VirtualEventSequence.GEN_THUMBS_COMPLETE, func=self._handle_generate_thumbs_complete, add=True)
 
         self._widgets.props.grid(row=0, sticky="EW")
         self._widgets.title.grid(row=1, sticky="EW")
@@ -83,13 +80,6 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
                     break
 
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
-
-    def _handle_generate_thumbs(self, ev: tk.Event) -> None:
-        self._widgets.thumbnails.busy_hold(cursor=TkCursor.WAIT)
-
-    def _handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
-        if self._widgets.thumbnails.busy_status():
-            self._widgets.thumbnails.busy_forget()
 
     def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
         for t in thumbs:
@@ -187,46 +177,29 @@ class ActorTagPane(DataEvents, ttk.PanedWindow):
         return self._widgets.tags
 
 
-class ThumbGen(DataEvents, ttk.Frame):
+class ThumbGen(ttk.Frame):
     class __Widgets(NamedTuple):
         interval: LabeledEntry
         height: LabeledEntry
         button: ttk.Button
 
-    class __Vars(NamedTuple):
-        interval: StringVar
-        height: StringVar
-
-    def __init__(self, parent, *args, **kw):
-        def _gen_thumbs():
-            self.busy_hold(cursor=TkCursor.WAIT)
-            self.event_generate(VirtualEventSequence.GEN_THUMBS)
-
+    def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(parent, *args, **kw)
-        self._vars = __class__.__Vars(
-            interval=StringVar(name="THUMB_INTERVAL"),
-            height=StringVar(name="THUMB_HEIGHT"),
-        )
         self._widgets = __class__.__Widgets(
             interval=LabeledEntry(
                 self,
                 layout=LabeledEntryLayout.ONE_LINE,
                 labelconf={"text": "Interval"},
-                entryconf={"textvariable": self._vars.interval, "width": 8},
+                entryconf={"textvariable": ctx.state.thumb_interval, "width": 8},
             ),
             height=LabeledEntry(
                 self,
                 layout=LabeledEntryLayout.ONE_LINE,
                 labelconf={"text": "Height"},
-                entryconf={"textvariable": self._vars.height, "width": 8},
+                entryconf={"textvariable": ctx.state.thumb_height, "width": 8},
             ),
-            button=ttk.Button(self, text="Generate", command=_gen_thumbs),
+            button=ttk.Button(self, text="Generate", command=ctx.actions.generate_thumbnails),
         )
         self._widgets.interval.grid(column=1, row=0, padx=(0, 4))
         self._widgets.height.grid(column=2, row=0, padx=(0, 4))
         self._widgets.button.grid(column=3, row=0)
-        self.bind_all(VirtualEventSequence.GEN_THUMBS_COMPLETE, func=self._handle_generate_thumbs_complete, add=True)
-
-    def _handle_generate_thumbs_complete(self, ev: tk.Event) -> None:
-        if self.busy_status():
-            self.busy_forget()
