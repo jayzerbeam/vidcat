@@ -6,11 +6,13 @@ from typing import NamedTuple
 
 from PIL import Image, ImageTk
 
-from browser.ui.constants import TkVarNames, VirtualEventSequence
+from browser.ui.constants import VirtualEventSequence
 from ui.better_frames import ImagesFrame
 from ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
 from ui.constants import TkCursor
 from ui.tk_event_data import DataEvents
+
+from .actions import UiContext
 
 
 class VideoInfoFrame(DataEvents, ttk.Frame):
@@ -30,25 +32,26 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
     _widgets: __Widgets
     _vars: __Vars
 
-    def __init__(self, parent, *args, **kw):
+    def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(parent, *args, **kw)
+        self._ctx = ctx
         self._thumbs = ()
         self._play_from_ms = 0
 
         self._vars = __class__.__Vars(
-            title=StringVar(name=TkVarNames.META_TITLE),
+            title=ctx.state.meta_title,
         )
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         self._widgets = __class__.__Widgets(
-            props=VideoProperties(self),
+            props=VideoProperties(self, ctx),
             title=LabeledEntry(
                 self,
                 layout=LabeledEntryLayout.TWO_LINE,
                 labelconf={"text": "Title"},
                 entryconf={"textvariable": self._vars.title},
             ),
-            lists=ActorTagPane(pane, orient=tk.VERTICAL, width=200),
+            lists=ActorTagPane(pane, ctx, orient=tk.VERTICAL, width=200),
             pane=pane,
             thumbnails=ImagesFrame(self, per_row=0),
             generate=ThumbGen(self),
@@ -109,18 +112,18 @@ class VideoProperties(DataEvents, ttk.Frame):
         duration: ttk.Label
         metadata_size: ttk.Label
 
-    def __init__(self, parent, *args, **kw):
+    def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(parent, *args, **kw)
         row1 = ttk.Frame(self)
         row2 = ttk.Frame(self)
         self._widgets = __class__.__Widgets(
             row1=row1,
             row2=row2,
-            file_path=ttk.Label(row1, textvariable=tk.StringVar(name=TkVarNames.FILE_PATH)),
-            file_size=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.FILE_SIZE)),
-            dimensions=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.VIDEO_RES)),
-            duration=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.VIDEO_LEN)),
-            metadata_size=ttk.Label(row2, textvariable=tk.StringVar(name=TkVarNames.META_SIZE)),
+            file_path=ttk.Label(row1, textvariable=ctx.state.file_path),
+            file_size=ttk.Label(row2, textvariable=ctx.state.file_size),
+            dimensions=ttk.Label(row2, textvariable=ctx.state.video_res),
+            duration=ttk.Label(row2, textvariable=ctx.state.video_len),
+            metadata_size=ttk.Label(row2, textvariable=ctx.state.meta_size),
         )
         self._widgets.row1.pack(fill=tk.X, side=tk.TOP)
         self._widgets.row2.pack(fill=tk.X, side=tk.TOP)
@@ -138,7 +141,7 @@ class ActorTagPane(DataEvents, ttk.PanedWindow):
         actors: EditableList
         tags: EditableList
 
-    def __init__(self, parent, *args, **kw):
+    def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(parent, *args, **kw)
 
         def _remove_commas(entry: str) -> str:
@@ -151,13 +154,13 @@ class ActorTagPane(DataEvents, ttk.PanedWindow):
             actors=EditableList(
                 self,
                 "Actors",
-                listboxconf={"selectmode": tk.EXTENDED, "listvariable": tk.Variable(name=TkVarNames.META_ACTORS)},
+                listboxconf={"selectmode": tk.EXTENDED, "listvariable": ctx.state.meta_actors},
                 width=1,
             ),
             tags=EditableList(
                 self,
                 "Tags",
-                listboxconf={"selectmode": tk.EXTENDED, "listvariable": tk.Variable(name=TkVarNames.META_TAGS)},
+                listboxconf={"selectmode": tk.EXTENDED, "listvariable": ctx.state.meta_tags},
                 width=1,
             ),
         )

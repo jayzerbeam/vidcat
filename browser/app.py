@@ -56,19 +56,11 @@ class App:
         input: InputWindow
 
     class __Vars(NamedTuple):
-        file_path: tk.StringVar
-        file_size: tk.StringVar
-        meta_actors: tk.Variable
-        meta_tags: tk.Variable
-        meta_title: tk.StringVar
-        meta_size: tk.StringVar
         triggered_iid: tk.StringVar
         context_iid: tk.StringVar
         selected_iids: tk.Variable
         thumb_interval: tk.StringVar
         thumb_height: tk.StringVar
-        video_len: tk.StringVar
-        video_res: tk.StringVar
 
     def __init__(self, root: tk.Tk, basepath: Path, config: Config):
         self._config = config
@@ -82,19 +74,11 @@ class App:
         self._state = UiState(root, thumb_interval=config.thumb_interval, thumb_height=config.thumb_height)
 
         self._vars = __class__.__Vars(
-            file_path=tk.StringVar(root, name=TkVarNames.FILE_PATH),
-            file_size=tk.StringVar(root, name=TkVarNames.FILE_SIZE),
-            meta_actors=tk.Variable(root, name=TkVarNames.META_ACTORS),
-            meta_tags=tk.Variable(root, name=TkVarNames.META_TAGS),
-            meta_title=tk.StringVar(root, name=TkVarNames.META_TITLE),
-            meta_size=tk.StringVar(root, name=TkVarNames.META_SIZE),
             triggered_iid=tk.StringVar(root, name=TkVarNames.TRIGGERED_IID),
             context_iid=tk.StringVar(root, name=TkVarNames.CONTEXT_IID),
             selected_iids=tk.Variable(root, name=TkVarNames.SELECTED_IIDS),
             thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value=str(self._config.thumb_interval)),
             thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value=str(self._config.thumb_height)),
-            video_len=tk.StringVar(root, name=TkVarNames.VIDEO_LEN),
-            video_res=tk.StringVar(root, name=TkVarNames.VIDEO_RES),
         )
 
         actions: AppActions = self  # App structurally implements AppActions without inheriting from it
@@ -388,15 +372,15 @@ class App:
         print(f"saving metadata for {self._selected_path}")
 
         # thumbnails are updated on generation
-        self._metadata["title"] = self._vars.meta_title.get()
-        self._metadata["actors"] = self._widgets.root.tk.splitlist(self._vars.meta_actors.get())
-        self._metadata["tags"] = self._widgets.root.tk.splitlist(self._vars.meta_tags.get())
+        self._metadata["title"] = self._state.meta_title.get()
+        self._metadata["actors"] = self._widgets.root.tk.splitlist(self._state.meta_actors.get())
+        self._metadata["tags"] = self._widgets.root.tk.splitlist(self._state.meta_tags.get())
         self.update_widgets_from_metadata()
         try:
             buf = pickle.dumps(self._metadata)
             sidecar = MagicSidecar(self._selected_path, namespace=self._config.metadata_key)
             sidecar.write(buf)
-            self._vars.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
+            self._state.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
         except pickle.PickleError:
             print(f"failed to pickle metadata for {self._selected_path}")
         except Exception as ex:
@@ -658,15 +642,15 @@ class App:
             self._selected_path = p
             sidecar = MagicSidecar(p, namespace=self._config.metadata_key)
             print(f"loading metadata for {p}")
-            self._vars.file_path.set(str(p))
-            self._vars.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
-            self._vars.meta_size.set("metadata size: none")
+            self._state.file_path.set(str(p))
+            self._state.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
+            self._state.meta_size.set("metadata size: none")
             self._metadata = deepcopy(_EMPTY_METADATA)
 
             try:
                 buf = sidecar.read()
                 self._metadata = pickle.loads(buf)
-                self._vars.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
+                self._state.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
             except FileNotFoundError:
                 self._metadata = deepcopy(_EMPTY_METADATA)
                 print(f"{p} does not have a magic sidecar")
@@ -680,9 +664,9 @@ class App:
             self._state.selection_changed.emit((p,))
 
     def clear_vidinfo(self) -> None:
-        self._vars.file_path.set("")
-        self._vars.file_size.set("size: none")
-        self._vars.meta_size.set("metadata size: none")
+        self._state.file_path.set("")
+        self._state.file_size.set("size: none")
+        self._state.meta_size.set("metadata size: none")
         self._metadata = deepcopy(_EMPTY_METADATA)
         self._selected_path = Path("")
         self.update_widgets_from_metadata()
@@ -700,11 +684,11 @@ class App:
 
         vres = self._metadata["video_properties"]["dimensions"]
         vlen = nice_duration(self._metadata["video_properties"]["duration"])
-        self._vars.meta_title.set(self._metadata["title"])
-        self._vars.meta_actors.set(self._metadata["actors"])
-        self._vars.meta_tags.set(self._metadata["tags"])
-        self._vars.video_len.set(f"length: {vlen}")
-        self._vars.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
+        self._state.meta_title.set(self._metadata["title"])
+        self._state.meta_actors.set(self._metadata["actors"])
+        self._state.meta_tags.set(self._metadata["tags"])
+        self._state.video_len.set(f"length: {vlen}")
+        self._state.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
         self._widgets.mainframe.update_thumbs(self._metadata["thumbnails"])
 
     def update_filetree(self) -> None:

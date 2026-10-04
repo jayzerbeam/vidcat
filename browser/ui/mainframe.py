@@ -47,7 +47,7 @@ class MainFrame(DataEvents, ttk.Frame):
             filetree=FileMetaTreeviewFrame(pane),
             tabs=tabs,
             filters=FilterFrame(tabs),
-            vidinfo=VideoInfoFrame(tabs),
+            vidinfo=VideoInfoFrame(tabs, ctx),
             scrubber=ScrubFrame(tabs, ctx),
         )
         self._widgets.pane.add(self._widgets.filetree)
