@@ -1,6 +1,7 @@
 import queue
 import threading
 import tkinter as tk
+from collections.abc import Sequence
 from enum import StrEnum
 from pathlib import Path
 from tkinter import ttk
@@ -12,7 +13,7 @@ from ui.tk_decorator import tk_debounce
 from util.format import clock_format
 from util.video import VideoReader
 
-from .constants import VirtualEventSequence
+from .actions import UiContext
 
 
 class _ScrubRequest(StrEnum):
@@ -30,6 +31,7 @@ class ScrubFrame(ttk.Frame):
         open: ttk.Button
         position: ttk.Label
 
+    _ctx: UiContext
     _widgets: __Widgets
     _path: Path | None
     _duration_ms: float
@@ -43,8 +45,9 @@ class ScrubFrame(ttk.Frame):
     _poll_after: str | None
     _worker: threading.Thread
 
-    def __init__(self, *args: Any, **kwargs: Any):
-        super().__init__(*args, **kwargs)
+    def __init__(self, parent: tk.Misc, ctx: UiContext, *args: Any, **kwargs: Any):
+        super().__init__(parent, *args, **kwargs)
+        self._ctx = ctx
         self._path = None
         self._duration_ms = 0.0
         self._frame_rate = 0.0
@@ -81,6 +84,15 @@ class ScrubFrame(ttk.Frame):
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()
         self._poll_results()
+
+        ctx.state.selection_changed.connect(self._handle_selection)
+
+    def _handle_selection(self, paths: Sequence[Path]) -> None:
+        if len(paths) == 1 and paths[0].is_file():
+            self.load(paths[0])
+        else:
+            # synchronous clear: App relies on the file handle being released before trashing
+            self.clear(wait=True)
 
     def load(self, path: Path) -> None:
         """Load a video file for scrubbing. Replaces any previously loaded file."""
@@ -194,7 +206,7 @@ class ScrubFrame(ttk.Frame):
         if self._path is None or self._duration_ms <= 0:
             return
         ms = round(float(self._widgets.seek.get()) * self._duration_ms)
-        self.event_generate(VirtualEventSequence.PLAY_FROM_MS, data=ms)
+        self._ctx.actions.play_from_ms(ms)
 
     @tk_debounce(50, leading=True)
     def _handle_seek(self, pos: str) -> None:

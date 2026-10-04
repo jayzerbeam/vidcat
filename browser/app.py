@@ -131,8 +131,6 @@ class App:
         self._widgets.root.bind_all(BVEvent.PATH_DELETE, func=self._handle_path_delete, add=True)
         self._widgets.root.bind_all(BVEvent.SCAN_PATH_FILES, func=self._handle_scan_path_files, add=True)
         self._widgets.root.bind_all(BVEvent.SCAN_PATH_METADATA, func=self._handle_scan_path_metadata, add=True)
-        # bind_all_with_data is a Monkey patch but only on widgets, not root
-        self._widgets.mainframe.bind_all_with_data(BVEvent.PLAY_FROM_MS, func=self._handle_play_from_ms, add=True)
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.input.transient(self._widgets.mainframe)  # type: ignore
@@ -181,7 +179,7 @@ class App:
 
         if self._selected_path in paths:
             self.clear_vidinfo()
-            self._widgets.mainframe.clear_scrubber(wait=True)
+            self._state.selection_changed.emit(())
 
         removed = self._send_to_trash(paths)
         if removed:
@@ -519,9 +517,6 @@ class App:
         )
         self.delete_paths(paths)
 
-    def _handle_play_from_ms(self, ev: tk.Event, data: str) -> None:
-        self.play_from_ms(int(data))
-
     def _handle_scan_path_files(self, ev: tk.Event) -> None:
         self.rescan_path(Path(self._vars.context_iid.get()))
 
@@ -682,7 +677,7 @@ class App:
             finally:
                 self.update_widgets_from_metadata()
 
-            self._widgets.mainframe.update_scrubber(p)
+            self._state.selection_changed.emit((p,))
 
     def clear_vidinfo(self) -> None:
         self._vars.file_path.set("")
@@ -691,7 +686,7 @@ class App:
         self._metadata = deepcopy(_EMPTY_METADATA)
         self._selected_path = Path("")
         self.update_widgets_from_metadata()
-        self._widgets.mainframe.clear_scrubber()
+        self._state.selection_changed.emit(())
 
     def update_widgets_from_metadata(self) -> None:
         # todo don't reach down through widgets

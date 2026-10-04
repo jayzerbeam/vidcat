@@ -48,7 +48,7 @@ class MainFrame(DataEvents, ttk.Frame):
             tabs=tabs,
             filters=FilterFrame(tabs),
             vidinfo=VideoInfoFrame(tabs),
-            scrubber=ScrubFrame(tabs),
+            scrubber=ScrubFrame(tabs, ctx),
         )
         self._widgets.pane.add(self._widgets.filetree)
         self._widgets.pane.add(self._widgets.tabs)
@@ -76,12 +76,6 @@ class MainFrame(DataEvents, ttk.Frame):
 
     def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
         self._widgets.vidinfo.update_thumbs(thumbs)
-
-    def update_scrubber(self, path: Path) -> None:
-        self._widgets.scrubber.load(path)
-
-    def clear_scrubber(self, wait: bool = False, timeout: float = 2.0) -> bool:
-        return self._widgets.scrubber.clear(wait=wait, timeout=timeout)
 
     def remove_filetree_items(self, paths: Sequence[Path]) -> None:
         self._widgets.filetree.remove_items([str(p) for p in paths])
