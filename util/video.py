@@ -1,6 +1,5 @@
 import io
 from collections.abc import Callable, Sequence
-from contextlib import suppress
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -11,15 +10,20 @@ from PIL import Image
 ProgressFunc = Callable[[float], None]
 
 
+def _stream_rate(stream: Any) -> Fraction | None:
+    """Best-effort frames-per-second for a video stream, or None if the container doesn't report one."""
+    return stream.average_rate or stream.guessed_rate or stream.base_rate
+
+
 class VideoThumbnailer:
     _DEFAULT_FPS = 30  # incase it's unknown
     _path: Path
     _frames: list[tuple[Image.Image, int, int]]
     _dimensions: tuple[int, int]
 
-    _time_base: Fraction
-    _average_rate: Fraction
-    _last_pts: int
+    _time_base: Fraction | None
+    _average_rate: Fraction | None
+    _last_pts: int | None
 
     def __init__(self, path: Path):
         self._frames = []
@@ -32,8 +36,8 @@ class VideoThumbnailer:
 
         self._dimensions = (vs.width, vs.height)
         self._time_base = vs.time_base
-        self._average_rate = vs.average_rate
-        avcontainer.seek(1 << 48, stream=vs)
+        self._average_rate = _stream_rate(vs)
+        avcontainer.seek(1 << 48, stream=vs, any_frame=True)
         pkt = next(avcontainer.demux(vs))
         self._last_pts = pkt.pts
         avcontainer.close()
@@ -44,14 +48,20 @@ class VideoThumbnailer:
 
     @property
     def duration(self) -> float | None:
+        if self._last_pts is None or self._time_base is None:
+            return None
         return float(self._last_pts * self._time_base)
 
     @property
-    def frame_rate(self) -> float:
+    def frame_rate(self) -> float | None:
+        if self._average_rate is None:
+            return None
         return float(1 / self._average_rate)
 
     @property
-    def frame_count(self) -> int:
+    def frame_count(self) -> int | None:
+        if self._last_pts is None or self._time_base is None or self._average_rate is None:
+            return None
         return int(self._last_pts * self._time_base / self._average_rate)
 
     def extract_frames(self, interval: float = 30.0, progress_func: ProgressFunc = lambda p: None) -> None:
@@ -68,32 +78,42 @@ class VideoThumbnailer:
         if len(avcontainer.streams.video) == 0:
             raise ValueError(f"{self._path} has no video streams")
         vs = avcontainer.streams.video[0]
+        rate = _stream_rate(vs)
 
         avcontainer.seek(1 << 48, stream=vs, backward=True, any_frame=False)
         pkt = next(avcontainer.demux(vs))
         last_pts = pkt.pts
-        duration = last_pts * vs.time_base
+        if last_pts is None:
+            last_pts = vs.duration
+        time_base = vs.time_base
+        if last_pts is None or time_base is None:
+            avcontainer.close()
+            raise ValueError(f"{self._path} has no usable timestamps")
+        duration = last_pts * time_base
 
         if interval < 0:
-            interval = last_pts / -interval  # type: ignore
+            interval = last_pts / -interval
         else:
-            interval = interval / vs.time_base  # type: ignore
+            interval = interval / time_base
 
-        print(
-            f"{int(pkt.pts * vs.time_base / vs.average_rate)} frames, {round(duration * vs.time_base)}s, {float(vs.average_rate):.2f}fps, interval {interval:.0f} "
-        )
+        if rate is not None:
+            print(
+                f"{int(last_pts * time_base / rate)} frames, {round(duration * time_base)}s, {float(rate):.2f}fps, interval {interval:.0f} "
+            )
+        else:
+            print(f"unknown fps, interval {interval:.0f} ")
 
         frames = []
-        seek = 1 * vs.time_base
+        seek = 1 * time_base
         progress_func(0.0)
         while seek <= last_pts:
             avcontainer.seek(int(seek), stream=vs, backward=True, any_frame=False)
             frame = next(avcontainer.decode(vs))
             frameno = framems = 0
-            with suppress(TypeError):
-                frameno = round(frame.pts / interval * vs.average_rate)
-            with suppress(TypeError):
-                framems = round(frame.pts * vs.time_base * 1000)
+            if frame.pts is not None:
+                if rate is not None:
+                    frameno = round(frame.pts / interval * rate)
+                framems = round(frame.pts * time_base * 1000)
             frames.append((frame.to_image(), frameno, framems))
             progress_func(float(seek / last_pts))
             print(".", end="")
@@ -126,7 +146,7 @@ class VideoThumbnailer:
                 resized_frames.append((rimg,) + fdata[1:])
                 print(".", end="", flush=True)
                 s += 1
-            except:
+            except Exception:
                 print("x", end="", flush=True)
 
             progress_func(i / len(self._frames))
@@ -155,7 +175,7 @@ class VideoThumbnailer:
                 jpgs.append((bytes, fno, time))
                 s += 1
                 print(".", end="", flush=True)
-            except:
+            except Exception:
                 print("x", end="", flush=True)
 
         print(f" {s}/{len(self._frames)}")
@@ -194,8 +214,10 @@ class VideoReader:
         return float(self._last_pts * self._stream.time_base)
 
     @property
-    def frame_rate(self) -> float:
-        return float(self._stream.average_rate)
+    def frame_rate(self) -> float | None:
+        """Frames per second, or None if the container does not report a rate."""
+        rate = _stream_rate(self._stream)
+        return float(rate) if rate is not None else None
 
     def frame_at(self, time_s: float) -> Image.Image | None:
         """Decode and return the frame at (or just before) the given time in seconds"""

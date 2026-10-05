@@ -35,7 +35,7 @@ class ScrubFrame(ttk.Frame):
     _widgets: __Widgets
     _path: Path | None
     _duration_ms: float
-    _frame_rate: float
+    _frame_rate: float | None
     _current_frame: Image.Image | None
     _frame_image: ImageTk.PhotoImage | None
     _load_seq: int
@@ -50,7 +50,7 @@ class ScrubFrame(ttk.Frame):
         self._ctx = ctx
         self._path = None
         self._duration_ms = 0.0
-        self._frame_rate = 0.0
+        self._frame_rate = None
         self._current_frame = None
         self._frame_image = None
         self._load_seq = 0
@@ -101,7 +101,7 @@ class ScrubFrame(ttk.Frame):
 
         self._path = path
         self._duration_ms = 0.0
-        self._frame_rate = 0.0
+        self._frame_rate = None
         self._current_frame = None
         self._widgets.video.delete("frame")
         self._widgets.seek.state(["disabled"])
@@ -114,7 +114,7 @@ class ScrubFrame(ttk.Frame):
     def clear(self, wait: bool = False, timeout: float = 2.0) -> bool:
         self._path = None
         self._duration_ms = 0.0
-        self._frame_rate = 0.0
+        self._frame_rate = None
         self._current_frame = None
         self._widgets.video.delete("frame")
         self._widgets.seek.state(["disabled"])
@@ -144,17 +144,27 @@ class ScrubFrame(ttk.Frame):
                 try:
                     reader = VideoReader(payload)
                     frame = reader.frame_at(0.0)
+                    duration = reader.duration
+                    frame_rate = reader.frame_rate
                 except Exception as ex:
+                    # a file that can't be read (or has no frame rate) simply isn't loaded
                     print(f"error: failed to load {payload} for scrubbing: {ex}")
+                    if reader is not None:
+                        reader.close()
+                        reader = None
                     continue
-                self._results.put((_ScrubRequest.LOAD, seq, reader.duration, reader.frame_rate, frame))
+                self._results.put((_ScrubRequest.LOAD, seq, duration, frame_rate, frame))
             elif kind is _ScrubRequest.SEEK:
                 if reader is None:
                     continue
                 # coalesce: skip if a newer request is already queued
                 if not self._requests.empty():
                     continue
-                frame = reader.frame_at(payload)
+                try:
+                    frame = reader.frame_at(payload)
+                except Exception as ex:
+                    print(f"error: failed to seek {payload}s for scrubbing: {ex}")
+                    continue
                 self._results.put((_ScrubRequest.SEEK, seq, payload, frame))
             elif kind is _ScrubRequest.CLOSE:
                 try:
@@ -169,15 +179,23 @@ class ScrubFrame(ttk.Frame):
             reader.close()
 
     def _poll_results(self) -> None:
-        while not self._results.empty():
-            kind, seq, *rest = self._results.get()
-            if kind is _ScrubRequest.LOAD:
-                self._apply_loaded(seq, *rest)
-            elif kind is _ScrubRequest.SEEK:
-                self._apply_frame(seq, *rest)
-        self._poll_after = self.after(30, self._poll_results)
+        try:
+            while not self._results.empty():
+                kind, seq, *rest = self._results.get()
+                try:
+                    if kind is _ScrubRequest.LOAD:
+                        self._apply_loaded(seq, *rest)
+                    elif kind is _ScrubRequest.SEEK:
+                        self._apply_frame(seq, *rest)
+                except Exception as ex:
+                    print(f"error: failed to apply scrubber result: {ex}")
+        finally:
+            # always keep polling so one bad result can't permanently stall the scrubber
+            self._poll_after = self.after(30, self._poll_results)
 
-    def _apply_loaded(self, seq: int, duration: float | None, frame_rate: float, frame: Image.Image | None) -> None:
+    def _apply_loaded(
+        self, seq: int, duration: float | None, frame_rate: float | None, frame: Image.Image | None
+    ) -> None:
         if seq != self._load_seq:
             return
 
@@ -199,8 +217,13 @@ class ScrubFrame(ttk.Frame):
         if time_s is None:
             self._widgets.position.config(text="")
             return
-        frameno = round(time_s * self._frame_rate)
-        self._widgets.position.config(text=f"{clock_format(time_s, decimals=3)}  frame {frameno}")
+        text = clock_format(time_s, decimals=3)
+        if text is None:
+            self._widgets.position.config(text="")
+            return
+        if self._frame_rate is not None:
+            text += f"  frame {round(time_s * self._frame_rate)}"
+        self._widgets.position.config(text=text)
 
     def _handle_open(self) -> None:
         if self._path is None or self._duration_ms <= 0:
