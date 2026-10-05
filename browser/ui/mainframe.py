@@ -46,7 +46,7 @@ class MainFrame(DataEvents, ttk.Frame):
             pane=pane,
             filetree=FileMetaTreeviewFrame(pane),
             tabs=tabs,
-            filters=FilterFrame(tabs),
+            filters=FilterFrame(tabs, ctx),
             vidinfo=VideoInfoFrame(tabs, ctx),
             scrubber=ScrubFrame(tabs, ctx),
         )
@@ -70,38 +70,11 @@ class MainFrame(DataEvents, ttk.Frame):
 
         self.bind_all("<Control-KeyPress>", _ctrlkey)
 
-        self._widgets.filters.bind(VirtualEventSequence.FILTERS_AND, lambda event: self.apply_filters(operator="AND"))
-        self._widgets.filters.bind(VirtualEventSequence.FILTERS_OR, lambda event: self.apply_filters(operator="OR"))
-        self._widgets.filters.bind(VirtualEventSequence.FILTERS_CLEAR, self._handle_clear_filters)
-
     def remove_filetree_items(self, paths: Sequence[Path]) -> None:
         self._widgets.filetree.remove_items([str(p) for p in paths])
-
-    def set_actors(self, items: dict):
-        # TODO I don't like this, should find a better way
-        tv = self._widgets.filters._widgets.actors.treeview
-        tv.clear()
-        for i in sorted(items.keys()):
-            tv.insert("", tk.END, i, text=str(i), values=(items[i],))
-
-    def set_tags(self, items: dict) -> None:
-        tv = self._widgets.filters._widgets.tags.treeview
-        tv.clear()
-        for i in sorted(items.keys()):
-            tv.insert("", tk.END, i, text=str(i), values=(items[i],))
-
-    def apply_filters(self, operator: str = "OR") -> None:
-        self._widgets.filetree.apply_filters(
-            self._widgets.filters._widgets.actors.treeview.selection(),
-            self._widgets.filters._widgets.tags.treeview.selection(),
-            operator=operator,
-        )
 
     def _handle_busy(self, busy: bool) -> None:
         if busy:
             self.busy_hold(cursor=TkCursor.WATCH)
         else:
             self.busy_forget()
-
-    def _handle_clear_filters(self, event: tk.Event) -> None:
-        self._widgets.filetree.unhide_all()

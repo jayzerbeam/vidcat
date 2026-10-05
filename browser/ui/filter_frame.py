@@ -1,12 +1,13 @@
 import tkinter as tk
+from collections.abc import Mapping
 from tkinter import ttk
 from typing import NamedTuple
 
 from ui.better_treeview import ScrollableTreeviewFrame
 from ui.constants import VirtualEventSequence as VEvent
 
+from .actions import UiContext
 from .constants import TkVarNames
-from .constants import VirtualEventSequence as BVEvent
 
 
 class FilterFrame(ttk.Frame):
@@ -19,15 +20,18 @@ class FilterFrame(ttk.Frame):
         actors: ScrollableTreeviewFrame
         tags: ScrollableTreeviewFrame
 
+    # LEGACY: mirrored into the Tk variables traced by FileMetaTreeviewFrame; removed in task 08
     class __Vars(NamedTuple):
         actors: tk.Variable
         tags: tk.Variable
 
+    _ctx: UiContext
     _widgets: __Widgets
     _vars: __Vars
 
-    def __init__(self, parent, *args, **kw):
+    def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(parent, *args, **kw)
+        self._ctx = ctx
 
         self._vars = __class__.__Vars(
             actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
@@ -46,13 +50,13 @@ class FilterFrame(ttk.Frame):
 
         self._widgets.actions.grid(column=0, row=0, columnspan=2)
         # configured inside actions actions frame
-        self._widgets.scan.config(command=lambda: self.event_generate(BVEvent.SCAN_METADATA))
+        self._widgets.scan.config(command=ctx.actions.scan_metadata)
         self._widgets.scan.grid(column=0, row=0, sticky="W", padx=2, pady=2)
-        self._widgets.filter_and.config(command=lambda: self.event_generate(BVEvent.FILTERS_AND))
+        self._widgets.filter_and.config(command=lambda: ctx.actions.apply_filters(*self._selection(), operator="AND"))
         self._widgets.filter_and.grid(column=1, row=0, sticky="E", padx=2, pady=2)
-        self._widgets.filter_or.config(command=lambda: self.event_generate(BVEvent.FILTERS_OR))
+        self._widgets.filter_or.config(command=lambda: ctx.actions.apply_filters(*self._selection(), operator="OR"))
         self._widgets.filter_or.grid(column=2, row=0, sticky="E", padx=2, pady=2)
-        self._widgets.filter_clear.config(command=lambda: self.event_generate(BVEvent.FILTERS_CLEAR))
+        self._widgets.filter_clear.config(command=ctx.actions.clear_filters)
         self._widgets.filter_clear.grid(column=3, row=0, sticky="E", padx=2, pady=2)
 
         self._widgets.actors.child.heading("#0", text="Actors")
@@ -70,8 +74,33 @@ class FilterFrame(ttk.Frame):
         self.columnconfigure(1, weight=1)
         self.rowconfigure(1, weight=1)
 
+        ctx.state.actor_counts_changed.connect(self._set_actors)
+        ctx.state.tag_counts_changed.connect(self._set_tags)
+
+    def _selection(self) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        return (
+            tuple(self._widgets.actors.child.selection()),
+            tuple(self._widgets.tags.child.selection()),
+        )
+
+    def _set_actors(self, items: Mapping[str, int]) -> None:
+        tv = self._widgets.actors.treeview
+        tv.clear()
+        for i in sorted(items.keys()):
+            tv.insert("", tk.END, i, text=str(i), values=(items[i],))
+
+    def _set_tags(self, items: Mapping[str, int]) -> None:
+        tv = self._widgets.tags.treeview
+        tv.clear()
+        for i in sorted(items.keys()):
+            tv.insert("", tk.END, i, text=str(i), values=(items[i],))
+
     def _handle_actors_select(self, ev: tk.Event) -> None:
-        self._vars.actors.set(self._widgets.actors.child.selection())
+        actors, tags = self._selection()
+        self._vars.actors.set(actors)  # legacy: FileMetaTreeviewFrame trace, removed in task 08
+        self._ctx.state.highlights_changed.emit((actors, tags))
 
     def _handle_tags_select(self, ev: tk.Event) -> None:
-        self._vars.tags.set(self._widgets.tags.child.selection())
+        actors, tags = self._selection()
+        self._vars.tags.set(tags)  # legacy: FileMetaTreeviewFrame trace, removed in task 08
+        self._ctx.state.highlights_changed.emit((actors, tags))

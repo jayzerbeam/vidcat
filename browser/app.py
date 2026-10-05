@@ -95,7 +95,6 @@ class App:
         self._widgets.root.bind_all(VEvent.FILE_DESELECT, func=self._handle_file_deselected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
         self._widgets.root.bind_all(BVEvent.GOTO_PATH, func=self._handle_goto_path, add=True)
-        self._widgets.root.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
         self._widgets.root.bind_all(
             BVEvent.BULK_ADD_ACTOR, func=partial(self._handle_bulk_edit_meta, action=BulkAction.ADD_ACTOR), add=True
         )
@@ -431,15 +430,12 @@ class App:
 
             self._widgets.status.progress = 1.0
             self._widgets.status.info = "populating widgets"
-            self._widgets.mainframe.set_actors(actors)
-            self._widgets.mainframe.set_tags(tags)
+            self._state.actor_counts_changed.emit(actors)
+            self._state.tag_counts_changed.emit(tags)
             self._widgets.mainframe.busy_forget()
             self.status_window(False)
 
         threading.Thread(target=_thread_entry, daemon=True).start()
-
-    def _handle_scan_metadata(self, ev: tk.Event) -> None:
-        self.scan_metadata()
 
     def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: str = "OR") -> None:
         """Temporary deep access; removed in task 08 when FilterFrame owns filter state."""
