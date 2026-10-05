@@ -3,12 +3,10 @@ from collections.abc import Mapping
 from tkinter import ttk
 from typing import NamedTuple
 
-from .tk_event_data import DataEvents
-
 ScrollableWidget = tk.Canvas | ttk.Treeview | tk.Entry | tk.Listbox
 
 
-class ScrollableWidgetFrame[T: ScrollableWidget](DataEvents, ttk.Frame):
+class ScrollableWidgetFrame[T: ScrollableWidget](ttk.Frame):
     _scroll_step: int
 
     class __Widgets(NamedTuple):
@@ -58,12 +56,6 @@ class ScrollableWidgetFrame[T: ScrollableWidget](DataEvents, ttk.Frame):
         # self.grid(column=0, row=0, sticky="NSEW")
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
-
-    def config(self, *args, **kw):
-        if "scroll_step" in kw:
-            self._scroll_step = kw["scroll_step"]
-            del kw["scroll_step"]
-        return super().config(*args, **kw)
 
     @property
     def child(self) -> T:

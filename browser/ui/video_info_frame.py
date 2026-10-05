@@ -8,7 +8,6 @@ from PIL import Image, ImageTk
 
 from ui.better_frames import ImagesFrame
 from ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
-from ui.tk_event_data import DataEvents
 
 from .actions import UiContext
 
@@ -84,7 +83,7 @@ class VideoInfoFrame(ttk.Frame):
         self._widgets.thumbnails.add_images(tuple(t[0] for t in self._thumbs))
 
 
-class VideoProperties(DataEvents, ttk.Frame):
+class VideoProperties(ttk.Frame):
     class __Widgets(NamedTuple):
         row1: ttk.Frame
         row2: ttk.Frame
@@ -118,7 +117,7 @@ class VideoProperties(DataEvents, ttk.Frame):
         self._widgets.metadata_size.pack(ipadx=4, side=tk.LEFT)
 
 
-class ActorTagPane(DataEvents, ttk.PanedWindow):
+class ActorTagPane(ttk.PanedWindow):
     class __Widgets(NamedTuple):
         actors: EditableList
         tags: EditableList

@@ -71,6 +71,10 @@ class App:
         )
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
 
+        # bind on root so the accelerators fire regardless of which widget has focus
+        root.bind("<Control-s>", lambda _ev: self.save_metadata())
+        root.bind("<Control-g>", lambda _ev: self.generate_thumbnails())
+
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.input.transient(self._widgets.mainframe)  # type: ignore
         self.input_window(False)

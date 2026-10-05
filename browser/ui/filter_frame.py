@@ -4,7 +4,6 @@ from tkinter import ttk
 from typing import NamedTuple
 
 from ui.better_treeview import ScrollableTreeviewFrame
-from ui.constants import VirtualEventSequence as VEvent
 
 from .actions import UiContext
 
@@ -51,12 +50,12 @@ class FilterFrame(ttk.Frame):
         self._widgets.actors.child.heading("#0", text="Actors")
         self._widgets.actors.child.heading("count", text="#")
         self._widgets.actors.child.column("count", minwidth=10, width=50, stretch=False)
-        self._widgets.actors.child.bind(sequence=VEvent.TREEVIEW_SELECT, func=self._handle_actors_select)
+        self._widgets.actors.child.bind(sequence="<<TreeviewSelect>>", func=self._handle_actors_select)
         self._widgets.actors.grid(column=0, row=1, sticky="NSEW", padx=2, pady=2)
         self._widgets.tags.child.heading("#0", text="Tags")
         self._widgets.tags.child.heading("count", text="#")
         self._widgets.tags.child.column("count", minwidth=10, width=50, stretch=False)
-        self._widgets.tags.child.bind(VEvent.TREEVIEW_SELECT, self._handle_tags_select)
+        self._widgets.tags.child.bind("<<TreeviewSelect>>", self._handle_tags_select)
         self._widgets.tags.grid(column=1, row=1, sticky="NSEW", padx=2, pady=2)
 
         self.columnconfigure(0, weight=1)

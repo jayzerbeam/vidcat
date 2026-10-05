@@ -8,7 +8,6 @@ from typing import Any
 
 from util.file.tree import PathTree
 
-from .constants import VirtualEventSequence
 from .scrollable import ScrollableWidgetFrame
 
 
@@ -110,7 +109,7 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         self._hidden_items = {}
 
         self.treeview.bind("<Double-Button-1>", self._handle_dclick, add=True)
-        self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, self._handle_select, add=True)
+        self.treeview.bind("<<TreeviewSelect>>", self._handle_select, add=True)
 
     def _handle_dclick(self, ev: tk.Event) -> None:
         if self.treeview.identify("region", ev.x, ev.y) == "heading":

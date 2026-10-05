@@ -6,11 +6,9 @@ from typing import Any
 
 from PIL import ImageTk
 
-from .tk_event_data import DataEvents
-
 
 # http://tkinter.unpythonic.net/wiki/VerticalScrolledFrame
-class ScrolledFrame(DataEvents, ttk.Frame):
+class ScrolledFrame(ttk.Frame):
     def __init__(self, parent, direction=tk.BOTH, *args, **kw):
         super().__init__(parent, *args, **kw)
 
@@ -99,7 +97,7 @@ class ScrolledFrame(DataEvents, ttk.Frame):
 
 
 # NOTE so far this assumes all images are the same size
-class ImagesFrame(DataEvents, ttk.Frame):
+class ImagesFrame(ttk.Frame):
     _per_row: int
     _spacing: int
     _min_canvas_width: int = 1000

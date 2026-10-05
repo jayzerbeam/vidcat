@@ -5,17 +5,15 @@ from tkinter import ttk
 from typing import Any, NamedTuple
 
 from ui.constants import TkCursor
-from ui.tk_event_data import DataEvents
 
 from .actions import UiContext
-from .constants import VirtualEventSequence
 from .file_meta_treeview import FileMetaTreeviewFrame
 from .filter_frame import FilterFrame
 from .scrub_frame import ScrubFrame
 from .video_info_frame import VideoInfoFrame
 
 
-class MainFrame(DataEvents, ttk.Frame):
+class MainFrame(ttk.Frame):
     class __Widgets(NamedTuple):
         pane: ttk.PanedWindow
         filetree: FileMetaTreeviewFrame
@@ -59,14 +57,6 @@ class MainFrame(DataEvents, ttk.Frame):
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
-
-        def _ctrlkey(event: tk.Event) -> None:
-            if event.keysym == "s":
-                self.event_generate(VirtualEventSequence.SAVE_METADATA)
-            if event.keysym == "g":
-                self.event_generate(VirtualEventSequence.GEN_THUMBS)
-
-        self.bind_all("<Control-KeyPress>", _ctrlkey)
 
     def _handle_busy(self, busy: bool) -> None:
         if busy:
