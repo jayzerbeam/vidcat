@@ -482,6 +482,8 @@ class App:
                 metadata = deepcopy(_EMPTY_METADATA)
                 try:
                     metadata = pickle.loads(sidecar.read())
+                except FileNotFoundError:
+                    print(f"no sidecar metadata for {f}")
                 except Exception as ex:
                     print(f"error: loading sidecar metadata for {f}: {ex}")
                     traceback.print_exc()
