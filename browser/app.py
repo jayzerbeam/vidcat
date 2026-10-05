@@ -73,8 +73,6 @@ class App:
         root.bind("<Control-g>", lambda _ev: self.generate_thumbnails())
 
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
-        self._widgets.input.transient(self._widgets.mainframe)  # type: ignore
-        self.input_window(False)
         self.status_window(False)
 
         self._init_trash(config.trash_dir)
@@ -271,8 +269,8 @@ class App:
                 self._widgets.input.title_text = "Remove Tag"
                 self._widgets.input.label_text = "Enter tag to remove"
 
-        val = self._widgets.input.block_for_input(parent=self._widgets.mainframe)
-        if val is None:
+        val = self._widgets.input.block_for_input()
+        if val is None or not val.strip():
             return
 
         for f in files:
@@ -296,8 +294,9 @@ class App:
                         actors.append(val)
                         metadata["actors"] = sorted(actors)
                 case BulkAction.DEL_ACTOR:
-                    actors.remove(val)
-                    metadata["actors"] = actors
+                    if val in actors:
+                        actors.remove(val)
+                        metadata["actors"] = actors
                 case BulkAction.ADD_TAG:
                     tag = val.lower()
                     if tag not in tags:
@@ -607,15 +606,6 @@ class App:
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(self._config.vid_exts)])
         self._state.file_tree_changed.emit(FileTreeUpdate(self._pathtree, ""))
-
-    def input_window(self, active: bool, title: str = "", label: str = "") -> None:
-        if active:
-            self._widgets.input.title_text = title
-            self._widgets.input.label_text = label
-            self._widgets.input.update_idletasks()
-            self._widgets.input.block_for_input(parent=self._widgets.mainframe)
-        else:
-            self._widgets.input.withdraw()
 
     def status_window(self, active: bool) -> None:
         STATUS_SPACING: Final[int] = 80
