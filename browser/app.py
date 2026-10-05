@@ -72,9 +72,6 @@ class App:
         root.bind("<Control-s>", lambda _ev: self.save_metadata())
         root.bind("<Control-g>", lambda _ev: self.generate_thumbnails())
 
-        self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
-        self.status_window(False)
-
         self._init_trash(config.trash_dir)
         self.update_filetree()
 
@@ -111,7 +108,7 @@ class App:
         self._state.busy_changed.emit(busy)
 
     def _close_status(self) -> None:
-        self.status_window(False)
+        self._widgets.status.hide()
 
     def _apply_generated_metadata(self, metadata: dict[str, Any] | None) -> None:
         if metadata is not None:
@@ -232,7 +229,7 @@ class App:
             for f in pt.files():
                 fq.put(f)
 
-        self.status_window(True)
+        self._widgets.status.show()
         threading.Thread(target=lambda: _thread(pt), daemon=True).start()
 
     def delete_metadata(self, paths: Sequence[Path]) -> None:
@@ -352,7 +349,7 @@ class App:
                 to keep memory usage from ballooning"""
             gc.collect()
 
-        self.status_window(True)
+        self._widgets.status.show()
         self._emit_busy(True)
         threading.Thread(target=_thread_entry, daemon=True).start()
 
@@ -375,7 +372,7 @@ class App:
             print(f"failed to save metadata for {self._selected_path}: {ex}")
 
     def scan_metadata(self) -> None:
-        self.status_window(True)
+        self._widgets.status.show()
         self._emit_busy(True)
         self._state.filters_changed.emit(((), (), "OR"))
 
@@ -458,7 +455,7 @@ class App:
             if f.is_file():
                 fq.put(f)
 
-        self.status_window(True)
+        self._widgets.status.show()
         self._emit_busy(True)
 
         # Tk variables must be read on the main thread before the worker starts
@@ -606,21 +603,3 @@ class App:
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(self._config.vid_exts)])
         self._state.file_tree_changed.emit(FileTreeUpdate(self._pathtree, ""))
-
-    def status_window(self, active: bool) -> None:
-        STATUS_SPACING: Final[int] = 80
-        if active:
-            width: int = round(self._widgets.root.winfo_width() - 80)
-            xoffset: int = round(self._widgets.root.winfo_x() + STATUS_SPACING / 2)
-            yoffset: int = round(
-                self._widgets.root.winfo_y()
-                + self._widgets.root.winfo_height() / 2
-                - self._widgets.status.winfo_height() / 2
-            )
-            self._widgets.status.update_idletasks()
-            height = self._widgets.status.winfo_reqheight()
-            self._widgets.status.geometry(f"{width}x{height}+{xoffset}+{yoffset}")
-            self._widgets.status.deiconify()
-            self._widgets.status.lift(self._widgets.mainframe)
-        else:
-            self._widgets.status.withdraw()
