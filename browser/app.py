@@ -130,7 +130,14 @@ class App:
             # shouldn't happen, config does a trash path check
             print("error:trash directory is not a directory, could not initialize")
 
-    def select_paths(self, paths: Sequence[Path]) -> None:
+    def select_paths(self, paths: Sequence[Path], triggered: Path | None = None) -> None:
+        if triggered is not None and triggered in paths:
+            if triggered.is_file():
+                self.load_metadata(triggered)
+            else:
+                self.clear_vidinfo()
+            return
+
         for p in paths:
             if p.is_file():
                 self.load_metadata(p)

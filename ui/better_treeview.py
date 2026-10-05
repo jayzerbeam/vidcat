@@ -91,7 +91,7 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         self,
         parent,
         on_activate: Callable[[Path], None],
-        on_select: Callable[[Sequence[Path]], None],
+        on_select: Callable[[Sequence[Path], Path | None], None],
         *args,
         **kw,
     ):
@@ -100,9 +100,14 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         self._on_activate = on_activate
         self._on_select = on_select
         self._hidden_items = {}
+        self._triggered_iid: str = ""
 
+        self.treeview.bind("<Button-1>", self._handle_click, add=True)
         self.treeview.bind("<Double-Button-1>", self._handle_dclick, add=True)
         self.treeview.bind("<<TreeviewSelect>>", self._handle_select, add=True)
+
+    def _handle_click(self, ev: tk.Event) -> None:
+        self._triggered_iid = self.treeview.identify_row(ev.y)
 
     def _handle_dclick(self, ev: tk.Event) -> None:
         if self.treeview.identify("region", ev.x, ev.y) == "heading":
@@ -112,7 +117,9 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
             self._on_activate(Path(iid))
 
     def _handle_select(self, ev: tk.Event) -> None:
-        self._on_select(tuple(Path(iid) for iid in self.treeview.selection()))
+        selection = tuple(Path(iid) for iid in self.treeview.selection())
+        triggered = Path(self._triggered_iid) if self._triggered_iid else None
+        self._on_select(selection, triggered)
 
     def fill_from_pathtree(self, root_pt: PathTree, from_iid: str = "") -> None:
         # Hidden items are detached, so treeview.clear() leaves them behind and re-inserting the
