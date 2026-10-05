@@ -316,6 +316,9 @@ class App:
             return
 
         path = self._selected_path
+        # Tk variables must be read on the main thread before the worker starts
+        interval = self._state.thumb_interval.get()
+        height = self._state.thumb_height.get()
 
         # probably not thread-safe
         def _thread_entry() -> None:
@@ -326,6 +329,8 @@ class App:
             try:
                 generated = self._generate_video_metadata(
                     path,
+                    interval,
+                    height,
                     extract_progress_func=partial(_progress, prefix="Extracting frames..."),
                     resize_progress_func=partial(_progress, prefix="Resizing frames..."),
                 )
@@ -422,6 +427,8 @@ class App:
     def _generate_video_metadata(
         self,
         path: Path,
+        thumb_interval: str,
+        thumb_height: str,
         extract_progress_func: ProgressFunc = lambda f: None,
         resize_progress_func: ProgressFunc = lambda f: None,
     ) -> dict[str, Any]:
@@ -430,8 +437,8 @@ class App:
         m["video_properties"] = {}
         m["video_properties"]["dimensions"] = vt.dimensions
         m["video_properties"]["duration"] = round(vt.duration, 2) if vt.duration is not None else 0
-        vt.extract_frames(interval=float(self._state.thumb_interval.get()), progress_func=extract_progress_func)
-        vt.resize_frames(resize_height=int(self._state.thumb_height.get()), progress_func=resize_progress_func)
+        vt.extract_frames(interval=float(thumb_interval), progress_func=extract_progress_func)
+        vt.resize_frames(resize_height=int(thumb_height), progress_func=resize_progress_func)
         jpgs = vt.gen_jpgs()
         if jpgs is not None:
             m["thumbnails"] = jpgs
@@ -447,6 +454,10 @@ class App:
 
         self.status_window(True)
         self._emit_busy(True)
+
+        # Tk variables must be read on the main thread before the worker starts
+        interval = self._state.thumb_interval.get()
+        height = self._state.thumb_height.get()
 
         def _thread() -> None:
             def _xprog(fraction: float) -> None:
@@ -471,7 +482,7 @@ class App:
                 self._post_ui(partial(self._emit_progress, f"[{c + 1} / {total}] {f}", c / total))
                 try:
                     metadata |= self._generate_video_metadata(
-                        f, extract_progress_func=_xprog, resize_progress_func=_rprog
+                        f, interval, height, extract_progress_func=_xprog, resize_progress_func=_rprog
                     )
                     sidecar.write(pickle.dumps(metadata))
                 except Exception as ex:

@@ -115,6 +115,19 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         self._on_select(tuple(Path(iid) for iid in self.treeview.selection()))
 
     def fill_from_pathtree(self, root_pt: PathTree, from_iid: str = "") -> None:
+        # Hidden items are detached, so treeview.clear() leaves them behind and re-inserting the
+        # refreshed subtree would fail with "item already exists". Drop hidden descendants first.
+        for iid in tuple(self._hidden_items):
+            if from_iid and iid != from_iid:
+                parent = self._hidden_items[iid]
+                while parent and parent != from_iid:
+                    parent = self.treeview.parent(parent)
+                if parent != from_iid:
+                    continue
+            if self.treeview.exists(iid):
+                self.treeview.delete(iid)
+            del self._hidden_items[iid]
+
         def _recurse(pt: PathTree, parent_iid: str) -> None:
             for d, child in pt.dirs():
                 if child.is_empty:
