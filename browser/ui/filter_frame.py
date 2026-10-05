@@ -7,7 +7,6 @@ from ui.better_treeview import ScrollableTreeviewFrame
 from ui.constants import VirtualEventSequence as VEvent
 
 from .actions import UiContext
-from .constants import TkVarNames
 
 
 class FilterFrame(ttk.Frame):
@@ -20,23 +19,13 @@ class FilterFrame(ttk.Frame):
         actors: ScrollableTreeviewFrame
         tags: ScrollableTreeviewFrame
 
-    # LEGACY: mirrored into the Tk variables traced by FileMetaTreeviewFrame; removed in task 08
-    class __Vars(NamedTuple):
-        actors: tk.Variable
-        tags: tk.Variable
-
     _ctx: UiContext
     _widgets: __Widgets
-    _vars: __Vars
 
     def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(parent, *args, **kw)
         self._ctx = ctx
 
-        self._vars = __class__.__Vars(
-            actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
-            tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
-        )
         actions = ttk.Frame(self)
         self._widgets: __class__.__Widgets = __class__.__Widgets(
             actions=actions,
@@ -97,10 +86,8 @@ class FilterFrame(ttk.Frame):
 
     def _handle_actors_select(self, ev: tk.Event) -> None:
         actors, tags = self._selection()
-        self._vars.actors.set(actors)  # legacy: FileMetaTreeviewFrame trace, removed in task 08
         self._ctx.state.highlights_changed.emit((actors, tags))
 
     def _handle_tags_select(self, ev: tk.Event) -> None:
         actors, tags = self._selection()
-        self._vars.tags.set(tags)  # legacy: FileMetaTreeviewFrame trace, removed in task 08
         self._ctx.state.highlights_changed.emit((actors, tags))

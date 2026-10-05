@@ -7,16 +7,14 @@ import threading
 import time
 import tkinter as tk
 import traceback
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
 from queue import Queue
-from tkinter import ttk
-from typing import Any, Final, NamedTuple, cast
+from typing import Any, Final, NamedTuple
 
 from ui.constants import TkCursor
-from ui.constants import VirtualEventSequence as VEvent
 from util.file.sidecar import MagicSidecar
 from util.file.tree import PathTree, path_extension_filter
 from util.format import nice_bytesize, nice_duration
@@ -25,9 +23,7 @@ from util.video import ProgressFunc, VideoThumbnailer
 from .config import Config
 from .ui import InputWindow, MainFrame, StatusWindow
 from .ui.actions import AppActions, BulkAction, UiContext
-from .ui.constants import TkVarNames
-from .ui.constants import VirtualEventSequence as BVEvent
-from .ui.state import UiState
+from .ui.state import FileTreeUpdate, UiState
 
 _EMPTY_METADATA: Final[dict[str, Any]] = {
     "title": "",
@@ -55,13 +51,6 @@ class App:
         status: StatusWindow
         input: InputWindow
 
-    class __Vars(NamedTuple):
-        triggered_iid: tk.StringVar
-        context_iid: tk.StringVar
-        selected_iids: tk.Variable
-        thumb_interval: tk.StringVar
-        thumb_height: tk.StringVar
-
     def __init__(self, root: tk.Tk, basepath: Path, config: Config):
         self._config = config
         self._pathtree = PathTree(basepath)
@@ -73,14 +62,6 @@ class App:
 
         self._state = UiState(root, thumb_interval=config.thumb_interval, thumb_height=config.thumb_height)
 
-        self._vars = __class__.__Vars(
-            triggered_iid=tk.StringVar(root, name=TkVarNames.TRIGGERED_IID),
-            context_iid=tk.StringVar(root, name=TkVarNames.CONTEXT_IID),
-            selected_iids=tk.Variable(root, name=TkVarNames.SELECTED_IIDS),
-            thumb_interval=tk.StringVar(root, name=TkVarNames.THUMB_INTERVAL, value=str(self._config.thumb_interval)),
-            thumb_height=tk.StringVar(root, name=TkVarNames.THUMB_HEIGHT, value=str(self._config.thumb_height)),
-        )
-
         actions: AppActions = self  # App structurally implements AppActions without inheriting from it
         self._widgets = __class__.__Widgets(
             root=root,
@@ -90,29 +71,6 @@ class App:
         )
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
 
-        self._widgets.root.bind_all(VEvent.DIR_SELECT, func=self._handle_dir_selected, add=True)
-        self._widgets.root.bind_all(VEvent.FILE_SELECT, func=self._handle_file_selected, add=True)
-        self._widgets.root.bind_all(VEvent.FILE_DESELECT, func=self._handle_file_deselected, add=True)
-        self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
-        self._widgets.root.bind_all(BVEvent.GOTO_PATH, func=self._handle_goto_path, add=True)
-        self._widgets.root.bind_all(
-            BVEvent.BULK_ADD_ACTOR, func=partial(self._handle_bulk_edit_meta, action=BulkAction.ADD_ACTOR), add=True
-        )
-        self._widgets.root.bind_all(
-            BVEvent.BULK_DEL_ACTOR, func=partial(self._handle_bulk_edit_meta, action=BulkAction.DEL_ACTOR), add=True
-        )
-        self._widgets.root.bind_all(
-            BVEvent.BULK_ADD_TAG, func=partial(self._handle_bulk_edit_meta, action=BulkAction.ADD_TAG), add=True
-        )
-        self._widgets.root.bind_all(
-            BVEvent.BULK_DEL_TAG, func=partial(self._handle_bulk_edit_meta, action=BulkAction.DEL_TAG), add=True
-        )
-        self._widgets.root.bind_all(BVEvent.BULK_GEN_THUMBS, func=self._handle_bulk_thumbs, add=True)
-        self._widgets.root.bind_all(BVEvent.BULK_DEL_METADATA, func=self._handle_bulk_del_meta, add=True)
-        self._widgets.root.bind_all(BVEvent.PATH_DELETE, func=self._handle_path_delete, add=True)
-        self._widgets.root.bind_all(BVEvent.SCAN_PATH_FILES, func=self._handle_scan_path_files, add=True)
-        self._widgets.root.bind_all(BVEvent.SCAN_PATH_METADATA, func=self._handle_scan_path_metadata, add=True)
-
         self._widgets.status.transient(self._widgets.mainframe)  # type: ignore
         self._widgets.input.transient(self._widgets.mainframe)  # type: ignore
         self.input_window(False)
@@ -120,7 +78,6 @@ class App:
 
         self._init_trash(config.trash_dir)
         self.update_filetree()
-        self._widgets.mainframe._widgets.filetree.fill_from_pathtree(self._pathtree)
 
     def _init_trash(self, path: Path) -> None:
         if not path.exists():
@@ -164,7 +121,7 @@ class App:
 
         removed = self._send_to_trash(paths)
         if removed:
-            self._widgets.mainframe.remove_filetree_items(removed)
+            self._state.paths_removed.emit(tuple(removed))
 
     def _send_to_trash(self, paths: Sequence[Path]) -> list[Path]:
         removed: list[Path] = []
@@ -190,7 +147,7 @@ class App:
         if pt is not None:
             pt.clear()
             pt.scan(filters=[path_extension_filter(self._config.vid_exts)])
-            self._widgets.mainframe._widgets.filetree.fill_from_pathtree(pt, str(path))
+            self._state.file_tree_changed.emit(FileTreeUpdate(pt, str(path)))
 
     def scan_path_metadata(self, path: Path) -> None:
         if not path.is_dir():
@@ -220,13 +177,7 @@ class App:
                     print(f"error: failed to load metadata for {f}: {ex}")
                     traceback.print_exc()
                 else:
-                    self._widgets.mainframe._widgets.filetree.update_item_cols(
-                        str(f),
-                        metadata["video_properties"]["duration"],
-                        metadata["video_properties"]["dimensions"],
-                        metadata["actors"],
-                        metadata["tags"],
-                    )
+                    self._state.file_metadata_changed.emit((f, metadata))
             self.status_window(False)
 
         def _recurse(pt: PathTree) -> None:
@@ -249,7 +200,7 @@ class App:
                 print(f"error: failed to delete metadata for {f}: {ex}")
                 traceback.print_exc()
             else:
-                self._widgets.mainframe._widgets.filetree.update_item_cols(str(f), 0, (0, 0), [], [])
+                self._state.file_metadata_changed.emit((f, _EMPTY_METADATA))
 
     def generate_thumbnails_bulk(self, paths: Sequence[Path]) -> None:
         files = tuple(p for p in paths if p.is_file())
@@ -318,13 +269,7 @@ class App:
                 traceback.print_exc()
                 continue
             else:
-                self._widgets.mainframe._widgets.filetree.update_item_cols(
-                    str(f),
-                    metadata["video_properties"]["duration"],
-                    metadata["video_properties"]["dimensions"],
-                    metadata["actors"],
-                    metadata["tags"],
-                )
+                self._state.file_metadata_changed.emit((f, metadata))
 
     def generate_thumbnails(self) -> None:
         if self._selected_path is None or not self._selected_path.is_file():
@@ -381,7 +326,7 @@ class App:
     def scan_metadata(self) -> None:
         self.status_window(True)
         self._widgets.mainframe.busy_hold(cursor=TkCursor.WATCH)
-        self._widgets.mainframe._widgets.filetree.unhide_all()
+        self._state.filters_changed.emit(((), (), "OR"))
 
         def _thread_entry():
             def _incr(totals: dict[str, int], keys: list[str]):
@@ -394,18 +339,17 @@ class App:
 
             actors: dict[str, int] = {}
             tags: dict[str, int] = {}
-            items: list = self._widgets.mainframe._widgets.filetree.get_items(with_tags=["file"])
+            items: list[Path] = list(self._iter_files())
 
             item_count: int = len(items)
             update_interval: float = 0.05
             last_time: float = time.time()
-            for c, item in enumerate(items):
+            for c, path in enumerate(items):
                 if time.time() > last_time + update_interval:
                     self._widgets.status.progress = (c + 1) / item_count
-                    self._widgets.status.info = f"[{c}/{item_count}] {item}"
+                    self._widgets.status.info = f"[{c}/{item_count}] {path}"
                     last_time = time.time()
 
-                path = self._pathtree.root / item
                 if path.is_file():
                     sidecar = MagicSidecar(path, namespace=self._config.metadata_key)
                     if not sidecar.exists:
@@ -418,13 +362,7 @@ class App:
                     except Exception:
                         print(f"failed to read metadata for {path}")
                     else:
-                        self._widgets.mainframe._widgets.filetree.update_item_cols(
-                            item,
-                            metadata["video_properties"]["duration"],
-                            metadata["video_properties"]["dimensions"],
-                            metadata["actors"],
-                            metadata["tags"],
-                        )
+                        self._state.file_metadata_changed.emit((path, metadata))
                         _incr(actors, metadata["actors"])
                         _incr(tags, metadata["tags"])
 
@@ -438,72 +376,10 @@ class App:
         threading.Thread(target=_thread_entry, daemon=True).start()
 
     def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: str = "OR") -> None:
-        """Temporary deep access; removed in task 08 when FilterFrame owns filter state."""
-        self._widgets.mainframe._widgets.filetree.apply_filters(list(actors), list(tags), operator=operator)
+        self._state.filters_changed.emit((tuple(actors), tuple(tags), operator))
 
     def clear_filters(self) -> None:
-        """Temporary deep access; removed in task 08 when FilterFrame owns filter state."""
-        self._widgets.mainframe._widgets.filetree.unhide_all()
-
-    def _handle_dir_selected(self, ev: tk.Event) -> None:
-        self.clear_vidinfo()
-
-    def _handle_file_selected(self, ev: tk.Event) -> None:
-        tv = cast(ttk.Treeview, ev.widget)
-        if not hasattr(ev.widget, "selection"):
-            return
-
-        iid = self._vars.triggered_iid.get()
-        if iid not in tv.selection():  # sanity check: shouldn't happen
-            iid = tv.selection()[0]
-
-        self.select_paths((Path(iid),))
-
-    def _handle_file_deselected(self, ev: tk.Event) -> None:
-        tv = cast(ttk.Treeview, ev.widget)
-        if not hasattr(ev.widget, "selection"):
-            return
-
-        self.select_paths(tuple(Path(p) for p in tv.selection()))
-
-    def _handle_goto_path(self, ev: tk.Event) -> None:
-        self.show_in_explorer(Path(self._vars.context_iid.get()))
-
-    def _handle_file_exec(self, ev: tk.Event) -> None:
-        tv = cast(ttk.Treeview, ev.widget)
-        if not hasattr(ev.widget, "selection"):
-            return
-
-        iid = self._vars.triggered_iid.get()
-        if iid not in tv.selection():
-            iid = tv.selection()[0]
-
-        self.activate_path(Path(iid))
-
-    def _handle_path_delete(self, ev: tk.Event) -> None:
-        """data is the treeview iid which is the file path"""
-        paths = tuple(
-            Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()) if Path(p).exists()
-        )
-        self.delete_paths(paths)
-
-    def _handle_scan_path_files(self, ev: tk.Event) -> None:
-        self.rescan_path(Path(self._vars.context_iid.get()))
-
-    def _handle_scan_path_metadata(self, ev: tk.Event) -> None:
-        self.scan_path_metadata(Path(self._vars.context_iid.get()))
-
-    def _handle_bulk_del_meta(self, ev: tk.Event) -> None:
-        paths = tuple(Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()))
-        self.delete_metadata(paths)
-
-    def _handle_bulk_thumbs(self, ev: tk.Event) -> None:
-        paths = tuple(Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()))
-        self.generate_thumbnails_bulk(paths)
-
-    def _handle_bulk_edit_meta(self, ev: tk.Event, action: BulkAction) -> None:
-        paths = tuple(Path(p) for p in self._widgets.root.tk.splitlist(self._vars.selected_iids.get()))
-        self.edit_metadata(action, paths)
+        self._state.filters_changed.emit(((), (), "OR"))
 
     def _generate_video_metadata(
         self,
@@ -565,13 +441,7 @@ class App:
                     traceback.print_exc()
                     continue
                 finally:
-                    self._widgets.mainframe._widgets.filetree.update_item_cols(
-                        str(f),
-                        metadata["video_properties"]["duration"],
-                        metadata["video_properties"]["dimensions"],
-                        metadata["actors"],
-                        metadata["tags"],
-                    )
+                    self._state.file_metadata_changed.emit((f, metadata))
                     c = total - fq.qsize()
                     self._widgets.status.progress = c / total
 
@@ -659,14 +529,7 @@ class App:
         self._state.selection_changed.emit(())
 
     def update_widgets_from_metadata(self) -> None:
-        # todo don't reach down through widgets
-        self._widgets.mainframe._widgets.filetree.update_item_cols(
-            str(self._selected_path),
-            self._metadata["video_properties"]["duration"],
-            self._metadata["video_properties"]["dimensions"],
-            self._metadata["actors"],
-            self._metadata["tags"],
-        )
+        self._state.file_metadata_changed.emit((self._selected_path, self._metadata))
 
         vres = self._metadata["video_properties"]["dimensions"]
         vlen = nice_duration(self._metadata["video_properties"]["duration"])
@@ -677,8 +540,15 @@ class App:
         self._state.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
         self._state.thumbnails_changed.emit(tuple(self._metadata["thumbnails"]))
 
+    def _iter_files(self, pt: PathTree | None = None) -> Iterator[Path]:
+        pt = pt if pt is not None else self._pathtree
+        for _, child in pt.dirs():
+            yield from self._iter_files(child)
+        yield from pt.files()
+
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(self._config.vid_exts)])
+        self._state.file_tree_changed.emit(FileTreeUpdate(self._pathtree, ""))
 
     def update_selected_files_metadata(self, action: str, value: str) -> None:
         pass

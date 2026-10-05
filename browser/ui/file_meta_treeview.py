@@ -1,11 +1,11 @@
 import tkinter as tk
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
-from browser.ui.constants import TkVarNames, VirtualEventSequence
+from browser.ui.actions import BulkAction, UiContext
+from browser.ui.state import FileTreeUpdate
 from ui.better_treeview import FileTreeviewFrame
-from ui.constants import VirtualEventSequence as TKVES
 from util.format import clock_format, ellipsize
 from util.typing import StringListy
 
@@ -25,37 +25,21 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         context: tk.Menu
         context_meta: tk.Menu
 
-    class __Vars(NamedTuple):
-        actors: tk.Variable
-        tags: tk.Variable
-        triggered_iid: tk.StringVar
-        context_iid: tk.StringVar
-        selected_iids: tk.Variable
-
     _menus: _Menus
-    _vars: __Vars
 
-    def __init__(self, parent, *args, **kw):
-        aiid = tk.StringVar(name=TkVarNames.TRIGGERED_IID)
+    def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(
             parent,
-            *args,
-            triggered_iid_var=aiid,
+            on_activate=ctx.actions.activate_path,
+            on_select=ctx.actions.select_paths,
             columns=("time", "res", "actors", "tags"),
             sortable=False,
             width=300,
             **kw,
         )
 
-        self._vars = __class__.__Vars(
-            actors=tk.Variable(name=TkVarNames.HIGHLIGHTED_ACTORS),
-            tags=tk.Variable(name=TkVarNames.HIGHLIGHTED_TAGS),
-            triggered_iid=aiid,
-            context_iid=tk.StringVar(name=TkVarNames.CONTEXT_IID),
-            selected_iids=tk.Variable(name=TkVarNames.SELECTED_IIDS),
-        )
-        self._vars.actors.trace_add(mode="write", callback=self.highlight_by_metadata)
-        self._vars.tags.trace_add(mode="write", callback=self.highlight_by_metadata)
+        self._ctx = ctx
+        self._context_path: str = ""
 
         # disable propogation to set a treeview total width wider than the frame
         self.grid_propagate(False)
@@ -74,9 +58,6 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self.treeview.tag_configure("highlight", background="#DFD")
         is_mac = self.winfo_toplevel().tk.call("tk", "windowingsystem") == "aqua"
         self.treeview.bind("<Button-2>" if is_mac else "<Button-3>", self._handle_right_click, add=True)
-        self.treeview.bind(
-            TKVES.TREEVIEW_SELECT, func=lambda ev: self._vars.selected_iids.set(self.treeview.selection()), add=True
-        )
 
         ctxmenu = tk.Menu(self, tearoff=0)
         self._menus = __class__._Menus(
@@ -84,14 +65,14 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             context_meta=tk.Menu(ctxmenu, tearoff=0),
         )
         self._menus.context.add_command(
-            label="[info]", command=lambda: self.event_generate(VirtualEventSequence.GOTO_PATH)
+            label="[info]", command=lambda: ctx.actions.show_in_explorer(Path(self._context_path))
         )
         self._menus.context.add_separator()
         self._menus.context.add_command(
-            label="Refresh files", command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_FILES)
+            label="Refresh files", command=lambda: ctx.actions.rescan_path(Path(self._context_path))
         )
         self._menus.context.add_command(
-            label="Refresh metadata", command=lambda: self.event_generate(VirtualEventSequence.SCAN_PATH_METADATA)
+            label="Refresh metadata", command=lambda: ctx.actions.scan_path_metadata(Path(self._context_path))
         )
         self._menus.context.add_separator()
         self._menus.context.add_cascade(label="Metadata...", menu=self._menus.context_meta)
@@ -99,24 +80,58 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self._menus.context.add_command(label="Send to trash", command=self._handle_remove)
 
         self._menus.context_meta.add_command(
-            label="Add actor", command=lambda: self.event_generate(VirtualEventSequence.BULK_ADD_ACTOR)
+            label="Add actor", command=lambda: ctx.actions.edit_metadata(BulkAction.ADD_ACTOR, self._selected_paths())
         )
         self._menus.context_meta.add_command(
-            label="Del actor", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_ACTOR)
+            label="Del actor", command=lambda: ctx.actions.edit_metadata(BulkAction.DEL_ACTOR, self._selected_paths())
         )
         self._menus.context_meta.add_command(
-            label="Add tag", command=lambda: self.event_generate(VirtualEventSequence.BULK_ADD_TAG)
+            label="Add tag", command=lambda: ctx.actions.edit_metadata(BulkAction.ADD_TAG, self._selected_paths())
         )
         self._menus.context_meta.add_command(
-            label="Del tag", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_TAG)
+            label="Del tag", command=lambda: ctx.actions.edit_metadata(BulkAction.DEL_TAG, self._selected_paths())
         )
         self._menus.context_meta.add_command(
-            label="Generate Thumbnails", command=lambda: self.event_generate(VirtualEventSequence.BULK_GEN_THUMBS)
+            label="Generate Thumbnails", command=lambda: ctx.actions.generate_thumbnails_bulk(self._selected_paths())
         )
         self._menus.context_meta.add_separator()
         self._menus.context_meta.add_command(
-            label="Clean", command=lambda: self.event_generate(VirtualEventSequence.BULK_DEL_METADATA)
+            label="Clean", command=lambda: ctx.actions.delete_metadata(self._selected_paths())
         )
+
+        ctx.state.file_metadata_changed.connect(self._on_file_metadata)
+        ctx.state.file_tree_changed.connect(self._on_file_tree)
+        ctx.state.paths_removed.connect(self._on_paths_removed)
+        ctx.state.highlights_changed.connect(self._on_highlights)
+        ctx.state.filters_changed.connect(self._on_filters)
+
+    def _on_file_metadata(self, value: tuple[Path, Mapping[str, Any]]) -> None:
+        path, meta = value
+        props = meta.get("video_properties", {})
+        self.update_item_cols(
+            str(path),
+            props.get("duration", 0),
+            props.get("dimensions", (0, 0)),
+            meta.get("actors", []),
+            meta.get("tags", []),
+        )
+
+    def _on_file_tree(self, update: FileTreeUpdate) -> None:
+        self.fill_from_pathtree(update.tree, update.from_iid)
+
+    def _on_paths_removed(self, paths: Sequence[Path]) -> None:
+        self.remove_items([str(p) for p in paths])
+
+    def _on_highlights(self, value: tuple[Sequence[str], Sequence[str]]) -> None:
+        actors, tags = value
+        self.highlight_by_metadata(actors, tags)
+
+    def _on_filters(self, value: tuple[Sequence[str], Sequence[str], str]) -> None:
+        actors, tags, operator = value
+        if not actors and not tags:
+            self.unhide_all()
+        else:
+            self.apply_filters(actors, tags, operator=operator)
 
     def _handle_right_click(self, ev: tk.Event) -> None:
         iid = self.treeview.identify_row(ev.y)
@@ -124,9 +139,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
             return
         if not iid in self.treeview.selection():
             self.treeview.selection_set(iid)
-            self._vars.selected_iids.set(self.treeview.selection())
 
-        self._vars.context_iid.set(iid)
+        self._context_path = iid
         if len(self.treeview.selection()) == 1:
             item_display_text = ellipsize(Path(iid).name, 32)
             if self.treeview.tag_has("dir", iid):
@@ -147,12 +161,14 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         finally:
             self._menus.context.grab_release()
 
+    def _selected_paths(self) -> tuple[Path, ...]:
+        return tuple(Path(iid) for iid in self.treeview.selection())
+
     def _handle_remove(self) -> None:
         if not self.treeview.selection():
             return
 
-        self._vars.selected_iids.set(self.treeview.selection())
-        self.event_generate(VirtualEventSequence.PATH_DELETE)
+        self._ctx.actions.delete_paths(self._selected_paths())
 
     def remove_items(self, iids: Sequence[str]) -> None:
         existing = [iid for iid in iids if self.treeview.exists(iid)]
@@ -177,7 +193,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
         _recurse("")
 
-    def apply_filters(self, actors: StringListy, tags: StringListy, operator: str = "AND") -> None:
+    def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: str = "AND") -> None:
         def _recurse(item):
             if self.treeview.tag_has("file", item):
                 itemconfig = self.treeview.item(item)
@@ -204,11 +220,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
         _recurse("")
 
-    # def apply_highlight(self, actors: StringListy, tags: StringListy):
-    def highlight_by_metadata(self, *args: Any) -> None:
-        actors = self.winfo_toplevel().tk.splitlist(self._vars.actors.get())
-        tags = self.winfo_toplevel().tk.splitlist(self._vars.tags.get())
-
+    def highlight_by_metadata(self, actors: Sequence[str], tags: Sequence[str]) -> None:
         def _highlight_item(item: str, highlighted: bool, see: bool = False):
             itemconfig = self.treeview.item(item)
             if "highlight" in itemconfig["tags"] and not highlighted:

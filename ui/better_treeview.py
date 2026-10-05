@@ -1,15 +1,15 @@
 import re
 import tkinter as tk
+from collections.abc import Callable, Sequence
 from enum import StrEnum
 from pathlib import Path
-from tkinter import TclError, ttk
+from tkinter import ttk
 from typing import Any
 
 from util.file.tree import PathTree
 
 from .constants import VirtualEventSequence
 from .scrollable import ScrollableWidgetFrame
-from .tk_event_data import DataEvents
 
 
 class SortDir(StrEnum):
@@ -17,7 +17,7 @@ class SortDir(StrEnum):
     DESC = "DESC"
 
 
-class SortableTreeview(DataEvents, ttk.Treeview):
+class SortableTreeview(ttk.Treeview):
     _sort_dir = SortDir
     _sortable: bool
 
@@ -32,12 +32,6 @@ class SortableTreeview(DataEvents, ttk.Treeview):
                 self.sort_on_column(column)
 
         self.bind("<Button-1>", _click, add=True)
-
-    def config(self, *args, **kw):
-        if "sortable" in kw:
-            self._sortable = kw["sortable"]
-            del kw["sortable"]
-        return super().config(*args, **kw)
 
     def clear(self, from_iid: str = ""):
         self.delete(*self.get_children(from_iid))
@@ -97,81 +91,40 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
     _extensions: list[str]
     _filters: list[re.Pattern]
     _hidden_items: dict[str, Any]
-    _triggered_iid: tk.StringVar  # for getting the triggered treeview iid when multiple are selected
 
-    def __init__(self, parent, triggered_iid_var: tk.StringVar | None, *args, **kw):
+    def __init__(
+        self,
+        parent,
+        on_activate: Callable[[Path], None],
+        on_select: Callable[[Sequence[Path]], None],
+        *args,
+        **kw,
+    ):
         super().__init__(parent, *args, **kw)
         self.treeview.configure(selectmode=tk.BROWSE)
+        self._on_activate = on_activate
+        self._on_select = on_select
         self._root_path = None
         self._extensions = []
         self._filters = []
         self._hidden_items = {}
-        self._triggered_iid = triggered_iid_var if isinstance(triggered_iid_var, tk.StringVar) else tk.StringVar()
 
-        self.treeview.bind("<Button-1>", self._handle_click, add=True)
         self.treeview.bind("<Double-Button-1>", self._handle_dclick, add=True)
         self.treeview.bind(VirtualEventSequence.TREEVIEW_SELECT, self._handle_select, add=True)
 
-    @property
-    def triggered_iid_var(self) -> tk.StringVar:
-        return self._triggered_iid
-
-    @triggered_iid_var.setter
-    def triggered_iid_var(self, var: tk.StringVar) -> None:
-        self._triggered_iid = var
-
-    def _handle_click(self, ev: tk.Event) -> None:
-        self._triggered_iid.set(self.treeview.identify_row(ev.y))
-
     def _handle_dclick(self, ev: tk.Event) -> None:
-        region = self.treeview.identify("region", ev.x, ev.y)
-        if region == "heading":
+        if self.treeview.identify("region", ev.x, ev.y) == "heading":
             return
-
-        self._triggered_iid.set(self.treeview.identify_row(ev.y))
-        self.treeview.event_generate(VirtualEventSequence.FILE_EXEC, x=ev.x, y=ev.y)
+        iid = self.treeview.identify_row(ev.y)
+        if iid:
+            self._on_activate(Path(iid))
 
     def _handle_select(self, ev: tk.Event) -> None:
-        iid = self._triggered_iid.get()
-        try:
-            tags = self.treeview.item(iid).get("tags", [])
-        except TclError as ex:
-            print(f"could not find item ({iid}) in treeview selection: {ex}")
-        else:
-            if self._triggered_iid.get() in self.treeview.selection():
-                if "file" in tags:
-                    self.treeview.event_generate(VirtualEventSequence.FILE_SELECT, x=ev.x, y=ev.y)
-                if "dir" in tags:
-                    self.treeview.event_generate(VirtualEventSequence.DIR_SELECT, x=ev.x, y=ev.y)
-            else:
-                if "file" in tags:
-                    self.treeview.event_generate(VirtualEventSequence.FILE_DESELECT, x=ev.x, y=ev.y)
-                if "dir" in tags:
-                    self.treeview.event_generate(VirtualEventSequence.DIR_DESELECT, x=ev.x, y=ev.y)
+        self._on_select(tuple(Path(iid) for iid in self.treeview.selection()))
 
     def add_filter(self, regex: re.Pattern) -> None:
         if isinstance(regex, type(re.compile("null"))):
             self._filters.append(regex)
-
-    def get_items(self, with_tags: list | None) -> list:
-        if with_tags is None:
-            with_tags = []
-
-        items: list = []
-
-        def _recurse(item):
-            if len(with_tags) <= 0:
-                items.append(item)
-            else:
-                itemcfg = self.treeview.item(item)
-                if len(set(itemcfg["tags"]) & set(with_tags)) > 0:
-                    items.append(item)
-
-            for child in self.treeview.get_children(item):
-                _recurse(child)
-
-        _recurse("")
-        return items
 
     def fill_from_pathtree(self, root_pt: PathTree, from_iid: str = "") -> None:
         def _recurse(pt: PathTree, parent_iid: str) -> None:

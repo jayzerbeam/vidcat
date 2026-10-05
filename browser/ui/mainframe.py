@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import tkinter as tk
-from collections.abc import Sequence
-from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
 
@@ -44,7 +42,7 @@ class MainFrame(DataEvents, ttk.Frame):
         tabs = ttk.Notebook(pane)
         self._widgets = __class__.__Widgets(
             pane=pane,
-            filetree=FileMetaTreeviewFrame(pane),
+            filetree=FileMetaTreeviewFrame(pane, ctx),
             tabs=tabs,
             filters=FilterFrame(tabs, ctx),
             vidinfo=VideoInfoFrame(tabs, ctx),
@@ -69,9 +67,6 @@ class MainFrame(DataEvents, ttk.Frame):
                 self.event_generate(VirtualEventSequence.GEN_THUMBS)
 
         self.bind_all("<Control-KeyPress>", _ctrlkey)
-
-    def remove_filetree_items(self, paths: Sequence[Path]) -> None:
-        self._widgets.filetree.remove_items([str(p) for p in paths])
 
     def _handle_busy(self, busy: bool) -> None:
         if busy:
