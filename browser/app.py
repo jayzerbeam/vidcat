@@ -7,14 +7,13 @@ import threading
 import time
 import tkinter as tk
 import traceback
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
 from queue import Queue
 from typing import Any, Final, NamedTuple
 
-from ui.constants import TkCursor
 from util.file.sidecar import MagicSidecar
 from util.file.tree import PathTree, path_extension_filter
 from util.format import nice_bytesize, nice_duration
@@ -71,6 +70,10 @@ class App:
         )
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
 
+        # Worker threads post callables here; the main thread drains them in FIFO order.
+        self._ui_queue: Queue[Callable[[], None]] = Queue()
+        self._widgets.root.after(30, self._drain_ui_queue)
+
         # bind on root so the accelerators fire regardless of which widget has focus
         root.bind("<Control-s>", lambda _ev: self.save_metadata())
         root.bind("<Control-g>", lambda _ev: self.generate_thumbnails())
@@ -82,6 +85,46 @@ class App:
 
         self._init_trash(config.trash_dir)
         self.update_filetree()
+
+    def _post_ui(self, callback: Callable[[], None]) -> None:
+        self._ui_queue.put(callback)
+
+    def _drain_ui_queue(self) -> None:
+        while not self._ui_queue.empty():
+            callback = self._ui_queue.get()
+            try:
+                callback()
+            except Exception as ex:
+                print(f"error: UI callback failed: {ex}")
+                traceback.print_exc()
+        self._widgets.root.after(30, self._drain_ui_queue)
+
+    def _emit_file_metadata(self, path: Path, metadata: dict[str, Any]) -> None:
+        self._state.file_metadata_changed.emit((path, metadata))
+
+    def _emit_progress(self, info: str, progress: float) -> None:
+        self._widgets.status.info = info
+        self._widgets.status.progress = progress
+
+    def _set_progress(self, progress: float) -> None:
+        self._widgets.status.progress = progress
+
+    def _emit_actor_counts(self, actors: dict[str, int]) -> None:
+        self._state.actor_counts_changed.emit(actors)
+
+    def _emit_tag_counts(self, tags: dict[str, int]) -> None:
+        self._state.tag_counts_changed.emit(tags)
+
+    def _emit_busy(self, busy: bool) -> None:
+        self._state.busy_changed.emit(busy)
+
+    def _close_status(self) -> None:
+        self.status_window(False)
+
+    def _apply_generated_metadata(self, metadata: dict[str, Any] | None) -> None:
+        if metadata is not None:
+            self._metadata |= metadata
+        self.update_widgets_from_metadata()
 
     def _init_trash(self, path: Path) -> None:
         if not path.exists():
@@ -171,8 +214,7 @@ class App:
             while not fq.empty():
                 f = fq.get()
                 c += 1
-                self._widgets.status.info = f"[{c} / {total}] {f.name}"
-                self._widgets.status.progress = c / total
+                self._post_ui(partial(self._emit_progress, f"[{c} / {total}] {f.name}", c / total))
                 try:
                     metadata = pickle.loads(MagicSidecar(f, namespace=self._config.metadata_key).read())
                 except FileNotFoundError:
@@ -181,8 +223,8 @@ class App:
                     print(f"error: failed to load metadata for {f}: {ex}")
                     traceback.print_exc()
                 else:
-                    self._state.file_metadata_changed.emit((f, metadata))
-            self.status_window(False)
+                    self._post_ui(partial(self._emit_file_metadata, f, metadata))
+            self._post_ui(self._close_status)
 
         def _recurse(pt: PathTree) -> None:
             for d, child in pt.dirs():
@@ -279,34 +321,34 @@ class App:
         if self._selected_path is None or not self._selected_path.is_file():
             return
 
-        # probably not thread-safe
-        def _thread_entry():
-            def _progress(p: float, prefix: str) -> None:
-                self._widgets.status.progress = p
-                self._widgets.status.info = f"{prefix} {p * 100:.1f}%"
+        path = self._selected_path
 
+        # probably not thread-safe
+        def _thread_entry() -> None:
+            def _progress(p: float, prefix: str) -> None:
+                self._post_ui(partial(self._emit_progress, f"{prefix} {p * 100:.1f}%", p))
+
+            generated: dict[str, Any] | None = None
             try:
-                metadata = self._generate_video_metadata(
-                    self._selected_path,
+                generated = self._generate_video_metadata(
+                    path,
                     extract_progress_func=partial(_progress, prefix="Extracting frames..."),
                     resize_progress_func=partial(_progress, prefix="Resizing frames..."),
                 )
             except Exception as ex:
-                print(f"error: failed to generate metadata for {self._selected_path}: {ex}")
+                print(f"error: failed to generate metadata for {path}: {ex}")
                 traceback.print_exc()
-            else:
-                self._metadata |= metadata
 
-            self.update_widgets_from_metadata()
-            self.status_window(False)
-            self._state.busy_changed.emit(False)
+            self._post_ui(partial(self._apply_generated_metadata, generated))
+            self._post_ui(self._close_status)
+            self._post_ui(partial(self._emit_busy, False))
 
             """ a lot of buffers, objects, etc. are created here so invoking a garbage collection afterward seems
                 to keep memory usage from ballooning"""
             gc.collect()
 
         self.status_window(True)
-        self._state.busy_changed.emit(True)
+        self._emit_busy(True)
         threading.Thread(target=_thread_entry, daemon=True).start()
 
     def save_metadata(self) -> None:
@@ -329,11 +371,11 @@ class App:
 
     def scan_metadata(self) -> None:
         self.status_window(True)
-        self._widgets.mainframe.busy_hold(cursor=TkCursor.WATCH)
+        self._emit_busy(True)
         self._state.filters_changed.emit(((), (), "OR"))
 
-        def _thread_entry():
-            def _incr(totals: dict[str, int], keys: list[str]):
+        def _thread_entry() -> None:
+            def _incr(totals: dict[str, int], keys: list[str]) -> None:
                 for k in keys:
                     k = k.lower()
                     if k not in totals:
@@ -350,8 +392,7 @@ class App:
             last_time: float = time.time()
             for c, path in enumerate(items):
                 if time.time() > last_time + update_interval:
-                    self._widgets.status.progress = (c + 1) / item_count
-                    self._widgets.status.info = f"[{c}/{item_count}] {path}"
+                    self._post_ui(partial(self._emit_progress, f"[{c}/{item_count}] {path}", (c + 1) / item_count))
                     last_time = time.time()
 
                 if path.is_file():
@@ -366,16 +407,15 @@ class App:
                     except Exception:
                         print(f"failed to read metadata for {path}")
                     else:
-                        self._state.file_metadata_changed.emit((path, metadata))
+                        self._post_ui(partial(self._emit_file_metadata, path, metadata))
                         _incr(actors, metadata["actors"])
                         _incr(tags, metadata["tags"])
 
-            self._widgets.status.progress = 1.0
-            self._widgets.status.info = "populating widgets"
-            self._state.actor_counts_changed.emit(actors)
-            self._state.tag_counts_changed.emit(tags)
-            self._widgets.mainframe.busy_forget()
-            self.status_window(False)
+            self._post_ui(partial(self._emit_progress, "populating widgets", 1.0))
+            self._post_ui(partial(self._emit_actor_counts, actors))
+            self._post_ui(partial(self._emit_tag_counts, tags))
+            self._post_ui(partial(self._emit_busy, False))
+            self._post_ui(self._close_status)
 
         threading.Thread(target=_thread_entry, daemon=True).start()
 
@@ -412,14 +452,14 @@ class App:
                 fq.put(f)
 
         self.status_window(True)
-        self._widgets.mainframe.busy_hold(cursor=TkCursor.WATCH)
+        self._emit_busy(True)
 
         def _thread() -> None:
-            def _xprog(f: float) -> None:
-                self._widgets.status.progress = c / total + (1 / total * (0.5 * f))
+            def _xprog(fraction: float) -> None:
+                self._post_ui(partial(self._set_progress, c / total + (1 / total * (0.5 * fraction))))
 
-            def _rprog(f: float) -> None:
-                self._widgets.status.progress = c / total + (1 / total * (0.5 * f + 0.5))
+            def _rprog(fraction: float) -> None:
+                self._post_ui(partial(self._set_progress, c / total + (1 / total * (0.5 * fraction + 0.5))))
 
             total = fq.qsize()
             c = 0
@@ -434,7 +474,7 @@ class App:
                     print(f"error: loading sidecar metadata for {f}: {ex}")
                     traceback.print_exc()
 
-                self._widgets.status.info = f"[{c + 1} / {total}] {f}"
+                self._post_ui(partial(self._emit_progress, f"[{c + 1} / {total}] {f}", c / total))
                 try:
                     metadata |= self._generate_video_metadata(
                         f, extract_progress_func=_xprog, resize_progress_func=_rprog
@@ -445,12 +485,12 @@ class App:
                     traceback.print_exc()
                     continue
                 finally:
-                    self._state.file_metadata_changed.emit((f, metadata))
+                    self._post_ui(partial(self._emit_file_metadata, f, metadata))
                     c = total - fq.qsize()
-                    self._widgets.status.progress = c / total
+                    self._post_ui(partial(self._set_progress, c / total))
 
-            self._widgets.mainframe.busy_forget()
-            self.status_window(False)
+            self._post_ui(partial(self._emit_busy, False))
+            self._post_ui(self._close_status)
             """ a lot of buffers, objects, etc. are created here so invoking a garbage collection afterward seems
                 to keep memory usage from ballooning"""
             gc.collect()
