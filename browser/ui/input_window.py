@@ -16,12 +16,16 @@ class InputWindow(tk.Toplevel):
         label: tk.StringVar
         input: tk.StringVar  # this is not bound to the entry, instead filled on OK
 
+    _TOP_MARGIN = 40
+
     _closed_ok: bool
+    _root: tk.Tk
     _widgets: __Widgets
     _vars: __Vars
 
     def __init__(self, root: tk.Tk, *args, **kw):
         super().__init__(root, *args, **kw)
+        self._root = root
         self.resizable(False, False)
         self.title("Input")
         self.protocol("WM_DELETE_WINDOW", self._handle_cancel)
@@ -87,8 +91,15 @@ class InputWindow(tk.Toplevel):
         self._closed_ok = False
         self._vars.input.set("")
         self._widgets.entry.delete(0, tk.END)
-        self.deiconify()
+
         self.update_idletasks()
+        min_width, _ = self.minsize() or (0, 0)
+        width = max(self.winfo_reqwidth(), min_width)
+        x = self._root.winfo_rootx() + (self._root.winfo_width() - width) // 2
+        y = self._root.winfo_rooty() + self._TOP_MARGIN
+        self.geometry(f"+{x}+{y}")
+
+        self.deiconify()
         self.grab_set()
         self.lift()
         self._widgets.entry.focus_set()
