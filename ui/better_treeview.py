@@ -1,4 +1,3 @@
-import re
 import tkinter as tk
 from collections.abc import Callable, Sequence
 from enum import StrEnum
@@ -86,9 +85,6 @@ class ScrollableTreeviewFrame(ScrollableWidgetFrame):
 
 
 class FileTreeviewFrame(ScrollableTreeviewFrame):
-    _root_path: Path | None
-    _extensions: list[str]
-    _filters: list[re.Pattern]
     _hidden_items: dict[str, Any]
 
     def __init__(
@@ -103,9 +99,6 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
         self.treeview.configure(selectmode=tk.BROWSE)
         self._on_activate = on_activate
         self._on_select = on_select
-        self._root_path = None
-        self._extensions = []
-        self._filters = []
         self._hidden_items = {}
 
         self.treeview.bind("<Double-Button-1>", self._handle_dclick, add=True)
@@ -120,10 +113,6 @@ class FileTreeviewFrame(ScrollableTreeviewFrame):
 
     def _handle_select(self, ev: tk.Event) -> None:
         self._on_select(tuple(Path(iid) for iid in self.treeview.selection()))
-
-    def add_filter(self, regex: re.Pattern) -> None:
-        if isinstance(regex, type(re.compile("null"))):
-            self._filters.append(regex)
 
     def fill_from_pathtree(self, root_pt: PathTree, from_iid: str = "") -> None:
         def _recurse(pt: PathTree, parent_iid: str) -> None:

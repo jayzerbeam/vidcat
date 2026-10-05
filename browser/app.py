@@ -38,9 +38,6 @@ class App:
     _pathtree: PathTree
     _trash_path: Path
     _metadata: dict[str, Any]
-    _file_meta_filters: dict
-    _all_tags: list[str]
-    _all_actors: list[str]
     _selected_path: Path  # for vid info tab
     _state: UiState
 
@@ -54,9 +51,6 @@ class App:
         self._config = config
         self._pathtree = PathTree(basepath)
         self._metadata = deepcopy(_EMPTY_METADATA)
-        self._file_meta_filters = {}
-        self._all_tags = []
-        self._all_actors = []
         self._selected_path = Path()
 
         self._state = UiState(root, thumb_interval=config.thumb_interval, thumb_height=config.thumb_height)
@@ -593,9 +587,6 @@ class App:
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(self._config.vid_exts)])
         self._state.file_tree_changed.emit(FileTreeUpdate(self._pathtree, ""))
-
-    def update_selected_files_metadata(self, action: str, value: str) -> None:
-        pass
 
     def input_window(self, active: bool, title: str = "", label: str = "") -> None:
         if active:

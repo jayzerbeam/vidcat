@@ -1,7 +1,6 @@
 import tkinter as tk
 from collections.abc import Callable, Sequence
 from enum import Enum, auto
-from pathlib import Path
 from tkinter import ttk
 from typing import Any, NamedTuple
 
@@ -85,7 +84,6 @@ class EditableList(tk.Frame):
         )
 
         self._sorted = sorted
-        self._on_add_func = lambda s: s
         self._widgets.label.grid(column=0, row=0, columnspan=2, sticky="W")
         self._widgets.entry.grid(column=0, row=1, sticky="EW", padx=3)
         self._widgets.list.grid(column=0, row=2, columnspan=2, sticky="NSEW", padx=2, pady=2)
@@ -135,61 +133,3 @@ class EditableList(tk.Frame):
     def set_entry_filter(self, func: Callable[[str], str]) -> None:
         self._entry_filter = func
 
-
-# class ScrolledList(tk.Listbox):
-#    def __init__(self, parent, *args, **kw):
-#        container = ttk.Frame(parent)
-#        super().__init__(container, *args, **kw)
-#        scrollbar = ttk.Scrollbar(container, orient=tk.VERTICAL, command=listbox.yview)
-#        listbox.config(yscrollcommand=scrollbar.set)
-#        # listbox.pack(expand = True, fill = tk.BOTH, side = tk.LEFT)
-#        # scrollbar.pack(expand = True, fill = tk.Y, side = tk.RIGHT)
-#        self.grid(column=0, row=0, sticky="NSEW")
-#        scrollbar.grid(column=1, row=0, sticky="NS")
-#        container.columnconfigure(0, weight=1)
-#        container.rowconfigure(0, weight=1)
-#
-#        self.ui = {"container": container, "scrollbar": scrollbar}
-#
-#    @property
-#    def container(self):
-#        return self.ui["container"]
-#
-#    @property
-#    def scrollbar(self):
-#        return self.ui["scrollbar"]
-
-
-# somewhat inefficient: rebuilds the whole button widgets with any path change
-class FilePathSelector(ttk.Frame):
-    class __Widgets(NamedTuple):
-        path_widgets: list[ttk.Widget]
-
-    def __init__(self, parent, path=None):
-        super().__init__(parent)
-        self.path = path
-        self._widgets = __class__.__Widgets(path_widgets=[])
-        if path:
-            self.set_path(path)
-
-    def set_path(self, path: Path) -> None:
-        def _dir_clicked(path: Path):
-            self.set_path(path)
-
-        self.path = path
-        for widget in self._widgets.path_widgets:
-            widget.destroy()
-            widget = None
-
-        for idx, p in enumerate(path.parts):
-            button = ttk.Button(
-                self,
-                text=p,
-                width=0,
-                command=lambda i=idx: _dir_clicked(Path("\\".join(path.parts[0:i]))),
-            )
-            button.pack(side=tk.LEFT)
-            self._widgets.path_widgets.append(button)
-            label = ttk.Label(self, text="/", width=0)
-            label.pack(side=tk.LEFT)
-            self._widgets.path_widgets.append(label)
