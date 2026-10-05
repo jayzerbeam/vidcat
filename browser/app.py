@@ -95,7 +95,6 @@ class App:
         self._widgets.root.bind_all(VEvent.FILE_DESELECT, func=self._handle_file_deselected, add=True)
         self._widgets.root.bind_all(VEvent.FILE_EXEC, func=self._handle_file_exec, add=True)
         self._widgets.root.bind_all(BVEvent.GOTO_PATH, func=self._handle_goto_path, add=True)
-        self._widgets.root.bind_all(BVEvent.SAVE_METADATA, func=self._handle_save_metadata, add=True)
         self._widgets.root.bind_all(BVEvent.SCAN_METADATA, func=self._handle_scan_metadata, add=True)
         self._widgets.root.bind_all(
             BVEvent.BULK_ADD_ACTOR, func=partial(self._handle_bulk_edit_meta, action=BulkAction.ADD_ACTOR), add=True
@@ -379,9 +378,6 @@ class App:
             print(f"failed to pickle metadata for {self._selected_path}")
         except Exception as ex:
             print(f"failed to save metadata for {self._selected_path}: {ex}")
-
-    def _handle_save_metadata(self, ev: tk.Event) -> None:
-        self.save_metadata()
 
     def scan_metadata(self) -> None:
         self.status_window(True)
@@ -683,7 +679,7 @@ class App:
         self._state.meta_tags.set(self._metadata["tags"])
         self._state.video_len.set(f"length: {vlen}")
         self._state.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
-        self._widgets.mainframe.update_thumbs(self._metadata["thumbnails"])
+        self._state.thumbnails_changed.emit(tuple(self._metadata["thumbnails"]))
 
     def update_filetree(self) -> None:
         self._pathtree.scan(filters=[path_extension_filter(self._config.vid_exts)])

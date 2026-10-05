@@ -1,12 +1,11 @@
 import io
 import tkinter as tk
 from collections.abc import Sequence
-from tkinter import StringVar, ttk
+from tkinter import ttk
 from typing import NamedTuple
 
 from PIL import Image, ImageTk
 
-from browser.ui.constants import VirtualEventSequence
 from ui.better_frames import ImagesFrame
 from ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
 from ui.tk_event_data import DataEvents
@@ -14,7 +13,7 @@ from ui.tk_event_data import DataEvents
 from .actions import UiContext
 
 
-class VideoInfoFrame(DataEvents, ttk.Frame):
+class VideoInfoFrame(ttk.Frame):
     class __Widgets(NamedTuple):
         props: VideoProperties
         title: LabeledEntry
@@ -24,22 +23,14 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
         generate: ThumbGen
         save: ttk.Button
 
-    class __Vars(NamedTuple):
-        title: StringVar
-
     _thumbs: tuple  # tuple[ImageTk.PhotoImage, int, int] | tuple[()]
     _widgets: __Widgets
-    _vars: __Vars
 
     def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(parent, *args, **kw)
         self._ctx = ctx
         self._thumbs = ()
         self._play_from_ms = 0
-
-        self._vars = __class__.__Vars(
-            title=ctx.state.meta_title,
-        )
 
         pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         self._widgets = __class__.__Widgets(
@@ -48,7 +39,7 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
                 self,
                 layout=LabeledEntryLayout.TWO_LINE,
                 labelconf={"text": "Title"},
-                entryconf={"textvariable": self._vars.title},
+                entryconf={"textvariable": ctx.state.meta_title},
             ),
             lists=ActorTagPane(pane, ctx, orient=tk.VERTICAL, width=200),
             pane=pane,
@@ -57,7 +48,7 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
             save=ttk.Button(
                 self,
                 text="Save",
-                command=lambda self=self: self.event_generate(VirtualEventSequence.SAVE_METADATA),
+                command=ctx.actions.save_metadata,
             ),
         )
 
@@ -76,10 +67,11 @@ class VideoInfoFrame(DataEvents, ttk.Frame):
             # thumbnail contains frameno and ms timecode
             for t in self._thumbs:
                 if t[0] == image:
-                    self.event_generate(VirtualEventSequence.PLAY_FROM_MS, data=t[2])
+                    self._ctx.actions.play_from_ms(t[2])
                     break
 
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
+        ctx.state.thumbnails_changed.connect(self.update_thumbs)
 
     def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
         for t in thumbs:

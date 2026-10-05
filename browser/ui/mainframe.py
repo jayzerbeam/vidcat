@@ -74,9 +74,6 @@ class MainFrame(DataEvents, ttk.Frame):
         self._widgets.filters.bind(VirtualEventSequence.FILTERS_OR, lambda event: self.apply_filters(operator="OR"))
         self._widgets.filters.bind(VirtualEventSequence.FILTERS_CLEAR, self._handle_clear_filters)
 
-    def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
-        self._widgets.vidinfo.update_thumbs(thumbs)
-
     def remove_filetree_items(self, paths: Sequence[Path]) -> None:
         self._widgets.filetree.remove_items([str(p) for p in paths])
 
