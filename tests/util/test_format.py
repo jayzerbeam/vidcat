@@ -27,6 +27,10 @@ def test_clock_format_basic() -> None:
     assert clock_format(60) == "01:00"
 
 
+def test_clock_format_decimals_without_fraction() -> None:
+    assert clock_format(60, decimals=2) == "01:00.00"
+
+
 def test_clock_format_fractional_decimals() -> None:
     assert clock_format(1.2345, decimals=3) == "00:01.234"
 

@@ -31,7 +31,7 @@ def clock_format(seconds: float, decimals: int = 0) -> str | None:
             if len(sp) > 1:
                 return f"{sp[0]}.{sp[1][:decimals]}"
             else:
-                return f"{s}.000"
+                return f"{s}.{'0' * decimals}"
         else:
             return s
 
