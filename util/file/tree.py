@@ -59,6 +59,8 @@ class PathTree:
 
         if self._root.is_absolute() and not path.is_absolute():
             path = path.absolute()
+            if not path.is_relative_to(self._root):
+                raise ValueError(f"relative path {path} resolves outside PathTree root {self._root}")
 
         pt = self
         try:
@@ -103,7 +105,7 @@ class PathTree:
             if len(parts) == 0:
                 raise ValueError(f"There are no path parts for {path}. This shouldn't happen")
 
-            dug = self if len(parts) == 1 else self.dig(Path().joinpath(*parts[:-1]))
+            dug = self if len(parts) == 1 else self.dig(path.parent)
             if dug is None:
                 return False
 

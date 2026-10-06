@@ -61,6 +61,13 @@ def test_dig(tree: PathTree, tmp_path: Path) -> None:
     assert tree.dig(tmp_path) is None
 
 
+def test_dig_relative_requires_cwd_in_root(tree: PathTree, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(ValueError):
+        tree.dig(Path("sub"))
+    monkeypatch.chdir(tmp_path)
+    assert tree.dig(Path("sub")) is tree.dir("sub")
+
+
 def test_remove(tree: PathTree) -> None:
     assert tree.remove("sub") is True
     assert tree.dir("sub") is None
@@ -81,6 +88,13 @@ def test_dig_and_remove_mixed_abs_rel(tree: PathTree) -> None:
 def test_dig_and_remove_immediate(tree: PathTree, tmp_path: Path) -> None:
     assert tree.dig_and_remove(tmp_path / "b.mp4") is True
     assert tree.file_count == 1
+
+
+def test_dig_and_remove_nested(tree: PathTree, tmp_path: Path) -> None:
+    assert tree.dig_and_remove(tmp_path / "sub" / "a.mp4") is True
+    sub = tree.dir("sub")
+    assert sub is not None
+    assert sub.file_count == 0
 
 
 def test_dig_and_remove_root(tree: PathTree, tmp_path: Path) -> None:
