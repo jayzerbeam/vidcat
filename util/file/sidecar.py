@@ -40,6 +40,9 @@ class MagicSidecar:
             case Platform.LINUX | Platform.MAC:
                 raise NotImplementedError("linux/mac magic sidecar not yet implemented")
 
+            case _:
+                raise OSError("unknown platform")
+
     def _sidecar_check(self) -> None:
         # this shouldn't ever happen
         if not hasattr(self, "_sidecar"):
