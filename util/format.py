@@ -49,13 +49,13 @@ def nice_bytesize(size: int, largest_unit: str = "E", use_base2: bool = False, d
     div = 1024 if use_base2 else 1000
     units = list("EPTGMK")
     v = size
-    u = "B"
+    u = ""
     while v >= div:
         v /= div
         u = units.pop()
         if u == largest_unit:
             break
-    u += "iB" if use_base2 else "B"
+    u += "iB" if u and use_base2 else "B"
     return f"{round(v, decimals if decimals > 0 else None)} {u}"
 
 

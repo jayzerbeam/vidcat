@@ -39,6 +39,11 @@ def test_clock_format_overflow_returns_none() -> None:
     assert clock_format(1e18) is None
 
 
+def test_nice_bytesize_bytes() -> None:
+    assert nice_bytesize(999) == "999 B"
+    assert nice_bytesize(999, use_base2=True) == "999 B"
+
+
 def test_nice_bytesize_kilobytes() -> None:
     assert nice_bytesize(1000) == "1 KB"
 
