@@ -25,6 +25,11 @@ def test_nice_duration_invalid_string() -> None:
     assert nice_duration(cast(int, "x")) == "???"
 
 
+def test_nice_duration_none_raises() -> None:
+    with pytest.raises(TypeError):
+        nice_duration(cast(int, None))
+
+
 def test_clock_format_basic() -> None:
     assert clock_format(60) == "01:00"
 
