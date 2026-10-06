@@ -48,6 +48,9 @@ def nice_bytesize(size: int, largest_unit: str = "E", use_base2: bool = False, d
 
     div = 1024 if use_base2 else 1000
     units = list("EPTGMK")
+    if largest_unit not in units:
+        raise ValueError(f"invalid largest_unit ({largest_unit})")
+
     v = size
     u = ""
     while v >= div:

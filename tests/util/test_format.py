@@ -1,5 +1,7 @@
 from typing import cast
 
+import pytest
+
 from util.format import clock_format, ellipsize, nice_bytesize, nice_duration
 
 
@@ -54,6 +56,11 @@ def test_nice_bytesize_base2_with_decimals() -> None:
 
 def test_nice_bytesize_largest_unit_cap() -> None:
     assert nice_bytesize(1_000_000, largest_unit="K") == "1000 KB"
+
+
+def test_nice_bytesize_invalid_largest_unit() -> None:
+    with pytest.raises(ValueError):
+        nice_bytesize(10**30, largest_unit="Z")
 
 
 def test_ellipsize_short_input_unchanged() -> None:
