@@ -71,6 +71,12 @@ def test_ellipsize_too_short_for_ellipsis() -> None:
     assert ellipsize("abcdef", 3) == "abc"
 
 
+def test_ellipsize_min_ellipsis_length() -> None:
+    result = ellipsize("abcdefgh", 4)
+    assert result == "a..."
+    assert len(result) <= 4
+
+
 def test_ellipsize_odd_maxlen() -> None:
     assert ellipsize("abcdefgh", 5) == "a...h"
 

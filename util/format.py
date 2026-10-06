@@ -68,7 +68,6 @@ def ellipsize(s: str, maxlen: int) -> str:
     elif maxlen <= 3:  # too short for ellipses
         return s[:maxlen]
     else:
-        if maxlen % 2 == 1:
-            return s[0 : int(maxlen / 2 - 1)] + "..." + s[-int(maxlen / 2 - 1) :]
-        else:
-            return s[0 : int(maxlen / 2 - 1)] + "..." + s[-int(maxlen / 2 - 2) :]
+        head = int(maxlen / 2 - 1)
+        tail = maxlen - head - 3
+        return s[:head] + "..." + (s[-tail:] if tail > 0 else "")
