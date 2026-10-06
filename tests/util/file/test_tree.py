@@ -78,6 +78,11 @@ def test_dig_and_remove_mixed_abs_rel(tree: PathTree) -> None:
         tree.dig_and_remove(Path("sub"))
 
 
+def test_dig_and_remove_immediate(tree: PathTree, tmp_path: Path) -> None:
+    assert tree.dig_and_remove(tmp_path / "b.mp4") is True
+    assert tree.file_count == 1
+
+
 def test_dig_and_remove_root(tree: PathTree, tmp_path: Path) -> None:
     with pytest.raises(ValueError) as exc:
         tree.dig_and_remove(tmp_path)

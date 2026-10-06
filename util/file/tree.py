@@ -106,9 +106,8 @@ class PathTree:
             dug = self if len(parts) == 1 else self.dig(Path().joinpath(*parts[:-1]))
             if dug is None:
                 return False
-            dug.remove(path.name)
 
-        return False
+            return dug.remove(path.name)
 
     def dir(self, name: str) -> PathTree | None:
         return self._dirs.get(name, None)
