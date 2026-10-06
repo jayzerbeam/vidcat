@@ -6,7 +6,7 @@ from pathlib import Path
 class Platform(StrEnum):
     WINDOWS = "Windows"
     LINUX = "Linux"
-    MAC = "DARWIN"
+    MAC = "Darwin"
 
 
 class MagicSidecar:

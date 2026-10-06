@@ -63,3 +63,11 @@ def test_linux_not_implemented(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr("util.file.sidecar.platform.system", lambda: "Linux")
     with pytest.raises(NotImplementedError):
         MagicSidecar(f, "meta")
+
+
+def test_darwin_not_implemented(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    f = tmp_path / "video.mp4"
+    f.write_bytes(b"data")
+    monkeypatch.setattr("util.file.sidecar.platform.system", lambda: "Darwin")
+    with pytest.raises(NotImplementedError):
+        MagicSidecar(f, "meta")
