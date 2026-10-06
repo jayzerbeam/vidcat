@@ -7,6 +7,10 @@ def test_nice_duration_seconds() -> None:
     assert nice_duration(1) == "1s"
 
 
+def test_nice_duration_zero() -> None:
+    assert nice_duration(0) == "0s"
+
+
 def test_nice_duration_minutes_rollover() -> None:
     assert nice_duration(60) == "1m 0s"
 

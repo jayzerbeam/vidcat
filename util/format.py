@@ -10,6 +10,9 @@ def nice_duration(seconds: int) -> str:
     except ValueError:
         return "???"
     else:
+        if t == 0:
+            return "0s"
+
         while t >= 1:
             formatted = f" {t % 60}{units.pop()}" + formatted
             t = int(t / 60)
