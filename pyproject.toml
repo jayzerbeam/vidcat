@@ -18,3 +18,12 @@ venv = ".venv"
 line-length = 120
 [tool.ruff.lint]
 ignore = ["BLE001"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
