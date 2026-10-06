@@ -17,8 +17,10 @@ def tree(tmp_path: Path) -> PathTree:
 
 
 def test_init_missing_root(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError):
-        PathTree(tmp_path / "missing")
+    missing = tmp_path / "missing"
+    with pytest.raises(FileNotFoundError) as exc:
+        PathTree(missing)
+    assert str(missing) in str(exc.value)
 
 
 def test_scan_counts_and_clear(tree: PathTree, tmp_path: Path) -> None:
@@ -74,6 +76,12 @@ def test_dig_and_remove_outside(tree: PathTree, tmp_path: Path) -> None:
 def test_dig_and_remove_mixed_abs_rel(tree: PathTree) -> None:
     with pytest.raises(ValueError):
         tree.dig_and_remove(Path("sub"))
+
+
+def test_dig_and_remove_root(tree: PathTree, tmp_path: Path) -> None:
+    with pytest.raises(ValueError) as exc:
+        tree.dig_and_remove(tmp_path)
+    assert str(tmp_path) in str(exc.value)
 
 
 def test_build_dir_tree_dict(tmp_path: Path) -> None:

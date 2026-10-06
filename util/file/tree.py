@@ -12,7 +12,7 @@ class PathTree:
 
     def __init__(self, root: Path) -> None:
         if not root.exists():
-            raise FileNotFoundError("PathTree root {root} must exist")
+            raise FileNotFoundError(f"PathTree root {root} must exist")
 
         self._root = root
         self._dirs = {}
@@ -101,7 +101,7 @@ class PathTree:
             return False
         else:
             if len(parts) == 0:
-                raise ValueError("There are no path parts for {path}. This shouldn't happen")
+                raise ValueError(f"There are no path parts for {path}. This shouldn't happen")
 
             dug = self if len(parts) == 1 else self.dig(Path().joinpath(*parts[:-1]))
             if dug is None:
