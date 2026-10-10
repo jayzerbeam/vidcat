@@ -1,40 +1,37 @@
 import gc
 import pickle
 import threading
-import time
 import tkinter as tk
 import traceback
 from collections.abc import Callable, Sequence
-from copy import deepcopy
 from functools import partial
 from pathlib import Path
 from queue import Queue
-from typing import Any, Final, NamedTuple
+from typing import Any, NamedTuple
 
-from util.file.sidecar import MagicSidecar
 from util.format import nice_bytesize, nice_duration
-from util.video import ProgressFunc, VideoThumbnailer
 
 from .config import Config
 from .launcher import Launcher
 from .library import Trash, VideoLibrary
+from .metadata import (
+    MetadataStore,
+    aggregate_files,
+    empty_metadata,
+    generate_files,
+    generate_video_metadata,
+    refresh_files,
+)
 from .ui import InputWindow, MainFrame, StatusWindow
 from .ui.actions import AppActions, BulkAction, UiContext
 from .ui.state import FileTreeUpdate, UiState
-
-_EMPTY_METADATA: Final[dict[str, Any]] = {
-    "title": "",
-    "video_properties": {"dimensions": (0, 0), "duration": 0},
-    "actors": [],
-    "tags": [],
-    "thumbnails": [],
-}
 
 
 class App:
     _config: Config
     _library: VideoLibrary
     _trash: Trash
+    _store: MetadataStore
     _metadata: dict[str, Any]
     _selected_path: Path  # for vid info tab
     _state: UiState
@@ -49,13 +46,14 @@ class App:
     def __init__(self, root: tk.Tk, basepath: Path, config: Config):
         self._config = config
         self._library = VideoLibrary(basepath, config.vid_exts)
-        self._metadata = deepcopy(_EMPTY_METADATA)
+        self._metadata = empty_metadata()
         self._selected_path = Path()
 
         self._state = UiState(root, thumb_interval=config.thumb_interval, thumb_height=config.thumb_height)
 
         self._launcher = Launcher(config.vid_player, config.vid_player_args)
         self._trash = Trash(config.trash_dir)
+        self._store = MetadataStore(config.metadata_key)
 
         actions: AppActions = self  # App structurally implements AppActions without inheriting from it
         self._widgets = __class__.__Widgets(
@@ -175,34 +173,21 @@ class App:
         # closes (unreachable from the UI, which passes tree iids; acceptable per spec delta 1)
 
         def _thread() -> None:
-            total = len(files)
-            for c, f in enumerate(files, start=1):
-                self._post_ui(partial(self._emit_progress, f"[{c} / {total}] {f.name}", c / total))
-                try:
-                    metadata = pickle.loads(MagicSidecar(f, namespace=self._config.metadata_key).read())
-                except FileNotFoundError:
-                    pass
-                except Exception as ex:
-                    print(f"error: failed to load metadata for {f}: {ex}")
-                    traceback.print_exc()
-                else:
-                    self._post_ui(partial(self._emit_file_metadata, f, metadata))
+            def _on_file(f: Path, file_metadata: dict[str, Any]) -> None:
+                self._post_ui(partial(self._emit_file_metadata, f, file_metadata))
+
+            def _on_progress(info: str, progress: float) -> None:
+                self._post_ui(partial(self._emit_progress, info, progress))
+
+            refresh_files(files, self._store, on_file=_on_file, on_progress=_on_progress)
             self._post_ui(self._close_status)
 
         self._widgets.status.show()
         threading.Thread(target=_thread, daemon=True).start()
 
     def delete_metadata(self, paths: Sequence[Path]) -> None:
-        files = tuple(p for p in paths if p.is_file())
-
-        for f in files:
-            try:
-                MagicSidecar(f, namespace=self._config.metadata_key).delete()
-            except Exception as ex:
-                print(f"error: failed to delete metadata for {f}: {ex}")
-                traceback.print_exc()
-            else:
-                self._state.file_metadata_changed.emit((f, _EMPTY_METADATA))
+        for f in self._store.delete_files(paths):
+            self._state.file_metadata_changed.emit((f, empty_metadata()))
 
     def generate_thumbnails_bulk(self, paths: Sequence[Path]) -> None:
         files = tuple(p for p in paths if p.is_file())
@@ -210,8 +195,6 @@ class App:
         self.gen_thumbs_bulk(files)
 
     def edit_metadata(self, action: BulkAction, paths: Sequence[Path]) -> None:
-        files = tuple(p for p in paths if p.is_file())
-
         match action:
             case BulkAction.ADD_ACTOR:
                 self._widgets.input.title_text = "Add Actor"
@@ -230,49 +213,8 @@ class App:
         if val is None or not val.strip():
             return
 
-        for f in files:
-            sidecar = MagicSidecar(f, namespace=self._config.metadata_key)
-            metadata = deepcopy(_EMPTY_METADATA)
-            try:
-                metadata = pickle.loads(sidecar.read())
-            except FileNotFoundError:
-                pass
-            except Exception as ex:
-                print(f"error: failed to load metadata for {f}: {ex}")
-                traceback.print_exc()
-                continue
-
-            # sometimes the value is a tuple, coerce back to list
-            actors = list(metadata.get("actors", []))
-            tags = list(metadata.get("tags", []))
-            match action:
-                case BulkAction.ADD_ACTOR:
-                    if val not in actors:
-                        actors.append(val)
-                        metadata["actors"] = sorted(actors)
-                case BulkAction.DEL_ACTOR:
-                    if val in actors:
-                        actors.remove(val)
-                        metadata["actors"] = actors
-                case BulkAction.ADD_TAG:
-                    tag = val.lower()
-                    if tag not in tags:
-                        tags.append(tag)
-                        metadata["tags"] = sorted(tags)
-                case BulkAction.DEL_TAG:
-                    if val.lower() in tags:
-                        tags.remove(val.lower())
-                        metadata["tags"] = tags
-
-            try:
-                print(f"updating metdata for {f}")
-                sidecar.write(pickle.dumps(metadata))
-            except Exception as ex:
-                print(f"error: failed to write metadata for {f}: {ex}")
-                traceback.print_exc()
-                continue
-            else:
-                self._state.file_metadata_changed.emit((f, metadata))
+        for f, file_metadata in self._store.edit_files(paths, action, val):
+            self._state.file_metadata_changed.emit((f, file_metadata))
 
     def generate_thumbnails(self) -> None:
         if self._selected_path is None or not self._selected_path.is_file():
@@ -290,7 +232,7 @@ class App:
 
             generated: dict[str, Any] | None = None
             try:
-                generated = self._generate_video_metadata(
+                generated = generate_video_metadata(
                     path,
                     interval,
                     height,
@@ -322,10 +264,8 @@ class App:
         self._metadata["tags"] = self._widgets.root.tk.splitlist(self._state.meta_tags.get())
         self.update_widgets_from_metadata()
         try:
-            buf = pickle.dumps(self._metadata)
-            sidecar = MagicSidecar(self._selected_path, namespace=self._config.metadata_key)
-            sidecar.write(buf)
-            self._state.meta_size.set(f"metadata size: {round(len(buf) / 1000)}KB")
+            size = self._store.write(self._selected_path, self._metadata)
+            self._state.meta_size.set(f"metadata size: {round(size / 1000)}KB")
         except pickle.PickleError:
             print(f"failed to pickle metadata for {self._selected_path}")
         except Exception as ex:
@@ -340,39 +280,13 @@ class App:
         self._state.filters_changed.emit(((), (), "OR"))
 
         def _thread_entry() -> None:
-            def _incr(totals: dict[str, int], keys: list[str]) -> None:
-                for k in keys:
-                    k = k.lower()
-                    if k not in totals:
-                        totals[k] = 1
-                    else:
-                        totals[k] += 1
+            def _on_file(path: Path, file_metadata: dict[str, Any]) -> None:
+                self._post_ui(partial(self._emit_file_metadata, path, file_metadata))
 
-            actors: dict[str, int] = {}
-            tags: dict[str, int] = {}
-            item_count: int = len(items)
-            update_interval: float = 0.05
-            last_time: float = time.time()
-            for c, path in enumerate(items):
-                if time.time() > last_time + update_interval:
-                    self._post_ui(partial(self._emit_progress, f"[{c}/{item_count}] {path}", (c + 1) / item_count))
-                    last_time = time.time()
+            def _on_progress(info: str, progress: float) -> None:
+                self._post_ui(partial(self._emit_progress, info, progress))
 
-                if path.is_file():
-                    sidecar = MagicSidecar(path, namespace=self._config.metadata_key)
-                    if not sidecar.exists:
-                        continue
-
-                    try:
-                        metadata = pickle.loads(sidecar.read())
-                    except pickle.UnpicklingError:
-                        print(f"failed to unpickle metadata for {path}")
-                    except Exception:
-                        print(f"failed to read metadata for {path}")
-                    else:
-                        self._post_ui(partial(self._emit_file_metadata, path, metadata))
-                        _incr(actors, metadata["actors"])
-                        _incr(tags, metadata["tags"])
+            actors, tags = aggregate_files(items, self._store, on_file=_on_file, on_progress=_on_progress)
 
             self._post_ui(partial(self._emit_progress, "populating widgets", 1.0))
             self._post_ui(partial(self._emit_actor_counts, actors))
@@ -388,33 +302,9 @@ class App:
     def clear_filters(self) -> None:
         self._state.filters_changed.emit(((), (), "OR"))
 
-    def _generate_video_metadata(
-        self,
-        path: Path,
-        thumb_interval: str,
-        thumb_height: str,
-        extract_progress_func: ProgressFunc = lambda f: None,
-        resize_progress_func: ProgressFunc = lambda f: None,
-    ) -> dict[str, Any]:
-        m = {}
-        vt = VideoThumbnailer(path)
-        m["video_properties"] = {}
-        m["video_properties"]["dimensions"] = vt.dimensions
-        m["video_properties"]["duration"] = round(vt.duration, 2) if vt.duration is not None else 0
-        vt.extract_frames(interval=float(thumb_interval), progress_func=extract_progress_func)
-        vt.resize_frames(resize_height=int(thumb_height), progress_func=resize_progress_func)
-        jpgs = vt.gen_jpgs()
-        if jpgs is not None:
-            m["thumbnails"] = jpgs
-
-        return m
-
     def gen_thumbs_bulk(self, files: Sequence[Path]) -> None:
         """generate thumbnails for a list of files with the blocking status window"""
-        fq = Queue()
-        for f in files:
-            if f.is_file():
-                fq.put(f)
+        files = tuple(f for f in files if f.is_file())
 
         self._widgets.status.show()
         self._emit_busy(True)
@@ -424,41 +314,24 @@ class App:
         height = self._state.thumb_height.get()
 
         def _thread() -> None:
-            def _xprog(fraction: float) -> None:
-                self._post_ui(partial(self._set_progress, c / total + (1 / total * (0.5 * fraction))))
+            def _on_file(f: Path, file_metadata: dict[str, Any]) -> None:
+                self._post_ui(partial(self._emit_file_metadata, f, file_metadata))
 
-            def _rprog(fraction: float) -> None:
-                self._post_ui(partial(self._set_progress, c / total + (1 / total * (0.5 * fraction + 0.5))))
+            def _on_progress(info: str, progress: float) -> None:
+                self._post_ui(partial(self._emit_progress, info, progress))
 
-            total = fq.qsize()
-            c = 0
+            def _on_fraction(fraction: float) -> None:
+                self._post_ui(partial(self._set_progress, fraction))
 
-            while not fq.empty():
-                f = fq.get()
-                sidecar = MagicSidecar(f, namespace=self._config.metadata_key)
-                metadata = deepcopy(_EMPTY_METADATA)
-                try:
-                    metadata = pickle.loads(sidecar.read())
-                except FileNotFoundError:
-                    print(f"no sidecar metadata for {f}")
-                except Exception as ex:
-                    print(f"error: loading sidecar metadata for {f}: {ex}")
-                    traceback.print_exc()
-
-                self._post_ui(partial(self._emit_progress, f"[{c + 1} / {total}] {f}", c / total))
-                try:
-                    metadata |= self._generate_video_metadata(
-                        f, interval, height, extract_progress_func=_xprog, resize_progress_func=_rprog
-                    )
-                    sidecar.write(pickle.dumps(metadata))
-                except Exception as ex:
-                    print(f"error: failed to generate metadata for {f}: {ex}")
-                    traceback.print_exc()
-                    continue
-                finally:
-                    self._post_ui(partial(self._emit_file_metadata, f, metadata))
-                    c = total - fq.qsize()
-                    self._post_ui(partial(self._set_progress, c / total))
+            generate_files(
+                files,
+                self._store,
+                interval=interval,
+                height=height,
+                on_file=_on_file,
+                on_progress=_on_progress,
+                on_fraction=_on_fraction,
+            )
 
             self._post_ui(partial(self._emit_busy, False))
             self._post_ui(self._close_status)
@@ -471,34 +344,24 @@ class App:
     def load_metadata(self, p: Path) -> None:
         if p.is_file():
             self._selected_path = p
-            sidecar = MagicSidecar(p, namespace=self._config.metadata_key)
             print(f"loading metadata for {p}")
             self._state.file_path.set(str(p))
             self._state.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
             self._state.meta_size.set("metadata size: none")
-            self._metadata = deepcopy(_EMPTY_METADATA)
 
-            try:
-                buf = sidecar.read()
-                self._metadata = pickle.loads(buf)
-                self._state.meta_size.set(f"metadata size: {nice_bytesize(len(buf))}")
-            except FileNotFoundError:
-                self._metadata = deepcopy(_EMPTY_METADATA)
-                print(f"{p} does not have a magic sidecar")
-            except pickle.UnpicklingError:
-                print(f"{p} does not have valid pickle data, using default")
-            except Exception as ex:
-                print(f"{p} failed to load metadata: {ex}")
-            finally:
-                self.update_widgets_from_metadata()
+            stored = self._store.read_or_empty(p)
+            self._metadata = stored.metadata
+            if stored.byte_size > 0:
+                self._state.meta_size.set(f"metadata size: {nice_bytesize(stored.byte_size)}")
 
+            self.update_widgets_from_metadata()
             self._state.selection_changed.emit((p,))
 
     def clear_vidinfo(self) -> None:
         self._state.file_path.set("")
         self._state.file_size.set("size: none")
         self._state.meta_size.set("metadata size: none")
-        self._metadata = deepcopy(_EMPTY_METADATA)
+        self._metadata = empty_metadata()
         self._selected_path = Path("")
         self.update_widgets_from_metadata()
         self._state.selection_changed.emit(())

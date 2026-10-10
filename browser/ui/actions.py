@@ -1,18 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from enum import StrEnum
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
+from browser.metadata import BulkAction
+
 from .state import UiState
-
-
-class BulkAction(StrEnum):
-    ADD_ACTOR = "ADD_ACTOR"
-    DEL_ACTOR = "DEL_ACTOR"
-    ADD_TAG = "ADD_TAG"
-    DEL_TAG = "DEL_TAG"
 
 
 class AppActions(Protocol):
