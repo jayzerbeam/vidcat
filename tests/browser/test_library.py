@@ -1,8 +1,11 @@
+import sys
 from pathlib import Path
 
 import pytest
 
 from browser.library import Trash, VideoLibrary
+
+windows_only = pytest.mark.skipif(sys.platform != "win32", reason="Windows file sharing semantics")
 
 
 @pytest.fixture
@@ -43,7 +46,7 @@ def test_rescan_picks_up_changes(library: VideoLibrary, tmp_path: Path) -> None:
     assert [f.name for f in pt.files()] == ["c.mp4"]
     assert pt.dir("deep") is not None
     # the parent's own file list is not refreshed by a subtree rescan
-    assert library.tree.file_count == 1
+    assert [f.name for f in library.tree.files()] == ["b.mp4"]
 
 
 def test_rescan_returns_none_for_files_and_unknown_paths(library: VideoLibrary, tmp_path: Path) -> None:
@@ -120,3 +123,20 @@ def test_trash_unavailable_when_path_is_file(tmp_path: Path, capsys: pytest.Capt
     assert trash.send([f]) == []
     assert f.exists()
     assert "error:trash directory is not a directory, could not initialize" in capsys.readouterr().out
+
+
+@windows_only
+def test_trash_send_reports_move_failure(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    trash_path = tmp_path / "trash"
+    trash = Trash(trash_path)
+    f = tmp_path / "video.mp4"
+    f.write_text("x")
+
+    # an open CRT handle blocks the rename on Windows
+    with open(f, "rb"):
+        moved = trash.send([f])
+
+    assert moved == []
+    assert f.exists()
+    assert not (trash_path / f.name).exists()
+    assert f"error: failed to move {f} to trash:" in capsys.readouterr().out

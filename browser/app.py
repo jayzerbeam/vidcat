@@ -171,6 +171,8 @@ class App:
 
         # snapshot the file list on the main thread so the worker does not race tree mutations
         files = tuple(self._library.iter_files(path))
+        # a directory absent from the library tree yields no files: the status window then only shows and
+        # closes (unreachable from the UI, which passes tree iids; acceptable per spec delta 1)
 
         def _thread() -> None:
             total = len(files)
