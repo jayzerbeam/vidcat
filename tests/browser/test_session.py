@@ -208,7 +208,7 @@ def test_save_writes_title_actors_tags_and_size_label(
     assert log == ["file_metadata_changed", "thumbnails_changed", "write"]
 
 
-def test_apply_none_only_refreshes(
+def test_apply_for_none_matching_path_only_refreshes(
     session: VideoSession,
     state: FakeState,
     store: FakeStore,
@@ -221,13 +221,13 @@ def test_apply_none_only_refreshes(
     session.select((f,), triggered=f)
     log.clear()
 
-    session.apply(None)
+    session.apply_for(f, None)
 
     assert log == ["file_metadata_changed", "thumbnails_changed"]
     assert state.meta_title.value == "loaded"
 
 
-def test_apply_merges_generated_metadata(
+def test_apply_for_matching_path_merges_generated_metadata(
     session: VideoSession,
     state: FakeState,
     store: FakeStore,
@@ -238,11 +238,51 @@ def test_apply_merges_generated_metadata(
     store.results[f] = StoredMetadata(loaded_metadata, 10)
     session.select((f,), triggered=f)
 
-    session.apply({"title": "generated"})
+    session.apply_for(f, {"title": "generated"})
 
     assert state.meta_title.value == "generated"
     # loaded fields survive the merge
     assert state.meta_actors.value == ["actor"]
+
+
+def test_apply_for_wrong_path_is_a_no_op(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    log: list[str],
+    tmp_path: Path,
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    other = _write_file(tmp_path / "other.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 10)
+    session.select((f,), triggered=f)
+    log.clear()
+
+    session.apply_for(other, {"title": "generated"})
+
+    assert state.meta_title.value == "loaded"
+    assert log == []
+
+
+def test_apply_for_cleared_selection_is_a_no_op(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    log: list[str],
+    tmp_path: Path,
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 10)
+    session.select((f,), triggered=f)
+    session.clear()
+    log.clear()
+
+    session.apply_for(f, {"title": "generated"})
+
+    assert state.meta_title.value == ""
+    assert log == []
 
 
 def test_clear_resets_state_and_emits(

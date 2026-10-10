@@ -73,8 +73,14 @@ class VideoSession:
         except Exception as ex:
             print(f"failed to save metadata for {path}: {ex}")
 
-    def apply(self, metadata: dict[str, Any] | None) -> None:
-        """Merge generated metadata (when present) into the loaded metadata and refresh the view."""
+    def apply_for(self, path: Path, metadata: dict[str, Any] | None) -> None:
+        """Merge generated metadata (when present) into the loaded metadata and refresh the view.
+
+        Scope the merge to the file it was generated for: with no selection loaded, or with the
+        selection moved on to another file, the generated data is stale and must not be applied.
+        """
+        if self._selected_path is None or path != self._selected_path:
+            return
         if metadata is not None:
             self._metadata |= metadata
         self._show()

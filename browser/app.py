@@ -197,7 +197,8 @@ class App:
                 print(f"error: failed to generate metadata for {path}: {ex}")
                 traceback.print_exc()
 
-            ui.post(self._session.apply, generated)
+            # apply_for drops the merge when the user has selected a different file or none by then
+            ui.post(self._session.apply_for, path, generated)
 
         self._jobs.run(work, busy=True, collect_garbage=True)
 
