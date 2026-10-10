@@ -203,7 +203,7 @@ def test_background_jobs_lifecycle(
 
     assert finished.wait(timeout=5)
     assert daemons == [True]
-    # show/busy-on run before the work; the terminal signals are queued, not run by the worker
+    # show/busy-on run before the work; the terminal transitions are queued, not run by the worker
     assert log == ["show", "busy:True", "work"]
 
     _wait_for(lambda: collected == [1])
@@ -211,7 +211,7 @@ def test_background_jobs_lifecycle(
 
     dispatcher.run_all()
 
-    # busy-off is posted before hide (spec delta 6)
+    # busy-off applies before hide (spec delta 6)
     assert log == ["show", "busy:True", "work", "busy:False", "hide"]
 
 
@@ -226,7 +226,8 @@ def test_background_jobs_without_busy_or_gc(
 
     assert collected == []
     assert log == ["show"]
-    assert [callback for callback, _ in dispatcher.posted] == [status.hide]
+    # one completion callback is queued, and it still runs through the dispatcher
+    assert len(dispatcher.posted) == 1
 
     dispatcher.run_all()
 
@@ -252,3 +253,28 @@ def test_background_jobs_logs_work_failure_and_still_closes(
     dispatcher.run_all()
 
     assert log == ["show", "hide"]
+
+
+def test_overlapping_jobs_hold_status_and_busy_until_each_count_hits_zero(
+    sync_threads: None, log: list[str], dispatcher: FakeDispatcher, status: FakeStatus
+) -> None:
+    jobs = BackgroundJobs(cast(Any, dispatcher), cast(Any, status), lambda busy: log.append(f"busy:{busy}"))
+
+    jobs.run(lambda ctx: log.append("work:1"), busy=True)
+    jobs.run(lambda ctx: log.append("work:2"))
+
+    # both jobs started; focus the assertions on the completion transitions
+    log.clear()
+
+    # the busy job finishes first: busy-jobs reach 0 so busy clears, but the status stays up
+    # because the second job is still active
+    callback, args = dispatcher.posted.pop(0)
+    callback(*args)
+    assert log == ["busy:False"]
+
+    # the last job hides the status window exactly once, with no second busy transition
+    dispatcher.run_all()
+    assert log == ["busy:False", "hide"]
+    assert log.count("hide") == 1
+
+    assert dispatcher.posted == []

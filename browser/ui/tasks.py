@@ -76,21 +76,38 @@ class JobContext:
 
 
 class BackgroundJobs:
-    """Runs background work with the shared status/busy lifecycle."""
+    """Runs background work with the shared status/busy lifecycle.
+
+    ``run`` must be called on the UI thread: the counters below are only
+    consistent if start-up and completion both happen there. Jobs may overlap;
+    the status window hides when the last active job finishes and the busy state
+    clears when the last busy job finishes.
+    """
 
     _dispatcher: UiDispatcher
     _status: StatusWindow
     _on_busy: Callable[[bool], None]
+    _active: int
+    _busy: int
 
     def __init__(self, dispatcher: UiDispatcher, status: StatusWindow, on_busy: Callable[[bool], None]) -> None:
         self._dispatcher = dispatcher
         self._status = status
         self._on_busy = on_busy
+        # owned by the UI thread; workers touch them only through posted callbacks
+        self._active = 0
+        self._busy = 0
 
     def run(self, work: Callable[[JobContext], None], *, busy: bool = False, collect_garbage: bool = False) -> None:
-        """Show the status window and run work(ctx) on a daemon thread, then hide it."""
+        """Show the status window and run work(ctx) on a daemon thread.
+
+        Must be called on the UI thread. Jobs may overlap: the status window and
+        busy state stay up while any active or busy job is left.
+        """
+        self._active += 1
         self._status.show()
         if busy:
+            self._busy += 1
             self._on_busy(True)
 
         ctx = JobContext(self._dispatcher, self._status)
@@ -102,11 +119,19 @@ class BackgroundJobs:
                 print(f"error: background job failed: {ex}")
                 traceback.print_exc()
             finally:
-                if busy:
-                    self._dispatcher.post(self._on_busy, False)
-                self._dispatcher.post(self._status.hide)
+                self._dispatcher.post(self._finish, busy)
                 if collect_garbage:
                     # jobs create many buffers; collecting afterward keeps memory from ballooning
                     gc.collect()
 
         threading.Thread(target=_thread, daemon=True).start()
+
+    def _finish(self, busy: bool) -> None:
+        """Apply one job's terminal transitions on the UI thread."""
+        self._active -= 1
+        if busy:
+            self._busy -= 1
+            if self._busy == 0:
+                self._on_busy(False)
+        if self._active == 0:
+            self._status.hide()
