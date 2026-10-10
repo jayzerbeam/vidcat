@@ -1,8 +1,5 @@
 import gc
-import os
 import pickle
-import platform
-import subprocess
 import threading
 import time
 import tkinter as tk
@@ -20,6 +17,7 @@ from util.format import nice_bytesize, nice_duration
 from util.video import ProgressFunc, VideoThumbnailer
 
 from .config import Config
+from .launcher import Launcher
 from .ui import InputWindow, MainFrame, StatusWindow
 from .ui.actions import AppActions, BulkAction, UiContext
 from .ui.state import FileTreeUpdate, UiState
@@ -40,6 +38,7 @@ class App:
     _metadata: dict[str, Any]
     _selected_path: Path  # for vid info tab
     _state: UiState
+    _launcher: Launcher
 
     class __Widgets(NamedTuple):
         root: tk.Tk
@@ -54,6 +53,8 @@ class App:
         self._selected_path = Path()
 
         self._state = UiState(root, thumb_interval=config.thumb_interval, thumb_height=config.thumb_height)
+
+        self._launcher = Launcher(config.vid_player, config.vid_player_args)
 
         actions: AppActions = self  # App structurally implements AppActions without inheriting from it
         self._widgets = __class__.__Widgets(
@@ -141,14 +142,14 @@ class App:
 
     def activate_path(self, path: Path) -> None:
         if path.is_file():
-            self.play_file(path)
+            self._launcher.play(path)
 
     def show_in_explorer(self, path: Path) -> None:
-        self.goto_path(path)
+        self._launcher.reveal(path)
 
     def play_from_ms(self, ms: int) -> None:
         if self._selected_path.is_file():
-            self.play_file(self._selected_path, start_ms=ms)
+            self._launcher.play(self._selected_path, start_ms=ms)
 
     def delete_paths(self, paths: Sequence[Path]) -> None:
         """Move paths to the trash and remove them from the file tree."""
@@ -506,46 +507,6 @@ class App:
             gc.collect()
 
         threading.Thread(target=_thread, daemon=True).start()
-
-    def goto_path(self, path: Path) -> None:
-        """open path in system file explorer"""
-        if not path.exists():
-            return
-        path = path.resolve()
-
-        match platform.system():
-            case "Windows":
-                os.startfile(path)
-            case "Darwin":
-                subprocess.Popen(["open", path])
-            case _:  # linux
-                try:
-                    subprocess.Popen(["xdg-open", path])
-                except FileNotFoundError as ex:
-                    print(f"error: failed to open {path}: {ex}")
-
-    def play_file(self, path: Path, start_ms: int = 0) -> None:
-        """play video file"""
-        if not path.is_file():
-            return
-        path = path.resolve()
-
-        if self._config.vid_player is not None and self._config.vid_player.exists():
-            argv = [self._config.vid_player.name, f'"{path}"']
-            if len(self._config.vid_player_args) > 0:
-                argv.extend(
-                    s.replace("%t_ms", str(start_ms)).replace("%t_sec", str(start_ms / 1000))
-                    for s in self._config.vid_player_args
-                )
-            os.spawnv(os.P_NOWAIT, self._config.vid_player, argv)
-        else:
-            match platform.system():
-                case "Windows":
-                    os.startfile(path)
-                case "Darwin":
-                    subprocess.call(("open", path))
-                case _:  # linux
-                    subprocess.call(("xdg-open", path))
 
     def load_metadata(self, p: Path) -> None:
         if p.is_file():
