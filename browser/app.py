@@ -131,9 +131,25 @@ class App:
             self._state.file_metadata_changed.emit((f, empty_metadata()))
 
     def generate_thumbnails_bulk(self, paths: Sequence[Path]) -> None:
+        """generate thumbnails for a list of files with the blocking status window"""
         files = tuple(p for p in paths if p.is_file())
 
-        self.gen_thumbs_bulk(files)
+        # Tk variables must be read on the main thread before the worker starts
+        interval = self._state.thumb_interval.get()
+        height = self._state.thumb_height.get()
+
+        def work(ui: JobContext) -> None:
+            generate_files(
+                files,
+                self._store,
+                interval=interval,
+                height=height,
+                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, (f, m)),
+                on_progress=ui.progress,
+                on_fraction=ui.fraction,
+            )
+
+        self._jobs.run(work, busy=True, collect_garbage=True)
 
     def edit_metadata(self, action: BulkAction, paths: Sequence[Path]) -> None:
         match action:
@@ -212,24 +228,3 @@ class App:
 
     def clear_filters(self) -> None:
         self._state.filters_changed.emit(((), (), "OR"))
-
-    def gen_thumbs_bulk(self, files: Sequence[Path]) -> None:
-        """generate thumbnails for a list of files with the blocking status window"""
-        files = tuple(f for f in files if f.is_file())
-
-        # Tk variables must be read on the main thread before the worker starts
-        interval = self._state.thumb_interval.get()
-        height = self._state.thumb_height.get()
-
-        def work(ui: JobContext) -> None:
-            generate_files(
-                files,
-                self._store,
-                interval=interval,
-                height=height,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, (f, m)),
-                on_progress=ui.progress,
-                on_fraction=ui.fraction,
-            )
-
-        self._jobs.run(work, busy=True, collect_garbage=True)
