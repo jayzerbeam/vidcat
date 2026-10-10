@@ -1,11 +1,8 @@
-import pickle
 import tkinter as tk
 import traceback
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, NamedTuple
-
-from util.format import nice_bytesize, nice_duration
 
 from .config import Config
 from .launcher import Launcher
@@ -18,6 +15,7 @@ from .metadata import (
     generate_video_metadata,
     refresh_files,
 )
+from .session import VideoSession
 from .ui import InputWindow, MainFrame, StatusWindow
 from .ui.actions import AppActions, BulkAction, UiContext
 from .ui.state import FileTreeUpdate, UiState
@@ -29,8 +27,7 @@ class App:
     _library: VideoLibrary
     _trash: Trash
     _store: MetadataStore
-    _metadata: dict[str, Any]
-    _selected_path: Path  # for vid info tab
+    _session: VideoSession
     _state: UiState
     _launcher: Launcher
     _dispatcher: UiDispatcher
@@ -45,14 +42,13 @@ class App:
     def __init__(self, root: tk.Tk, basepath: Path, config: Config):
         self._config = config
         self._library = VideoLibrary(basepath, config.vid_exts)
-        self._metadata = empty_metadata()
-        self._selected_path = Path()
 
         self._state = UiState(root, thumb_interval=config.thumb_interval, thumb_height=config.thumb_height)
 
         self._launcher = Launcher(config.vid_player, config.vid_player_args)
         self._trash = Trash(config.trash_dir)
         self._store = MetadataStore(config.metadata_key)
+        self._session = VideoSession(self._state, self._store, split_list=root.tk.splitlist)
 
         actions: AppActions = self  # App structurally implements AppActions without inheriting from it
         self._widgets = __class__.__Widgets(
@@ -74,24 +70,8 @@ class App:
         self._library.scan()
         self._state.file_tree_changed.emit(FileTreeUpdate(self._library.tree, ""))
 
-    def _apply_generated_metadata(self, metadata: dict[str, Any] | None) -> None:
-        if metadata is not None:
-            self._metadata |= metadata
-        self.update_widgets_from_metadata()
-
     def select_paths(self, paths: Sequence[Path], triggered: Path | None = None) -> None:
-        if triggered is not None and triggered in paths:
-            if triggered.is_file():
-                self.load_metadata(triggered)
-            else:
-                self.clear_vidinfo()
-            return
-
-        for p in paths:
-            if p.is_file():
-                self.load_metadata(p)
-                return
-        self.clear_vidinfo()
+        self._session.select(paths, triggered)
 
     def activate_path(self, path: Path) -> None:
         if path.is_file():
@@ -101,8 +81,9 @@ class App:
         self._launcher.reveal(path)
 
     def play_from_ms(self, ms: int) -> None:
-        if self._selected_path.is_file():
-            self._launcher.play(self._selected_path, start_ms=ms)
+        p = self._session.selected_path
+        if p is not None and p.is_file():
+            self._launcher.play(p, start_ms=ms)
 
     def delete_paths(self, paths: Sequence[Path]) -> None:
         """Move paths to the trash and remove them from the file tree."""
@@ -112,9 +93,8 @@ class App:
         if not self._trash.available:
             return
 
-        if self._selected_path in paths:
-            self.clear_vidinfo()
-            self._state.selection_changed.emit(())
+        if self._session.selected_path in paths:
+            self._session.clear()
 
         removed = self._trash.send(paths)
         for p in removed:
@@ -178,10 +158,11 @@ class App:
             self._state.file_metadata_changed.emit((f, file_metadata))
 
     def generate_thumbnails(self) -> None:
-        if self._selected_path is None or not self._selected_path.is_file():
+        selected = self._session.selected_path
+        if selected is None or not selected.is_file():
             return
 
-        path = self._selected_path
+        path = selected
         # Tk variables must be read on the main thread before the worker starts
         interval = self._state.thumb_interval.get()
         height = self._state.thumb_height.get()
@@ -200,25 +181,12 @@ class App:
                 print(f"error: failed to generate metadata for {path}: {ex}")
                 traceback.print_exc()
 
-            ui.post(self._apply_generated_metadata, generated)
+            ui.post(self._session.apply, generated)
 
         self._jobs.run(work, busy=True, collect_garbage=True)
 
     def save_metadata(self) -> None:
-        print(f"saving metadata for {self._selected_path}")
-
-        # thumbnails are updated on generation
-        self._metadata["title"] = self._state.meta_title.get()
-        self._metadata["actors"] = self._widgets.root.tk.splitlist(self._state.meta_actors.get())
-        self._metadata["tags"] = self._widgets.root.tk.splitlist(self._state.meta_tags.get())
-        self.update_widgets_from_metadata()
-        try:
-            size = self._store.write(self._selected_path, self._metadata)
-            self._state.meta_size.set(f"metadata size: {round(size / 1000)}KB")
-        except pickle.PickleError:
-            print(f"failed to pickle metadata for {self._selected_path}")
-        except Exception as ex:
-            print(f"failed to save metadata for {self._selected_path}: {ex}")
+        self._session.save()
 
     def scan_metadata(self) -> None:
         self._state.filters_changed.emit(((), (), "OR"))
@@ -265,40 +233,3 @@ class App:
             )
 
         self._jobs.run(work, busy=True, collect_garbage=True)
-
-    def load_metadata(self, p: Path) -> None:
-        if p.is_file():
-            self._selected_path = p
-            print(f"loading metadata for {p}")
-            self._state.file_path.set(str(p))
-            self._state.file_size.set(f"size: {nice_bytesize(p.stat().st_size, largest_unit='M')}")
-            self._state.meta_size.set("metadata size: none")
-
-            stored = self._store.read_or_empty(p)
-            self._metadata = stored.metadata
-            if stored.byte_size > 0:
-                self._state.meta_size.set(f"metadata size: {nice_bytesize(stored.byte_size)}")
-
-            self.update_widgets_from_metadata()
-            self._state.selection_changed.emit((p,))
-
-    def clear_vidinfo(self) -> None:
-        self._state.file_path.set("")
-        self._state.file_size.set("size: none")
-        self._state.meta_size.set("metadata size: none")
-        self._metadata = empty_metadata()
-        self._selected_path = Path("")
-        self.update_widgets_from_metadata()
-        self._state.selection_changed.emit(())
-
-    def update_widgets_from_metadata(self) -> None:
-        self._state.file_metadata_changed.emit((self._selected_path, self._metadata))
-
-        vres = self._metadata["video_properties"]["dimensions"]
-        vlen = nice_duration(self._metadata["video_properties"]["duration"])
-        self._state.meta_title.set(self._metadata["title"])
-        self._state.meta_actors.set(self._metadata["actors"])
-        self._state.meta_tags.set(self._metadata["tags"])
-        self._state.video_len.set(f"length: {vlen}")
-        self._state.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
-        self._state.thumbnails_changed.emit(tuple(self._metadata["thumbnails"]))
