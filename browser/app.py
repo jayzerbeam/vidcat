@@ -1,12 +1,8 @@
-import gc
 import pickle
-import threading
 import tkinter as tk
 import traceback
-from collections.abc import Callable, Sequence
-from functools import partial
+from collections.abc import Sequence
 from pathlib import Path
-from queue import Queue
 from typing import Any, NamedTuple
 
 from util.format import nice_bytesize, nice_duration
@@ -25,6 +21,7 @@ from .metadata import (
 from .ui import InputWindow, MainFrame, StatusWindow
 from .ui.actions import AppActions, BulkAction, UiContext
 from .ui.state import FileTreeUpdate, UiState
+from .ui.tasks import BackgroundJobs, JobContext, UiDispatcher
 
 
 class App:
@@ -36,6 +33,8 @@ class App:
     _selected_path: Path  # for vid info tab
     _state: UiState
     _launcher: Launcher
+    _dispatcher: UiDispatcher
+    _jobs: BackgroundJobs
 
     class __Widgets(NamedTuple):
         root: tk.Tk
@@ -64,9 +63,9 @@ class App:
         )
         self._widgets.mainframe.pack(expand=True, fill=tk.BOTH)
 
-        # Worker threads post callables here; the main thread drains them in FIFO order.
-        self._ui_queue: Queue[Callable[[], None]] = Queue()
-        self._widgets.root.after(30, self._drain_ui_queue)
+        # worker threads post callbacks through the dispatcher; the Tk thread drains them in FIFO order
+        self._dispatcher = UiDispatcher(root)
+        self._jobs = BackgroundJobs(self._dispatcher, self._widgets.status, self._state.busy_changed.emit)
 
         # bind on root so the accelerators fire regardless of which widget has focus
         root.bind("<Control-s>", lambda _ev: self.save_metadata())
@@ -74,41 +73,6 @@ class App:
 
         self._library.scan()
         self._state.file_tree_changed.emit(FileTreeUpdate(self._library.tree, ""))
-
-    def _post_ui(self, callback: Callable[[], None]) -> None:
-        self._ui_queue.put(callback)
-
-    def _drain_ui_queue(self) -> None:
-        while not self._ui_queue.empty():
-            callback = self._ui_queue.get()
-            try:
-                callback()
-            except Exception as ex:
-                print(f"error: UI callback failed: {ex}")
-                traceback.print_exc()
-        self._widgets.root.after(30, self._drain_ui_queue)
-
-    def _emit_file_metadata(self, path: Path, metadata: dict[str, Any]) -> None:
-        self._state.file_metadata_changed.emit((path, metadata))
-
-    def _emit_progress(self, info: str, progress: float) -> None:
-        self._widgets.status.info = info
-        self._widgets.status.progress = progress
-
-    def _set_progress(self, progress: float) -> None:
-        self._widgets.status.progress = progress
-
-    def _emit_actor_counts(self, actors: dict[str, int]) -> None:
-        self._state.actor_counts_changed.emit(actors)
-
-    def _emit_tag_counts(self, tags: dict[str, int]) -> None:
-        self._state.tag_counts_changed.emit(tags)
-
-    def _emit_busy(self, busy: bool) -> None:
-        self._state.busy_changed.emit(busy)
-
-    def _close_status(self) -> None:
-        self._widgets.status.hide()
 
     def _apply_generated_metadata(self, metadata: dict[str, Any] | None) -> None:
         if metadata is not None:
@@ -172,18 +136,15 @@ class App:
         # a directory absent from the library tree yields no files: the status window then only shows and
         # closes (unreachable from the UI, which passes tree iids; acceptable per spec delta 1)
 
-        def _thread() -> None:
-            def _on_file(f: Path, file_metadata: dict[str, Any]) -> None:
-                self._post_ui(partial(self._emit_file_metadata, f, file_metadata))
+        def work(ui: JobContext) -> None:
+            refresh_files(
+                files,
+                self._store,
+                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, (f, m)),
+                on_progress=ui.progress,
+            )
 
-            def _on_progress(info: str, progress: float) -> None:
-                self._post_ui(partial(self._emit_progress, info, progress))
-
-            refresh_files(files, self._store, on_file=_on_file, on_progress=_on_progress)
-            self._post_ui(self._close_status)
-
-        self._widgets.status.show()
-        threading.Thread(target=_thread, daemon=True).start()
+        self._jobs.run(work)  # status only, no busy, like today
 
     def delete_metadata(self, paths: Sequence[Path]) -> None:
         for f in self._store.delete_files(paths):
@@ -225,35 +186,23 @@ class App:
         interval = self._state.thumb_interval.get()
         height = self._state.thumb_height.get()
 
-        # probably not thread-safe
-        def _thread_entry() -> None:
-            def _progress(p: float, prefix: str) -> None:
-                self._post_ui(partial(self._emit_progress, f"{prefix} {p * 100:.1f}%", p))
-
+        def work(ui: JobContext) -> None:
             generated: dict[str, Any] | None = None
             try:
                 generated = generate_video_metadata(
                     path,
                     interval,
                     height,
-                    extract_progress_func=partial(_progress, prefix="Extracting frames..."),
-                    resize_progress_func=partial(_progress, prefix="Resizing frames..."),
+                    extract_progress_func=ui.progress_func("Extracting frames..."),
+                    resize_progress_func=ui.progress_func("Resizing frames..."),
                 )
             except Exception as ex:
                 print(f"error: failed to generate metadata for {path}: {ex}")
                 traceback.print_exc()
 
-            self._post_ui(partial(self._apply_generated_metadata, generated))
-            self._post_ui(self._close_status)
-            self._post_ui(partial(self._emit_busy, False))
+            ui.post(self._apply_generated_metadata, generated)
 
-            """ a lot of buffers, objects, etc. are created here so invoking a garbage collection afterward seems
-                to keep memory usage from ballooning"""
-            gc.collect()
-
-        self._widgets.status.show()
-        self._emit_busy(True)
-        threading.Thread(target=_thread_entry, daemon=True).start()
+        self._jobs.run(work, busy=True, collect_garbage=True)
 
     def save_metadata(self) -> None:
         print(f"saving metadata for {self._selected_path}")
@@ -272,29 +221,23 @@ class App:
             print(f"failed to save metadata for {self._selected_path}: {ex}")
 
     def scan_metadata(self) -> None:
+        self._state.filters_changed.emit(((), (), "OR"))
+
         # snapshot the file list on the main thread so the worker does not race tree mutations
         items = tuple(self._library.iter_files())
 
-        self._widgets.status.show()
-        self._emit_busy(True)
-        self._state.filters_changed.emit(((), (), "OR"))
+        def work(ui: JobContext) -> None:
+            actors, tags = aggregate_files(
+                items,
+                self._store,
+                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, (f, m)),
+                on_progress=ui.progress,
+            )
+            ui.progress("populating widgets", 1.0)
+            ui.post(self._state.actor_counts_changed.emit, actors)
+            ui.post(self._state.tag_counts_changed.emit, tags)
 
-        def _thread_entry() -> None:
-            def _on_file(path: Path, file_metadata: dict[str, Any]) -> None:
-                self._post_ui(partial(self._emit_file_metadata, path, file_metadata))
-
-            def _on_progress(info: str, progress: float) -> None:
-                self._post_ui(partial(self._emit_progress, info, progress))
-
-            actors, tags = aggregate_files(items, self._store, on_file=_on_file, on_progress=_on_progress)
-
-            self._post_ui(partial(self._emit_progress, "populating widgets", 1.0))
-            self._post_ui(partial(self._emit_actor_counts, actors))
-            self._post_ui(partial(self._emit_tag_counts, tags))
-            self._post_ui(partial(self._emit_busy, False))
-            self._post_ui(self._close_status)
-
-        threading.Thread(target=_thread_entry, daemon=True).start()
+        self._jobs.run(work, busy=True)
 
     def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: str = "OR") -> None:
         self._state.filters_changed.emit((tuple(actors), tuple(tags), operator))
@@ -306,40 +249,22 @@ class App:
         """generate thumbnails for a list of files with the blocking status window"""
         files = tuple(f for f in files if f.is_file())
 
-        self._widgets.status.show()
-        self._emit_busy(True)
-
         # Tk variables must be read on the main thread before the worker starts
         interval = self._state.thumb_interval.get()
         height = self._state.thumb_height.get()
 
-        def _thread() -> None:
-            def _on_file(f: Path, file_metadata: dict[str, Any]) -> None:
-                self._post_ui(partial(self._emit_file_metadata, f, file_metadata))
-
-            def _on_progress(info: str, progress: float) -> None:
-                self._post_ui(partial(self._emit_progress, info, progress))
-
-            def _on_fraction(fraction: float) -> None:
-                self._post_ui(partial(self._set_progress, fraction))
-
+        def work(ui: JobContext) -> None:
             generate_files(
                 files,
                 self._store,
                 interval=interval,
                 height=height,
-                on_file=_on_file,
-                on_progress=_on_progress,
-                on_fraction=_on_fraction,
+                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, (f, m)),
+                on_progress=ui.progress,
+                on_fraction=ui.fraction,
             )
 
-            self._post_ui(partial(self._emit_busy, False))
-            self._post_ui(self._close_status)
-            """ a lot of buffers, objects, etc. are created here so invoking a garbage collection afterward seems
-                to keep memory usage from ballooning"""
-            gc.collect()
-
-        threading.Thread(target=_thread, daemon=True).start()
+        self._jobs.run(work, busy=True, collect_garbage=True)
 
     def load_metadata(self, p: Path) -> None:
         if p.is_file():
