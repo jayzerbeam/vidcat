@@ -203,6 +203,8 @@ def test_store_edit_returns_none_when_load_fails(
     storage[(f, "meta")] = b""  # pickle.loads raises EOFError
 
     assert store.edit(f, BulkAction.ADD_ACTOR, "actor") is None
+    # the failed load must not touch the existing (corrupt) payload
+    assert storage[(f, "meta")] == b""
     assert f"error: failed to load metadata for {f}" in capsys.readouterr().out
 
 
