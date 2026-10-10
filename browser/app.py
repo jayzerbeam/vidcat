@@ -4,7 +4,7 @@ import threading
 import time
 import tkinter as tk
 import traceback
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
@@ -12,12 +12,12 @@ from queue import Queue
 from typing import Any, Final, NamedTuple
 
 from util.file.sidecar import MagicSidecar
-from util.file.tree import PathTree, path_extension_filter
 from util.format import nice_bytesize, nice_duration
 from util.video import ProgressFunc, VideoThumbnailer
 
 from .config import Config
 from .launcher import Launcher
+from .library import Trash, VideoLibrary
 from .ui import InputWindow, MainFrame, StatusWindow
 from .ui.actions import AppActions, BulkAction, UiContext
 from .ui.state import FileTreeUpdate, UiState
@@ -33,8 +33,8 @@ _EMPTY_METADATA: Final[dict[str, Any]] = {
 
 class App:
     _config: Config
-    _pathtree: PathTree
-    _trash_path: Path
+    _library: VideoLibrary
+    _trash: Trash
     _metadata: dict[str, Any]
     _selected_path: Path  # for vid info tab
     _state: UiState
@@ -48,13 +48,14 @@ class App:
 
     def __init__(self, root: tk.Tk, basepath: Path, config: Config):
         self._config = config
-        self._pathtree = PathTree(basepath)
+        self._library = VideoLibrary(basepath, config.vid_exts)
         self._metadata = deepcopy(_EMPTY_METADATA)
         self._selected_path = Path()
 
         self._state = UiState(root, thumb_interval=config.thumb_interval, thumb_height=config.thumb_height)
 
         self._launcher = Launcher(config.vid_player, config.vid_player_args)
+        self._trash = Trash(config.trash_dir)
 
         actions: AppActions = self  # App structurally implements AppActions without inheriting from it
         self._widgets = __class__.__Widgets(
@@ -73,8 +74,8 @@ class App:
         root.bind("<Control-s>", lambda _ev: self.save_metadata())
         root.bind("<Control-g>", lambda _ev: self.generate_thumbnails())
 
-        self._init_trash(config.trash_dir)
-        self.update_filetree()
+        self._library.scan()
+        self._state.file_tree_changed.emit(FileTreeUpdate(self._library.tree, ""))
 
     def _post_ui(self, callback: Callable[[], None]) -> None:
         self._ui_queue.put(callback)
@@ -116,16 +117,6 @@ class App:
             self._metadata |= metadata
         self.update_widgets_from_metadata()
 
-    def _init_trash(self, path: Path) -> None:
-        if not path.exists():
-            path.mkdir()
-
-        if path.is_dir():
-            self._trash_path = path
-        else:
-            # shouldn't happen, config does a trash path check
-            print("error:trash directory is not a directory, could not initialize")
-
     def select_paths(self, paths: Sequence[Path], triggered: Path | None = None) -> None:
         if triggered is not None and triggered in paths:
             if triggered.is_file():
@@ -153,64 +144,37 @@ class App:
 
     def delete_paths(self, paths: Sequence[Path]) -> None:
         """Move paths to the trash and remove them from the file tree."""
-        if self._trash_path is None:
+        if len(paths) == 0:
             return
 
-        if len(paths) == 0:
+        if not self._trash.available:
             return
 
         if self._selected_path in paths:
             self.clear_vidinfo()
             self._state.selection_changed.emit(())
 
-        removed = self._send_to_trash(paths)
+        removed = self._trash.send(paths)
+        for p in removed:
+            self._library.remove(p)
         if removed:
             self._state.paths_removed.emit(tuple(removed))
 
-    def _send_to_trash(self, paths: Sequence[Path]) -> list[Path]:
-        removed: list[Path] = []
-        for p in paths:
-            # container folder may have been moved
-            if not p.exists():
-                continue
-
-            try:
-                p.move(self._trash_path / p.name)
-            except OSError as ex:
-                print(f"error: failed to move {p} to trash: {ex}")
-                continue
-            self._pathtree.dig_and_remove(p)
-            removed.append(p)
-        return removed
-
     def rescan_path(self, path: Path) -> None:
-        if not path.is_dir():
-            return
-
-        pt = self._pathtree.dig(path)
+        pt = self._library.rescan(path)
         if pt is not None:
-            pt.clear()
-            pt.scan(filters=[path_extension_filter(self._config.vid_exts)])
             self._state.file_tree_changed.emit(FileTreeUpdate(pt, str(path)))
 
     def scan_path_metadata(self, path: Path) -> None:
         if not path.is_dir():
             return
 
-        pt = self._pathtree.dig(path)
-        if pt is None:
-            return
+        # snapshot the file list on the main thread so the worker does not race tree mutations
+        files = tuple(self._library.iter_files(path))
 
-        fq = Queue()
-
-        def _thread(pt: PathTree) -> None:
-            _recurse(pt)
-
-            total = fq.qsize()
-            c = 0
-            while not fq.empty():
-                f = fq.get()
-                c += 1
+        def _thread() -> None:
+            total = len(files)
+            for c, f in enumerate(files, start=1):
                 self._post_ui(partial(self._emit_progress, f"[{c} / {total}] {f.name}", c / total))
                 try:
                     metadata = pickle.loads(MagicSidecar(f, namespace=self._config.metadata_key).read())
@@ -223,15 +187,8 @@ class App:
                     self._post_ui(partial(self._emit_file_metadata, f, metadata))
             self._post_ui(self._close_status)
 
-        def _recurse(pt: PathTree) -> None:
-            for d, child in pt.dirs():
-                _recurse(child)
-
-            for f in pt.files():
-                fq.put(f)
-
         self._widgets.status.show()
-        threading.Thread(target=lambda: _thread(pt), daemon=True).start()
+        threading.Thread(target=_thread, daemon=True).start()
 
     def delete_metadata(self, paths: Sequence[Path]) -> None:
         files = tuple(p for p in paths if p.is_file())
@@ -373,6 +330,9 @@ class App:
             print(f"failed to save metadata for {self._selected_path}: {ex}")
 
     def scan_metadata(self) -> None:
+        # snapshot the file list on the main thread so the worker does not race tree mutations
+        items = tuple(self._library.iter_files())
+
         self._widgets.status.show()
         self._emit_busy(True)
         self._state.filters_changed.emit(((), (), "OR"))
@@ -388,8 +348,6 @@ class App:
 
             actors: dict[str, int] = {}
             tags: dict[str, int] = {}
-            items: list[Path] = list(self._iter_files())
-
             item_count: int = len(items)
             update_interval: float = 0.05
             last_time: float = time.time()
@@ -554,13 +512,3 @@ class App:
         self._state.video_len.set(f"length: {vlen}")
         self._state.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
         self._state.thumbnails_changed.emit(tuple(self._metadata["thumbnails"]))
-
-    def _iter_files(self, pt: PathTree | None = None) -> Iterator[Path]:
-        pt = pt if pt is not None else self._pathtree
-        for _, child in pt.dirs():
-            yield from self._iter_files(child)
-        yield from pt.files()
-
-    def update_filetree(self) -> None:
-        self._pathtree.scan(filters=[path_extension_filter(self._config.vid_exts)])
-        self._state.file_tree_changed.emit(FileTreeUpdate(self._pathtree, ""))
