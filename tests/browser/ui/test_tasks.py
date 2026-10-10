@@ -167,13 +167,22 @@ def test_job_context_fraction_sets_bar_only(dispatcher: FakeDispatcher, status: 
     assert (status.info, status.progress) == ("keep", 0.75)
 
 
-def test_job_context_progress_func_renders_percent(dispatcher: FakeDispatcher, status: FakeStatus) -> None:
+@pytest.mark.parametrize(
+    ("prefix", "fraction", "info"),
+    [
+        ("Extracting frames...", 0.123, "Extracting frames... 12.3%"),
+        ("Resizing frames...", 0.05, "Resizing frames... 5.0%"),
+    ],
+)
+def test_job_context_progress_func_renders_percent(
+    dispatcher: FakeDispatcher, status: FakeStatus, prefix: str, fraction: float, info: str
+) -> None:
     ctx = JobContext(dispatcher, status)
 
-    ctx.progress_func("Extracting frames...")(0.123)
+    ctx.progress_func(prefix)(fraction)
 
     dispatcher.run_all()
-    assert (status.info, status.progress) == ("Extracting frames... 12.3%", 0.123)
+    assert (status.info, status.progress) == (info, fraction)
 
 
 def test_background_jobs_lifecycle(
