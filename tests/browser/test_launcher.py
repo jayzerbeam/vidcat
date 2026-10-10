@@ -25,15 +25,17 @@ def test_reveal_missing_path_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert (opened, popen_calls) == ([], [])
 
 
-def test_reveal_windows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_reveal_windows_resolves_relative_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A relative path is resolved before being handed to the OS."""
     f = _write_file(tmp_path / "video.mp4")
     opened: list[Path] = []
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(launcher_module.platform, "system", lambda: "Windows")
     monkeypatch.setattr(launcher_module.os, "startfile", opened.append, raising=False)
 
-    Launcher(None, ()).reveal(f)
+    Launcher(None, ()).reveal(Path(f.name))
 
-    assert opened == [f.resolve()]
+    assert opened == [f]
 
 
 @pytest.mark.parametrize(("system", "command"), [("Darwin", "open"), ("Linux", "xdg-open")])
@@ -105,10 +107,12 @@ def test_play_windows_fallback(
 def test_play_with_configured_player(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, args: tuple[str, ...], expected_tail: list[str]
 ) -> None:
+    """The player receives os.P_NOWAIT, the quoted resolved path, and interpolated args."""
     player = _write_file(tmp_path / "mpv.exe")
     f = _write_file(tmp_path / "video.mp4")
     spawn_calls: list[tuple[int, Path, list[str]]] = []
     opened: list[Path] = []
+    monkeypatch.chdir(tmp_path)
 
     def _fake_spawnv(mode: int, path: Path, argv: list[str]) -> None:
         spawn_calls.append((mode, path, argv))
@@ -116,9 +120,10 @@ def test_play_with_configured_player(
     monkeypatch.setattr(launcher_module.os, "spawnv", _fake_spawnv)
     monkeypatch.setattr(launcher_module.os, "startfile", opened.append, raising=False)
 
-    Launcher(player, args).play(f, start_ms=1500)
+    # relative path: the recorded argv must contain the resolved absolute path
+    Launcher(player, args).play(Path(f.name), start_ms=1500)
 
-    assert spawn_calls == [(os.P_NOWAIT, player, [player.name, f'"{f.resolve()}"', *expected_tail])]
+    assert spawn_calls == [(os.P_NOWAIT, player, [player.name, f'"{f}"', *expected_tail])]
     assert opened == []
 
 
