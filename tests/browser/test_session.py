@@ -101,6 +101,7 @@ def loaded_metadata() -> dict[str, Any]:
     metadata["actors"] = ["actor"]
     metadata["tags"] = ["tag"]
     metadata["video_properties"] = {"dimensions": (640, 480), "duration": 90.0}
+    metadata["thumbnails"] = [(b"jpg", 1, 1)]
     return metadata
 
 
@@ -159,18 +160,32 @@ def test_select_without_trigger_picks_first_file(session: VideoSession, tmp_path
 def test_select_without_files_clears(session: VideoSession, state: FakeState, tmp_path: Path) -> None:
     directory = tmp_path / "sub"
     directory.mkdir()
+    f = _write_file(tmp_path / "video.mp4")
+
+    session.select((f,), triggered=f)
+    assert session.selected_path == f
 
     session.select((directory,))
     assert session.selected_path is None
 
+    session.select((f,), triggered=f)
+    assert session.selected_path == f
+
     session.select(())
-    assert state.selection_changed.emissions == [(), ()]
+    assert session.selected_path is None
+    assert state.selection_changed.emissions == [(f,), (), (f,), ()]
 
 
 def test_save_writes_title_actors_tags_and_size_label(
-    session: VideoSession, state: FakeState, store: FakeStore, log: list[str], tmp_path: Path
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    log: list[str],
+    tmp_path: Path,
 ) -> None:
     f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 10)
     session.select((f,), triggered=f)
     log.clear()
     state.meta_title.value = "new title"
@@ -185,6 +200,9 @@ def test_save_writes_title_actors_tags_and_size_label(
     assert metadata["title"] == "new title"
     assert metadata["actors"] == ("alice", "bob")
     assert metadata["tags"] == ("Tag",)
+    # the loaded metadata is mutated in place, not rebuilt
+    assert metadata["video_properties"] == {"dimensions": (640, 480), "duration": 90.0}
+    assert metadata["thumbnails"] == [(b"jpg", 1, 1)]
     assert state.meta_size.value == f"metadata size: {round(store.write_size / 1000)}KB"
     # the view refreshes before the sidecar is written
     assert log == ["file_metadata_changed", "thumbnails_changed", "write"]
