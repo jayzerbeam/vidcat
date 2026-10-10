@@ -1,7 +1,7 @@
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -95,7 +95,7 @@ def sync_threads(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_dispatcher_schedules_drain_on_construction() -> None:
     root = FakeRoot()
 
-    UiDispatcher(root)
+    UiDispatcher(cast(Any, root))
 
     assert len(root.scheduled) == 1
     assert root.scheduled[0][0] == 30
@@ -103,7 +103,7 @@ def test_dispatcher_schedules_drain_on_construction() -> None:
 
 def test_dispatcher_runs_callbacks_fifo_and_reschedules() -> None:
     root = FakeRoot()
-    dispatcher = UiDispatcher(root)
+    dispatcher = UiDispatcher(cast(Any, root))
     calls: list[int] = []
 
     dispatcher.post(calls.append, 1)
@@ -118,7 +118,7 @@ def test_dispatcher_runs_callbacks_fifo_and_reschedules() -> None:
 
 def test_dispatcher_isolates_callback_failures(capsys: pytest.CaptureFixture[str]) -> None:
     root = FakeRoot()
-    dispatcher = UiDispatcher(root)
+    dispatcher = UiDispatcher(cast(Any, root))
     calls: list[str] = []
 
     def _fail() -> None:
@@ -137,7 +137,7 @@ def test_dispatcher_isolates_callback_failures(capsys: pytest.CaptureFixture[str
 
 
 def test_job_context_post_forwards_to_ui_thread(dispatcher: FakeDispatcher, status: FakeStatus) -> None:
-    ctx = JobContext(dispatcher, status)
+    ctx = JobContext(cast(Any, dispatcher), cast(Any, status))
     seen: list[str] = []
 
     ctx.post(seen.append, "value")
@@ -148,7 +148,7 @@ def test_job_context_post_forwards_to_ui_thread(dispatcher: FakeDispatcher, stat
 
 
 def test_job_context_progress_sets_info_and_bar(dispatcher: FakeDispatcher, status: FakeStatus) -> None:
-    ctx = JobContext(dispatcher, status)
+    ctx = JobContext(cast(Any, dispatcher), cast(Any, status))
 
     ctx.progress("loading", 0.25)
 
@@ -159,7 +159,7 @@ def test_job_context_progress_sets_info_and_bar(dispatcher: FakeDispatcher, stat
 
 def test_job_context_fraction_sets_bar_only(dispatcher: FakeDispatcher, status: FakeStatus) -> None:
     status.info = "keep"
-    ctx = JobContext(dispatcher, status)
+    ctx = JobContext(cast(Any, dispatcher), cast(Any, status))
 
     ctx.fraction(0.75)
 
@@ -177,7 +177,7 @@ def test_job_context_fraction_sets_bar_only(dispatcher: FakeDispatcher, status: 
 def test_job_context_progress_func_renders_percent(
     dispatcher: FakeDispatcher, status: FakeStatus, prefix: str, fraction: float, info: str
 ) -> None:
-    ctx = JobContext(dispatcher, status)
+    ctx = JobContext(cast(Any, dispatcher), cast(Any, status))
 
     ctx.progress_func(prefix)(fraction)
 
@@ -190,7 +190,7 @@ def test_background_jobs_lifecycle(
 ) -> None:
     collected: list[int] = []
     monkeypatch.setattr(tasks_module.gc, "collect", lambda: collected.append(1))
-    jobs = BackgroundJobs(dispatcher, status, lambda busy: log.append(f"busy:{busy}"))
+    jobs = BackgroundJobs(cast(Any, dispatcher), cast(Any, status), lambda busy: log.append(f"busy:{busy}"))
     finished = threading.Event()
     daemons: list[bool] = []
 
@@ -220,7 +220,7 @@ def test_background_jobs_without_busy_or_gc(
 ) -> None:
     collected: list[int] = []
     monkeypatch.setattr(tasks_module.gc, "collect", lambda: collected.append(1))
-    jobs = BackgroundJobs(dispatcher, status, lambda busy: log.append(f"busy:{busy}"))
+    jobs = BackgroundJobs(cast(Any, dispatcher), cast(Any, status), lambda busy: log.append(f"busy:{busy}"))
 
     jobs.run(lambda ctx: None)
 
@@ -237,7 +237,7 @@ def test_background_jobs_without_busy_or_gc(
 def test_background_jobs_logs_work_failure_and_still_closes(
     sync_threads: None, capsys: pytest.CaptureFixture[str], log: list[str], dispatcher: FakeDispatcher, status: FakeStatus
 ) -> None:
-    jobs = BackgroundJobs(dispatcher, status, lambda busy: None)
+    jobs = BackgroundJobs(cast(Any, dispatcher), cast(Any, status), lambda busy: None)
 
     def work(ctx: JobContext) -> None:
         raise RuntimeError("boom")

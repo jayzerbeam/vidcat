@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -91,7 +91,7 @@ def store(log: list[str]) -> FakeStore:
 
 @pytest.fixture
 def session(state: FakeState, store: FakeStore) -> VideoSession:
-    return VideoSession(state, store, split_list=lambda value: tuple(value.split(",")))
+    return VideoSession(cast(Any, state), cast(Any, store), split_list=lambda value: tuple(value.split(",")))
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ def test_select_triggered_file_loads_and_emits_selection_last(
     assert state.file_size.value == f"size: {nice_bytesize(f.stat().st_size, largest_unit='M')}"
     assert state.meta_size.value == f"metadata size: {nice_bytesize(1234)}"
     assert state.meta_title.value == "loaded"
-    assert state.video_len.value == f"length: {nice_duration(90.0)}"
+    assert state.video_len.value == f"length: {nice_duration(90)}"
     assert state.video_res.value == "resolution: 640x480"
     assert state.selection_changed.emissions == [(f,)]
     # the view refreshes before the selection signal
