@@ -111,6 +111,32 @@ def test_trash_send_moves_files_and_skips_missing(tmp_path: Path) -> None:
     assert (tmp_path / "trash" / "two.mp4").exists()
 
 
+def test_trash_send_avoids_overwriting_same_named_entry(tmp_path: Path) -> None:
+    trash_dir = tmp_path / "trash"
+    trash_dir.mkdir()
+    (trash_dir / "video.mp4").write_text("original")
+    trash = Trash(trash_dir)
+    source = tmp_path / "video.mp4"
+    source.write_text("new")
+
+    moved = trash.send([source])
+
+    assert moved == [source]
+    assert not source.exists()
+    # the pre-existing entry is intact; the new file lands beside it under a numbered name
+    assert (trash_dir / "video.mp4").read_text() == "original"
+    assert (trash_dir / "video (1).mp4").read_text() == "new"
+
+    # a further collision number keeps increasing instead of reusing a taken name
+    another = tmp_path / "again.mp4"
+    another.write_text("again")
+    (trash_dir / "again.mp4").write_text("taken")
+
+    assert trash.send([another]) == [another]
+    assert (trash_dir / "again.mp4").read_text() == "taken"
+    assert (trash_dir / "again (1).mp4").read_text() == "again"
+
+
 def test_trash_unavailable_when_path_is_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = tmp_path / "trash"
     path.write_text("not a directory")

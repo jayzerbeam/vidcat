@@ -80,7 +80,11 @@ class Trash:
         return self._path is not None
 
     def send(self, paths: Sequence[Path]) -> list[Path]:
-        """Move existing paths into the trash and return the paths that were moved."""
+        """Move existing paths into the trash and return the paths that were moved.
+
+        Trash entries are never overwritten: a move that would collide with an
+        existing entry targets the first free ``{stem} (n){suffix}`` name.
+        """
         trash_path = self._path
         if trash_path is None:
             return []
@@ -92,9 +96,23 @@ class Trash:
                 continue
 
             try:
-                p.move(trash_path / p.name)
+                p.move(self._free_target(trash_path, p))
             except OSError as ex:
                 print(f"error: failed to move {p} to trash: {ex}")
                 continue
             moved.append(p)
         return moved
+
+    @staticmethod
+    def _free_target(trash_path: Path, source: Path) -> Path:
+        """Return a non-existing trash target for source: its name, then stem (1), stem (2), ..."""
+        target = trash_path / source.name
+        if not target.exists():
+            return target
+
+        n = 0
+        while True:
+            n += 1
+            target = trash_path / f"{source.stem} ({n}){source.suffix}"
+            if not target.exists():
+                return target
