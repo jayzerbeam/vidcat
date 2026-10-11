@@ -15,7 +15,7 @@ After tasks 01–05, `browser/app.py` should contain only `__init__`, the `__Wid
 ## Scope
 
 - Touched: `browser/app.py` (dead code/imports/docstrings only), possibly `browser/ui/actions.py` (comment
-  documenting the `BulkAction` re-export), and `plan.md` status updates.
+  documenting the `BulkAction` re-export), and `00-plan.md` status updates.
 - Not touched: behavior. If cleanup suggests a behavior change, stop and raise it instead.
 - Explicitly out of scope: new `AppActions` shape, per-feature protocols, widget edits, `Config`/`util`
   changes, and fixing the pre-existing pyright errors.
@@ -47,8 +47,8 @@ After tasks 01–05, `browser/app.py` should contain only `__init__`, the `__Wid
 - `rg -n "MagicSidecar|pickle" browser/app.py` may only match the `pickle.PickleError` except-clause if it
   remains; `browser/app.py` must not read/write sidecars directly.
 - Confirm the only changed pre-existing files are `browser/app.py`, `browser/ui/actions.py`, and (not
-  modified) none of the widgets: `git status`/`git diff --stat` should list the five new modules, the three
-  new/moved test files, `browser/app.py`, `browser/ui/actions.py`, and this plan's files only.
+  modified) none of the widgets: `git status`/`git diff --stat` should list the five new modules, the five
+  new test files, `browser/app.py`, `browser/ui/actions.py`, and this plan's files only.
 
 ### Optional follow-ups (do not implement here)
 
@@ -62,7 +62,7 @@ After tasks 01–05, `browser/app.py` should contain only `__init__`, the `__Wid
 - [ ] All architecture `rg` checks above are satisfied.
 - [ ] Full automated verification below passes (pyright shows only the 10 pre-existing errors).
 - [ ] Full manual smoke checklist below passes.
-- [ ] `plan.md` status table has all tasks `done` and each task file's Review section records the outcome.
+- [ ] `00-plan.md` status table has all tasks `done` and each task file's Review section records the outcome.
 
 ## Verification
 
@@ -96,4 +96,4 @@ Manual smoke checklist (run the app against a test folder with at least 3–4 vi
 
 | Date | Reviewer | Outcome | Notes |
 |------|----------|---------|-------|
-| | | | |
+| 2026-10-10 | code-reviewer (subagent) | approved (conditional on manual smoke) | Commits `4034d9f` (test-fake pyright fixes; 20 latent errors cleared) and `08b164a` (fold `gen_thumbs_bulk`) approved; doc-wording MINOR fixed. Tech lead ran full automated verification: 110 tests, ruff clean, pyright exactly the 10 pre-existing errors, import ok; branch diff vs `c8fc43e` limited to intended files. Manual GUI smoke checklist executed by the user on 2026-10-10: all steps passed. |

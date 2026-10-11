@@ -125,7 +125,9 @@ Dependency rules enforced by task 06:
 2. `aggregate_files` uses `metadata.get("actors", [])` / `.get("tags", [])` instead of direct indexing, so a
    sidecar without those keys cannot kill the scan worker.
 3. Missing-sidecar console wording is unified (`{path} does not have a magic sidecar`); bulk generate
-   previously printed `no sidecar metadata for {f}`.
+   previously printed `no sidecar metadata for {f}`. Consequently bulk generate's generic load-failure
+   wording also comes from `read_or_empty` (`{path} failed to load metadata: {ex}`) instead of
+   `error: loading sidecar metadata for {f}: {ex}`.
 4. `delete_metadata` emits a fresh `empty_metadata()` per cleaned file instead of the shared
    `_EMPTY_METADATA` singleton.
 5. After task 05, `delete_paths` emits `selection_changed(())` once instead of twice (today `clear_vidinfo`
@@ -136,6 +138,9 @@ Dependency rules enforced by task 06:
    existing `error:trash directory is not a directory, could not initialize` log.
 8. The `updating metdata for {f}` typo in `edit_metadata` may be corrected while moving the loop into
    `MetadataStore.edit_files` (console only).
+9. With `selected_path: Path | None`, `save()` with no selection (Ctrl+S on an empty selection) logs
+   `failed to save metadata for None: ...` instead of the old `... for .: ...` (old `Path()` sentinel);
+   console-only, both paths fail safely and neither is reachable in the normal UI flow.
 
 ## Out of scope
 
@@ -177,5 +182,5 @@ Dependency rules enforced by task 06:
 
 ## Artifacts
 
-- `plan.md` — task index, dependencies, status tracking.
+- `00-plan.md` — task index, dependencies, status tracking.
 - `01-launcher-module.md` … `06-cleanup-and-verification.md` — task specifications.

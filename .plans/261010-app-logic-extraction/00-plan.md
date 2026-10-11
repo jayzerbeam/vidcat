@@ -1,6 +1,6 @@
 # Plan: Extract application logic from `App` into focused modules
 
-Spec: [`spec.md`](./spec.md)
+Spec: [`00-spec.md`](./00-spec.md)
 
 ## Goal
 
@@ -23,12 +23,12 @@ adapter. The app must remain runnable and behaviorally identical after every tas
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 01 | Launcher module | pending | |
-| 02 | Library and trash | pending | |
-| 03 | Metadata module | pending | |
-| 04 | UI task runner | pending | |
-| 05 | Video session | pending | |
-| 06 | Cleanup and verification | pending | |
+| 01 | Launcher module | done | Commits `32b260e`, `5dc6813`; review approved; manual GUI smoke deferred to human |
+| 02 | Library and trash | done | Commits `de50e76`, `b057131`; review approved; manual GUI smoke deferred to human |
+| 03 | Metadata module | done | Commits `8f939aa`, `5921b60`; review approved; manual GUI smoke deferred to human |
+| 04 | UI task runner | done | Commits `83606da`, `5c1282f`; review approved; manual GUI smoke deferred to human |
+| 05 | Video session | done | Commits `3498629`, `906a6e1`; review approved; manual GUI smoke deferred to human |
+| 06 | Cleanup and verification | done | Commits `4034d9f`, `08b164a`; automated verification green (110 tests, ruff clean, pyright 10 pre-existing, import ok); manual GUI smoke passed (user, 2026-10-10) |
 
 Status values: `pending`, `in-progress`, `done`, `blocked`.
 
@@ -50,7 +50,7 @@ Status values: `pending`, `in-progress`, `done`, `blocked`.
 - Python tooling per `AGENTS.md`: `uv run ...`, `uv tool run ruff`, `uv tool run pyright`.
 - Tk main-thread rule: only the Tk thread touches `UiState`, Tk variables, or widgets; worker code posts
   callbacks through the dispatcher.
-- Keep behavior as-is except the complete delta list in `spec.md` ("Deliberate behavior deltas").
+- Keep behavior as-is except the complete delta list in `00-spec.md` ("Deliberate behavior deltas").
 - No widget file changes (`browser/ui/*` widgets, `ui/*`), except the `BulkAction` re-export line in
   `browser/ui/actions.py` in task 03.
 
@@ -69,3 +69,17 @@ Status values: `pending`, `in-progress`, `done`, `blocked`.
 - `uv tool run ruff check browser tests` — clean.
 - `uv tool run pyright` — only the 10 pre-existing errors in `ui/message_system.py` and `ui/scrollable.py`.
 - Full manual smoke checklist (task 06 file) passed.
+
+## Post-plan remediation (audit findings, user-approved)
+
+Full audit report and finding ledger: [`07-code-audit-findings.md`](./07-code-audit-findings.md).
+
+A holistic code-auditor pass found 0 SEVERE and 2 MAJOR pre-existing concurrency issues plus one data-loss MINOR; all three were remediated after plan completion:
+
+| Commit | Fix | Verification |
+|---|---|---|
+| `2a8f156` | Scope generated thumbnail metadata to the generating file (`VideoSession.apply_for`) | Reviewed, approved |
+| `2d03647` | Count active/busy jobs before hiding status or clearing busy (`BackgroundJobs`) | Reviewed, approved |
+| `9dde41a` | Avoid overwriting same-named entries in `.trash` (`Trash.send`) | Reviewed, approved |
+
+Post-remediation head: 114 tests pass, `ruff check browser tests` clean, `pyright` at the 10 pre-existing errors, import smoke ok; code-reviewer approved the batch (2026-10-10). Remaining optional MINOR hardenings (not scheduled): fused `_finish` exception path could skip `hide` (try/finally), second collision-numbering test case, and tightening the overlap-test callback identity assertion.

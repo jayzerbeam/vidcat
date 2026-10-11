@@ -23,7 +23,7 @@ Move file-tree ownership (`PathTree` scanning/rescan/removal/iteration) and move
   scan methods), `tests/browser/test_library.py` (new).
 - Not touched: `util/file/tree.py`, `browser/ui/*` widgets, `Config`, any metadata/pickling logic.
 - Do not change `delete_paths` ordering or its two `selection_changed` emissions in this task (task 05
-  collapses them deliberately per `spec.md`).
+  collapses them deliberately per `00-spec.md`).
 
 ## Guidance
 
@@ -87,7 +87,7 @@ class Trash:
    `paths_removed` when non-empty.
 4. `scan_path_metadata(path)`: keep `if not path.is_dir(): return`, but build
    `files = tuple(self._library.iter_files(path))` on the main thread before `status.show()` / thread start
-   (this is deliberate delta 1 in `spec.md`: traversal no longer runs inside the worker). Replace the queue
+   (this is deliberate delta 1 in `00-spec.md`: traversal no longer runs inside the worker). Replace the queue
    and `_recurse` with `for c, f in enumerate(files, start=1)` producing the same progress message
    `[{c} / {total}] {f.name}` and value `c / total`; keep the existing pickling code untouched.
 5. `scan_metadata()`: replace `items: list[Path] = list(self._iter_files())` (inside the worker) with a
@@ -116,7 +116,7 @@ Follow `tests/util/file/test_tree.py` fixture style (`tmp_path`, `pytest.fixture
       `_trash_path`/`_send_to_trash`/`_init_trash`/`update_filetree`.
 - [ ] `delete_paths` ordering unchanged (clear selection → trash → tree removal → `paths_removed`).
 - [ ] Both scan methods source files from `VideoLibrary.iter_files` and snapshot on the main thread.
-- [ ] An unusable trash directory no longer causes `AttributeError` (delta 7 in `spec.md`).
+- [ ] An unusable trash directory no longer causes `AttributeError` (delta 7 in `00-spec.md`).
 - [ ] No other behavior changes; tests pass.
 
 ## Verification
@@ -134,4 +134,4 @@ Follow `tests/util/file/test_tree.py` fixture style (`tmp_path`, `pytest.fixture
 
 | Date | Reviewer | Outcome | Notes |
 |------|----------|---------|-------|
-| | | | |
+| 2026-10-10 | code-reviewer (subagent) | approved (3 MINOR) | Static review approved at `de50e76`; MINORs fixed in `b057131` (trash OSError test, non-vacuous rescan assertion, scan-flash comment). Verification re-run green by tech lead at `b057131`: 69 tests, ruff clean, pyright 0 errors, import ok. Manual GUI smoke deferred to human. |

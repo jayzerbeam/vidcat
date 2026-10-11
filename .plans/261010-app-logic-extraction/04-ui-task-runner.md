@@ -160,4 +160,4 @@ No Tk root: use fakes.
 
 | Date | Reviewer | Outcome | Notes |
 |------|----------|---------|-------|
-| | | | |
+| 2026-10-10 | code-reviewer (subagent) | approved (1 MINOR) | Static review approved at `83606da`; MINOR progress-prefix test gap closed in `5c1282f`. Verification re-run green by tech lead at `83606da`: 100 tests, ruff clean, pyright 0 errors, imports ok (101 after `5c1282f`). Manual GUI smoke deferred to human. |

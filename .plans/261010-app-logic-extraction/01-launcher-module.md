@@ -9,7 +9,7 @@ and have `App` delegate to it with identical behavior.
 
 - Current implementation: `browser/app.py`, methods `goto_path` (approx. L510) and `play_file` (approx.
   L527). They use `os`, `subprocess`, `platform`, and `Config.vid_player` / `Config.vid_player_args`.
-- Planned architecture (see `spec.md`): `browser/launcher.py` imports stdlib only; widgets never import it;
+- Planned architecture (see `00-spec.md`): `browser/launcher.py` imports stdlib only; widgets never import it;
   `App` constructs it once in `__init__` and delegates.
 - Patterns to follow: flat modules under `browser/` (`config.py`, `app.py`); dataclass-free explicit
   `__init__` assignments; type annotations on all public methods.
@@ -108,4 +108,4 @@ so other tests are unaffected.
 
 | Date | Reviewer | Outcome | Notes |
 |------|----------|---------|-------|
-| | | | |
+| 2026-10-10 | code-reviewer (subagent) | approved (1 MINOR) | Static review approved at `32b260e`; MINOR vacuous resolve() assertions fixed in `5dc6813` (negative check: removing `resolve()` fails 3 tests). Verification commands re-run green by tech lead: 12+59 tests, ruff clean, pyright 0 errors. Manual GUI smoke deferred to human. |

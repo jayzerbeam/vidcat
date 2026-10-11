@@ -16,7 +16,7 @@ Move the currently selected video, its loaded metadata, and the view-update logi
 - `MetadataStore` (task 03) provides `read_or_empty` → `StoredMetadata(metadata, byte_size)` and `write`.
 - `ScrubFrame` assumes `selection_changed(())` is emitted on the main thread when the selection clears
   (it releases its file handle with `wait=True` before trashing).
-- Decision in `spec.md`: `selected_path` is `Path | None`; `delete_paths` collapses the redundant double
+- Decision in `00-spec.md`: `selected_path` is `Path | None`; `delete_paths` collapses the redundant double
   `selection_changed(())` emission (delta 5).
 
 ## Scope
@@ -136,4 +136,4 @@ Use duck-typed fakes (no Tk):
 
 | Date | Reviewer | Outcome | Notes |
 |------|----------|---------|-------|
-| | | | |
+| 2026-10-10 | code-reviewer (subagent) | approved (2 MINOR) | Static review approved at `3498629`; both test-strength MINORs fixed in `906a6e1`. Verification re-run green by tech lead at `906a6e1`: 110 tests, ruff clean, pyright 0 errors, imports ok. Delta 9 (no-selection save message) recorded in `00-spec.md`. Manual GUI smoke deferred to human. |

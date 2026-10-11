@@ -17,7 +17,7 @@ worker-friendly scan loops.
   exist; `read`/`delete` raise `FileNotFoundError` when the stream is absent.
 - Worker→UI posting still uses `App._post_ui`/`_emit_*` in this task. Task 04 replaces that scaffolding;
   this task must not restructure it beyond what is described.
-- Deltas allowed here (see `spec.md`): main-thread file snapshot already done in task 02; `.get` access for
+- Deltas allowed here (see `00-spec.md`): main-thread file snapshot already done in task 02; `.get` access for
   actor/tag keys; unified missing-sidecar wording; fresh `empty_metadata()` in `delete_metadata`.
 
 ## Scope
@@ -72,7 +72,7 @@ No tkinter imports. `util.file.sidecar`, `util.video`, stdlib only.
   `{path} does not have a magic sidecar`; on `pickle.UnpicklingError` print
   `{path} does not have valid pickle data, using default`; on any other exception print
   `{path} failed to load metadata: {ex}`; all fallbacks return `StoredMetadata(empty_metadata(), 0)`
-  (delta 3 in `spec.md` unifies the bulk-generate wording with this one).
+  (delta 3 in `00-spec.md` unifies the bulk-generate wording with this one).
 - `write(path, metadata) -> int`: `buf = pickle.dumps(metadata)`; `self._open(path).write(buf)`; return
   `len(buf)` (the caller uses it for the metadata-size label).
 - `delete(path)`: `self._open(path).delete()`.
@@ -206,4 +206,4 @@ Cover:
 
 | Date | Reviewer | Outcome | Notes |
 |------|----------|---------|-------|
-| | | | |
+| 2026-10-10 | code-reviewer (subagent) | approved (2 MINOR) | Static review approved at `8f939aa`; MINOR test assertion fixed in `5921b60`; MINOR #2 (generic load-failure wording now unified under delta 3) recorded in `00-spec.md`. Verification re-run green by tech lead at `8f939aa`/`5921b60`: 90 tests, ruff clean, pyright 0 errors, imports ok. Manual GUI smoke deferred to human. |
