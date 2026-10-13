@@ -1,10 +1,17 @@
 import tkinter as tk
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, NamedTuple, cast
+from typing import NamedTuple, cast
 
 from browser.ui.actions import BulkAction, UiContext
-from browser.ui.state import FileTreeUpdate
+from browser.ui.state import (
+    FileMetadataChanged,
+    FileTreeUpdate,
+    FilterOperator,
+    FiltersChanged,
+    HighlightsChanged,
+    PathsRemoved,
+)
 from ui.better_treeview import FileTreeviewFrame
 from util.format import clock_format, ellipsize
 from util.typing import StringListy
@@ -105,33 +112,30 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         ctx.state.highlights_changed.connect(self._on_highlights)
         ctx.state.filters_changed.connect(self._on_filters)
 
-    def _on_file_metadata(self, value: tuple[Path, Mapping[str, Any]]) -> None:
-        path, meta = value
-        props = meta.get("video_properties", {})
+    def _on_file_metadata(self, change: FileMetadataChanged) -> None:
+        props = change.metadata.get("video_properties", {})
         self.update_item_cols(
-            str(path),
+            str(change.path),
             props.get("duration", 0),
             props.get("dimensions", (0, 0)),
-            meta.get("actors", []),
-            meta.get("tags", []),
+            change.metadata.get("actors", []),
+            change.metadata.get("tags", []),
         )
 
     def _on_file_tree(self, update: FileTreeUpdate) -> None:
         self.fill_from_pathtree(update.tree, update.from_iid)
 
-    def _on_paths_removed(self, paths: Sequence[Path]) -> None:
-        self.remove_items([str(p) for p in paths])
+    def _on_paths_removed(self, change: PathsRemoved) -> None:
+        self.remove_items([str(p) for p in change.paths])
 
-    def _on_highlights(self, value: tuple[Sequence[str], Sequence[str]]) -> None:
-        actors, tags = value
-        self.highlight_by_metadata(actors, tags)
+    def _on_highlights(self, change: HighlightsChanged) -> None:
+        self.highlight_by_metadata(change.actors, change.tags)
 
-    def _on_filters(self, value: tuple[Sequence[str], Sequence[str], str]) -> None:
-        actors, tags, operator = value
-        if not actors and not tags:
+    def _on_filters(self, change: FiltersChanged) -> None:
+        if not change.actors and not change.tags:
             self.unhide_all()
         else:
-            self.apply_filters(actors, tags, operator=operator)
+            self.apply_filters(change.actors, change.tags, operator=change.operator)
 
     def _handle_right_click(self, ev: tk.Event) -> None:
         iid = self.treeview.identify_row(ev.y)
@@ -193,7 +197,9 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
         _recurse("")
 
-    def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: str = "AND") -> None:
+    def apply_filters(
+        self, actors: Sequence[str], tags: Sequence[str], operator: FilterOperator = FilterOperator.AND
+    ) -> None:
         def _recurse(item):
             if self.treeview.tag_has("file", item):
                 itemconfig = self.treeview.item(item)
@@ -205,7 +211,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
                     if len(itemconfig["values"])
                     else ([], [])
                 )
-                if operator == "AND":
+                if operator == FilterOperator.AND:
                     if (actors and len(set(actors) & set(item_actors)) != len(actors)) or (
                         tags and len(set(tags) & set(item_tags)) != len(tags)
                     ):

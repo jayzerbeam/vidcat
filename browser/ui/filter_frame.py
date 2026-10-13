@@ -1,11 +1,11 @@
 import tkinter as tk
-from collections.abc import Mapping
 from tkinter import ttk
 from typing import NamedTuple
 
 from ui.better_treeview import ScrollableTreeviewFrame
 
 from .actions import UiContext
+from .state import ActorCounts, FilterOperator, HighlightsChanged, TagCounts
 
 
 class FilterFrame(ttk.Frame):
@@ -40,9 +40,13 @@ class FilterFrame(ttk.Frame):
         # configured inside actions actions frame
         self._widgets.scan.config(command=ctx.actions.scan_metadata)
         self._widgets.scan.grid(column=0, row=0, sticky="W", padx=2, pady=2)
-        self._widgets.filter_and.config(command=lambda: ctx.actions.apply_filters(*self._selection(), operator="AND"))
+        self._widgets.filter_and.config(
+            command=lambda: ctx.actions.apply_filters(*self._selection(), operator=FilterOperator.AND)
+        )
         self._widgets.filter_and.grid(column=1, row=0, sticky="E", padx=2, pady=2)
-        self._widgets.filter_or.config(command=lambda: ctx.actions.apply_filters(*self._selection(), operator="OR"))
+        self._widgets.filter_or.config(
+            command=lambda: ctx.actions.apply_filters(*self._selection(), operator=FilterOperator.OR)
+        )
         self._widgets.filter_or.grid(column=2, row=0, sticky="E", padx=2, pady=2)
         self._widgets.filter_clear.config(command=ctx.actions.clear_filters)
         self._widgets.filter_clear.grid(column=3, row=0, sticky="E", padx=2, pady=2)
@@ -71,22 +75,22 @@ class FilterFrame(ttk.Frame):
             tuple(self._widgets.tags.child.selection()),
         )
 
-    def _set_actors(self, items: Mapping[str, int]) -> None:
+    def _set_actors(self, value: ActorCounts) -> None:
         tv = self._widgets.actors.treeview
         tv.clear()
-        for i in sorted(items.keys()):
-            tv.insert("", tk.END, i, text=str(i), values=(items[i],))
+        for i in sorted(value.counts.keys()):
+            tv.insert("", tk.END, i, text=str(i), values=(value.counts[i],))
 
-    def _set_tags(self, items: Mapping[str, int]) -> None:
+    def _set_tags(self, value: TagCounts) -> None:
         tv = self._widgets.tags.treeview
         tv.clear()
-        for i in sorted(items.keys()):
-            tv.insert("", tk.END, i, text=str(i), values=(items[i],))
+        for i in sorted(value.counts.keys()):
+            tv.insert("", tk.END, i, text=str(i), values=(value.counts[i],))
 
     def _handle_actors_select(self, ev: tk.Event) -> None:
         actors, tags = self._selection()
-        self._ctx.state.highlights_changed.emit((actors, tags))
+        self._ctx.state.highlights_changed.emit(HighlightsChanged(actors, tags))
 
     def _handle_tags_select(self, ev: tk.Event) -> None:
         actors, tags = self._selection()
-        self._ctx.state.highlights_changed.emit((actors, tags))
+        self._ctx.state.highlights_changed.emit(HighlightsChanged(actors, tags))

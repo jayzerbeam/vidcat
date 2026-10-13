@@ -5,6 +5,7 @@ import pytest
 
 from browser.metadata import StoredMetadata, empty_metadata
 from browser.session import VideoSession
+from browser.ui.state import SelectionChanged, Thumbnail, ThumbnailsChanged
 from util.format import nice_bytesize, nice_duration
 
 
@@ -125,7 +126,7 @@ def test_select_triggered_file_loads_and_emits_selection_last(
     assert state.meta_title.value == "loaded"
     assert state.video_len.value == f"length: {nice_duration(90)}"
     assert state.video_res.value == "resolution: 640x480"
-    assert state.selection_changed.emissions == [(f,)]
+    assert state.selection_changed.emissions == [SelectionChanged((f,))]
     # the view refreshes before the selection signal
     assert log == ["file_metadata_changed", "thumbnails_changed", "selection_changed"]
 
@@ -142,7 +143,7 @@ def test_select_triggered_directory_clears(
     assert state.file_path.value == ""
     assert state.file_size.value == "size: none"
     assert state.meta_size.value == "metadata size: none"
-    assert state.selection_changed.emissions == [()]
+    assert state.selection_changed.emissions == [SelectionChanged(())]
     assert log == ["file_metadata_changed", "thumbnails_changed", "selection_changed"]
 
 
@@ -173,7 +174,28 @@ def test_select_without_files_clears(session: VideoSession, state: FakeState, tm
 
     session.select(())
     assert session.selected_path is None
-    assert state.selection_changed.emissions == [(f,), (), (f,), ()]
+    assert state.selection_changed.emissions == [
+        SelectionChanged((f,)),
+        SelectionChanged(()),
+        SelectionChanged((f,)),
+        SelectionChanged(()),
+    ]
+
+
+def test_load_emits_thumbnails_as_named_payload(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    """The stored raw (jpeg, frame_no, time_ms) tuples are converted at the UI boundary."""
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+
+    session.select((f,), triggered=f)
+
+    assert state.thumbnails_changed.emissions == [ThumbnailsChanged((Thumbnail(b"jpg", 1, 1),))]
 
 
 def test_save_writes_title_actors_tags_and_size_label(
@@ -304,7 +326,7 @@ def test_clear_resets_state_and_emits(
     assert (state.file_path.value, state.file_size.value) == ("", "size: none")
     assert state.meta_size.value == "metadata size: none"
     assert state.meta_title.value == ""
-    assert state.selection_changed.emissions == [(f,), ()]
+    assert state.selection_changed.emissions == [SelectionChanged((f,)), SelectionChanged(())]
     assert log == ["file_metadata_changed", "thumbnails_changed", "selection_changed"]
 
 

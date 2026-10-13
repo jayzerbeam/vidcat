@@ -1,7 +1,6 @@
 import queue
 import threading
 import tkinter as tk
-from collections.abc import Sequence
 from enum import StrEnum
 from pathlib import Path
 from tkinter import ttk
@@ -14,6 +13,7 @@ from util.format import clock_format
 from util.video import VideoReader
 
 from .actions import UiContext
+from .state import SelectionChanged
 
 
 class _ScrubRequest(StrEnum):
@@ -87,7 +87,8 @@ class ScrubFrame(ttk.Frame):
 
         ctx.state.selection_changed.connect(self._handle_selection)
 
-    def _handle_selection(self, paths: Sequence[Path]) -> None:
+    def _handle_selection(self, change: SelectionChanged) -> None:
+        paths = change.paths
         if len(paths) == 1 and paths[0].is_file():
             self.load(paths[0])
         else:

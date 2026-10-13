@@ -18,7 +18,16 @@ from .metadata import (
 from .session import VideoSession
 from .ui import InputWindow, MainFrame, StatusWindow
 from .ui.actions import AppActions, BulkAction, UiContext
-from .ui.state import FileTreeUpdate, UiState
+from .ui.state import (
+    ActorCounts,
+    FileMetadataChanged,
+    FileTreeUpdate,
+    FilterOperator,
+    FiltersChanged,
+    PathsRemoved,
+    TagCounts,
+    UiState,
+)
 from .ui.tasks import BackgroundJobs, JobContext, UiDispatcher
 
 
@@ -100,7 +109,7 @@ class App:
         for p in removed:
             self._library.remove(p)
         if removed:
-            self._state.paths_removed.emit(tuple(removed))
+            self._state.paths_removed.emit(PathsRemoved(tuple(removed)))
 
     def rescan_path(self, path: Path) -> None:
         pt = self._library.rescan(path)
@@ -120,7 +129,7 @@ class App:
             refresh_files(
                 files,
                 self._store,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, (f, m)),
+                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
             )
 
@@ -128,7 +137,7 @@ class App:
 
     def delete_metadata(self, paths: Sequence[Path]) -> None:
         for f in self._store.delete_files(paths):
-            self._state.file_metadata_changed.emit((f, empty_metadata()))
+            self._state.file_metadata_changed.emit(FileMetadataChanged(f, empty_metadata()))
 
     def generate_thumbnails_bulk(self, paths: Sequence[Path]) -> None:
         """generate thumbnails for a list of files with the blocking status window"""
@@ -144,7 +153,7 @@ class App:
                 self._store,
                 interval=interval,
                 height=height,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, (f, m)),
+                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
                 on_fraction=ui.fraction,
             )
@@ -171,7 +180,7 @@ class App:
             return
 
         for f, file_metadata in self._store.edit_files(paths, action, val):
-            self._state.file_metadata_changed.emit((f, file_metadata))
+            self._state.file_metadata_changed.emit(FileMetadataChanged(f, file_metadata))
 
     def generate_thumbnails(self) -> None:
         selected = self._session.selected_path
@@ -206,7 +215,7 @@ class App:
         self._session.save()
 
     def scan_metadata(self) -> None:
-        self._state.filters_changed.emit(((), (), "OR"))
+        self._state.filters_changed.emit(FiltersChanged((), (), FilterOperator.OR))
 
         # snapshot the file list on the main thread so the worker does not race tree mutations
         items = tuple(self._library.iter_files())
@@ -215,17 +224,19 @@ class App:
             actors, tags = aggregate_files(
                 items,
                 self._store,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, (f, m)),
+                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
             )
             ui.progress("populating widgets", 1.0)
-            ui.post(self._state.actor_counts_changed.emit, actors)
-            ui.post(self._state.tag_counts_changed.emit, tags)
+            ui.post(self._state.actor_counts_changed.emit, ActorCounts(actors))
+            ui.post(self._state.tag_counts_changed.emit, TagCounts(tags))
 
         self._jobs.run(work, busy=True)
 
-    def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: str = "OR") -> None:
-        self._state.filters_changed.emit((tuple(actors), tuple(tags), operator))
+    def apply_filters(
+        self, actors: Sequence[str], tags: Sequence[str], operator: FilterOperator = FilterOperator.OR
+    ) -> None:
+        self._state.filters_changed.emit(FiltersChanged(tuple(actors), tuple(tags), operator))
 
     def clear_filters(self) -> None:
-        self._state.filters_changed.emit(((), (), "OR"))
+        self._state.filters_changed.emit(FiltersChanged((), (), FilterOperator.OR))

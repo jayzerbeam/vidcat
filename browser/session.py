@@ -6,7 +6,7 @@ from typing import Any, cast
 from util.format import nice_bytesize, nice_duration
 
 from .metadata import MetadataStore, empty_metadata
-from .ui.state import UiState
+from .ui.state import FileMetadataChanged, SelectionChanged, Thumbnail, ThumbnailsChanged, UiState
 
 
 class VideoSession:
@@ -52,7 +52,7 @@ class VideoSession:
         self._metadata = empty_metadata()
         self._selected_path = None
         self._show()
-        self._state.selection_changed.emit(())
+        self._state.selection_changed.emit(SelectionChanged(()))
 
     def save(self) -> None:
         """Write the edited title/actors/tags into the selected file's sidecar."""
@@ -98,10 +98,10 @@ class VideoSession:
             self._state.meta_size.set(f"metadata size: {nice_bytesize(stored.byte_size)}")
 
         self._show()
-        self._state.selection_changed.emit((path,))
+        self._state.selection_changed.emit(SelectionChanged((path,)))
 
     def _show(self) -> None:
-        self._state.file_metadata_changed.emit((self._selected_path or Path(), self._metadata))
+        self._state.file_metadata_changed.emit(FileMetadataChanged(self._selected_path or Path(), self._metadata))
 
         vres = self._metadata["video_properties"]["dimensions"]
         vlen = nice_duration(self._metadata["video_properties"]["duration"])
@@ -110,4 +110,7 @@ class VideoSession:
         self._state.meta_tags.set(self._metadata["tags"])
         self._state.video_len.set(f"length: {vlen}")
         self._state.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
-        self._state.thumbnails_changed.emit(tuple(self._metadata["thumbnails"]))
+        # the stored thumbnails are raw (jpeg, frame_no, time_ms) tuples; convert to the UI payload type
+        self._state.thumbnails_changed.emit(
+            ThumbnailsChanged(tuple(Thumbnail(*t) for t in self._metadata["thumbnails"]))
+        )
