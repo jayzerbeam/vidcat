@@ -90,6 +90,12 @@ class FiltersChanged(NamedTuple):
     operator: FilterOperator
 
 
+class ColumnsChanged(NamedTuple):
+    """hidden is the complete set of hidden filetree column ids: imply all other columns are shown."""
+
+    hidden: tuple[str, ...]
+
+
 class UiState:
     """Display state owned by App.
 
@@ -119,4 +125,5 @@ class UiState:
         self.tag_counts_changed = Signal[TagCounts]()
         self.highlights_changed = Signal[HighlightsChanged]()
         self.filters_changed = Signal[FiltersChanged]()
+        self.columns_changed = Signal[ColumnsChanged]()
         self.busy_changed = Signal[bool]()

@@ -1,10 +1,12 @@
 import tkinter as tk
 from collections.abc import Sequence
+from functools import partial
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Final, NamedTuple, cast
 
 from browser.ui.actions import BulkAction, UiContext
 from browser.ui.state import (
+    ColumnsChanged,
     FileMetadataChanged,
     FileTreeUpdate,
     FilterOperator,
@@ -15,6 +17,13 @@ from browser.ui.state import (
 from ui.better_treeview import FileTreeviewFrame
 from util.format import clock_format, ellipsize
 from util.typing import StringListy
+
+_DATA_COLUMNS: Final[tuple[tuple[str, str], ...]] = (
+    ("time", "Time"),
+    ("res", "Res"),
+    ("actors", "Actors"),
+    ("tags", "Tags"),
+)
 
 
 def any_in_list(s1: set, s2: set, case_sensitive: bool = False) -> bool:
@@ -31,15 +40,17 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
     class _Menus(NamedTuple):
         context: tk.Menu
         context_meta: tk.Menu
+        columns: tk.Menu
 
     _menus: _Menus
+    _col_vars: dict[str, tk.BooleanVar]
 
     def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(
             parent,
             on_activate=ctx.actions.activate_path,
             on_select=ctx.actions.select_paths,
-            columns=("time", "res", "actors", "tags"),
+            columns=tuple(name for name, _ in _DATA_COLUMNS),
             sortable=False,
             width=300,
             **kw,
@@ -67,9 +78,16 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self.treeview.bind("<Button-2>" if is_mac else "<Button-3>", self._handle_right_click, add=True)
 
         ctxmenu = tk.Menu(self, tearoff=0)
+        self._col_vars = {name: tk.BooleanVar(self, value=True) for name, _ in _DATA_COLUMNS}
+        colmenu = tk.Menu(self, tearoff=0)
+        for name, label in _DATA_COLUMNS:
+            colmenu.add_checkbutton(
+                label=label, variable=self._col_vars[name], command=partial(self._handle_toggle_column, name)
+            )
         self._menus = __class__._Menus(
             context=ctxmenu,
             context_meta=tk.Menu(ctxmenu, tearoff=0),
+            columns=colmenu,
         )
         self._menus.context.add_command(
             label="[info]", command=lambda: ctx.actions.show_in_explorer(Path(self._context_path))
@@ -111,6 +129,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         ctx.state.paths_removed.connect(self._on_paths_removed)
         ctx.state.highlights_changed.connect(self._on_highlights)
         ctx.state.filters_changed.connect(self._on_filters)
+        ctx.state.columns_changed.connect(self._on_columns_changed)
 
     def _on_file_metadata(self, change: FileMetadataChanged) -> None:
         props = change.metadata.get("video_properties", {})
@@ -137,7 +156,23 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         else:
             self.apply_filters(change.actors, change.tags, operator=change.operator)
 
+    def _on_columns_changed(self, change: ColumnsChanged) -> None:
+        hidden = frozenset(change.hidden)
+        for name, _ in _DATA_COLUMNS:
+            self._col_vars[name].set(name not in hidden)
+
+        # displaycolumns holds the visible data column ids; a column re-shown this way keeps its
+        # width and returns to its original position since the subset is derived in stored order
+        self.treeview.configure(displaycolumns=tuple(name for name, _ in _DATA_COLUMNS if name not in hidden))
+
     def _handle_right_click(self, ev: tk.Event) -> None:
+        if self.treeview.identify("region", ev.x, ev.y) == "heading":
+            try:
+                self._menus.columns.tk_popup(ev.x_root, ev.y_root)
+            finally:
+                self._menus.columns.grab_release()
+            return
+
         iid = self.treeview.identify_row(ev.y)
         if iid == "":
             return
@@ -167,6 +202,23 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
     def _selected_paths(self) -> tuple[Path, ...]:
         return tuple(Path(iid) for iid in self.treeview.selection())
+
+    def _shown_columns(self) -> set[str]:
+        """the currently visible data column ids. until _on_columns_changed runs, the treeview
+        displays its default #all, so every data column counts as shown."""
+        disp = self.treeview.cget("displaycolumns")
+        all_names = {name for name, _ in _DATA_COLUMNS}
+        if isinstance(disp, str) or "#all" in disp:
+            return set(all_names)
+
+        return set(disp) & all_names
+
+    def _handle_toggle_column(self, name: str) -> None:
+        # the menu checkbutton state is owned by the checked/hidden state, which App echoes back
+        # through columns_changed, so the toggle itself only requests the change
+        shown = self._shown_columns()
+        shown ^= {name}
+        self._ctx.actions.set_columns_hidden(tuple(n for n, _ in _DATA_COLUMNS if n not in shown))
 
     def _handle_remove(self) -> None:
         if not self.treeview.selection():
