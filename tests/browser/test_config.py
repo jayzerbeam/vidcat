@@ -53,6 +53,20 @@ def test_load_defaults_when_file_missing(tmp_path: Path, capsys: pytest.CaptureF
     assert "error: failed to load config file" in capsys.readouterr().out
 
 
+def test_write_default_creates_file_with_defaults(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    config = tmp_path / "config.json"
+
+    cfg = Config()
+    cfg.write_default(config)
+
+    raw = json.loads(config.read_text())
+    assert raw["metadata_key"] == "video_metadata"
+    assert raw["trash_dir"] == ".trash"
+    assert raw["hidden_columns"] == list(DEFAULT_HIDDEN_COLUMNS)
+    assert "vid_player" not in raw
+    assert "error" not in capsys.readouterr().out
+
+
 def test_hidden_columns_missing_from_file_uses_default(tmp_path: Path) -> None:
     config = tmp_path / "config.json"
     _write_config(config, {"metadata_key": "video_metadata"})

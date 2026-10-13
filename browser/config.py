@@ -68,6 +68,11 @@ class Config:
         except Exception as ex:
             print(f"error: failed to load config file, using default: {ex}")
 
+    def write_default(self, path: Path) -> None:
+        """write the default settings to path. for first runs where no config file exists yet."""
+        self._path = path
+        self.save()
+
     def save(self) -> None:
         """rewrite the config file with the loaded settings. only valid after a successful load."""
         # the load path is unknown until load() records it

@@ -26,18 +26,18 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if not args.config.is_file():
-        print(f"error: cannot load config: '{args.config}' is not a file")
-        raise SystemExit
+    cfg = Config()
+    if args.config.is_file():
+        cfg.load(args.config)
+    else:
+        cfg.write_default(args.config)
+        print(f"no config found, created new default config at '{args.config}'")
 
     if not args.path.is_dir():
         print(f"{args.path} is not a directory")
         raise SystemExit
 
     with chdir(args.path):
-        cfg = Config()
-        cfg.load(args.config)
-
         path = Path(".")
         window = MessageWindow()
         window.title(f"VidCat ({path.resolve()})")
