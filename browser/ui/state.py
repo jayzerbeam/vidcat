@@ -28,6 +28,10 @@ class Signal[T]:
 
 
 class FileTreeUpdate(NamedTuple):
+    """tree is the library's live PathTree: rescan()/remove() mutate it in
+    place after emission, so read it synchronously and never retain it.
+    """
+
     tree: PathTree
     from_iid: str  # empty string means full refresh
 
@@ -41,7 +45,7 @@ class FileMetadataChanged(NamedTuple):
 
     metadata is a live view owned by the emitting session: save()/apply_for()
     mutate the same dict in place after emission, so consume synchronously and
-    never retain it (other payloads are snapshots).
+    never retain it.
     """
 
     path: Path
