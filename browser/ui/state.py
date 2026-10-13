@@ -37,6 +37,13 @@ class SelectionChanged(NamedTuple):
 
 
 class FileMetadataChanged(NamedTuple):
+    """path is Path() when no video is selected.
+
+    metadata is a live view owned by the emitting session: save()/apply_for()
+    mutate the same dict in place after emission, so consume synchronously and
+    never retain it (other payloads are snapshots).
+    """
+
     path: Path
     metadata: Mapping[str, Any]
 
