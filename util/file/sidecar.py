@@ -27,8 +27,8 @@ class MagicSidecar:
         namespace: on windows the name of the alternate data stream. on macos/linux the user. xattr name
         """
 
-        if not path.exists():
-            raise FileNotFoundError(f"{path} does not exist")
+        if not path.is_file():
+            raise FileNotFoundError(f"cannot create sidecar for non-existent file: {path}")
 
         self._path = path
         self._namespace = namespace

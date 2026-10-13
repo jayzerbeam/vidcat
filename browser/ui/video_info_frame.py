@@ -1,6 +1,5 @@
 import io
 import tkinter as tk
-from collections.abc import Sequence
 from tkinter import ttk
 from typing import NamedTuple
 
@@ -10,6 +9,7 @@ from ui.better_frames import ImagesFrame
 from ui.better_widgets import EditableList, LabeledEntry, LabeledEntryLayout
 
 from .actions import UiContext
+from .state import ThumbnailsChanged
 
 
 class VideoInfoFrame(ttk.Frame):
@@ -72,10 +72,10 @@ class VideoInfoFrame(ttk.Frame):
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
         ctx.state.thumbnails_changed.connect(self.update_thumbs)
 
-    def update_thumbs(self, thumbs: Sequence[tuple[bytes, int, int]]) -> None:
-        for t in thumbs:
-            del t
-        self._thumbs = tuple((ImageTk.PhotoImage(Image.open(io.BytesIO(t[0]))), *t[1:]) for t in thumbs)
+    def update_thumbs(self, change: ThumbnailsChanged) -> None:
+        self._thumbs = tuple(
+            (ImageTk.PhotoImage(Image.open(io.BytesIO(t.jpeg))), t.frame_no, t.time_ms) for t in change.thumbnails
+        )
         self.redraw_thumbs()
 
     def redraw_thumbs(self):

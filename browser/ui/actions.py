@@ -1,18 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from enum import StrEnum
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
-from .state import UiState
+from browser.metadata import BulkAction
 
-
-class BulkAction(StrEnum):
-    ADD_ACTOR = "ADD_ACTOR"
-    DEL_ACTOR = "DEL_ACTOR"
-    ADD_TAG = "ADD_TAG"
-    DEL_TAG = "DEL_TAG"
+from .state import FilterOperator, UiState
 
 
 class AppActions(Protocol):
@@ -29,7 +23,7 @@ class AppActions(Protocol):
     def edit_metadata(self, action: BulkAction, paths: Sequence[Path]) -> None: ...
     def generate_thumbnails(self) -> None: ...
     def generate_thumbnails_bulk(self, paths: Sequence[Path]) -> None: ...
-    def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: str) -> None: ...
+    def apply_filters(self, actors: Sequence[str], tags: Sequence[str], operator: FilterOperator) -> None: ...
     def clear_filters(self) -> None: ...
 
 

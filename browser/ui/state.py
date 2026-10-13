@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import tkinter as tk
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -27,8 +28,66 @@ class Signal[T]:
 
 
 class FileTreeUpdate(NamedTuple):
+    """tree is the library's live PathTree: rescan()/remove() mutate it in
+    place after emission, so read it synchronously and never retain it.
+    """
+
     tree: PathTree
     from_iid: str  # empty string means full refresh
+
+
+class SelectionChanged(NamedTuple):
+    paths: tuple[Path, ...]
+
+
+class FileMetadataChanged(NamedTuple):
+    """path is Path() when no video is selected.
+
+    metadata is a live view owned by the emitting session: save()/apply_for()
+    mutate the same dict in place after emission, so consume synchronously and
+    never retain it.
+    """
+
+    path: Path
+    metadata: Mapping[str, Any]
+
+
+class PathsRemoved(NamedTuple):
+    paths: tuple[Path, ...]
+
+
+class Thumbnail(NamedTuple):
+    jpeg: bytes
+    frame_no: int
+    time_ms: int
+
+
+class ThumbnailsChanged(NamedTuple):
+    thumbnails: tuple[Thumbnail, ...]
+
+
+class ActorCounts(NamedTuple):
+    counts: Mapping[str, int]
+
+
+class TagCounts(NamedTuple):
+    counts: Mapping[str, int]
+
+
+class HighlightsChanged(NamedTuple):
+    actors: tuple[str, ...]
+    tags: tuple[str, ...]
+
+
+class FilterOperator(StrEnum):
+    AND = "AND"
+    OR = "OR"
+
+
+class FiltersChanged(NamedTuple):
+    actors: tuple[str, ...]
+    tags: tuple[str, ...]
+    operator: FilterOperator
 
 
 class UiState:
@@ -51,13 +110,13 @@ class UiState:
         self.thumb_interval = tk.StringVar(root, value=str(thumb_interval))
         self.thumb_height = tk.StringVar(root, value=str(thumb_height))
 
-        self.selection_changed = Signal[Sequence[Path]]()
-        self.file_metadata_changed = Signal[tuple[Path, Mapping[str, Any]]]()
+        self.selection_changed = Signal[SelectionChanged]()
+        self.file_metadata_changed = Signal[FileMetadataChanged]()
         self.file_tree_changed = Signal[FileTreeUpdate]()
-        self.paths_removed = Signal[Sequence[Path]]()
-        self.thumbnails_changed = Signal[Sequence[tuple[bytes, int, int]]]()
-        self.actor_counts_changed = Signal[Mapping[str, int]]()
-        self.tag_counts_changed = Signal[Mapping[str, int]]()
-        self.highlights_changed = Signal[tuple[Sequence[str], Sequence[str]]]()
-        self.filters_changed = Signal[tuple[Sequence[str], Sequence[str], str]]()
+        self.paths_removed = Signal[PathsRemoved]()
+        self.thumbnails_changed = Signal[ThumbnailsChanged]()
+        self.actor_counts_changed = Signal[ActorCounts]()
+        self.tag_counts_changed = Signal[TagCounts]()
+        self.highlights_changed = Signal[HighlightsChanged]()
+        self.filters_changed = Signal[FiltersChanged]()
         self.busy_changed = Signal[bool]()
