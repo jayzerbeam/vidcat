@@ -1,2 +1,3 @@
-bind_all_with_data functionality that just accepts the tkapp object
-move status bar inside main frame?
+- move status bar inside main frame?
+- fix bug with clearing filters losing sorted order
+- add hotspot/bookmarks for scrub frame

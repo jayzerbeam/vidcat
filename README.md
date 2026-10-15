@@ -15,6 +15,7 @@ This started out as a small script to help me manage video clips off my cameras 
 - actor/tag lists
 - filter by actor/tags
 - playback from thumbnail times
+- basic video scrubbing
 
 ### Sidecar files
 
@@ -22,14 +23,18 @@ Thumbnails, actors, and tags are stored to file system based sidecar files and a
 
 ## Usage
 
-`uv run browser.pyw <dir>`
+`uv run vidcat.pyw <dir>`
 
 ### Config
 
-Use `browser.cfg.json` for configurable options. A sample config with defaults has been provided.
+Use `vidcat.cfg.json` for configurable options. A sample config with defaults has been provided.
 
 ## Compatibility
 
 Only Windows NTFS is presently supported as NTFS Alternate Data Streams are used for the sidecar data.
 
 Mac/Linux sidecar via extended attributes is TBD.
+
+## Known Issues
+
+The actors/tags in the filter tab only represents a snapshot of the corresponding metadata at the time the scan is performed. Updates to actor/tag metadata on files will not be reflected in the filters list unless another full scan is done.
