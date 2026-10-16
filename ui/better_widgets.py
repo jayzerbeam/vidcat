@@ -84,6 +84,7 @@ class EditableList(tk.Frame):
         )
 
         self._sorted = sorted
+        self._entry_filter = lambda s: s
         self._widgets.label.grid(column=0, row=0, columnspan=2, sticky="W")
         self._widgets.entry.grid(column=0, row=1, sticky="EW", padx=3)
         self._widgets.list.grid(column=0, row=2, columnspan=2, sticky="NSEW", padx=2, pady=2)
