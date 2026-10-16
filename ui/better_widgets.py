@@ -57,6 +57,7 @@ class EditableList(tk.Frame):
         label: ttk.Label
         entry: ttk.Entry
         list: tk.Listbox
+        add_button: ttk.Button | None
 
     _sorted: bool
     _widgets: __Widgets
@@ -69,6 +70,7 @@ class EditableList(tk.Frame):
         init_items: Sequence[str] | None = None,
         sorted: bool = True,
         listboxconf: dict[str, Any] | None = None,
+        add_button_text: str | None = None,
         *args,
         **kw,
     ):
@@ -81,6 +83,9 @@ class EditableList(tk.Frame):
             label=ttk.Label(self, text=label),
             entry=ttk.Entry(self),
             list=tk.Listbox(self, height=0, width=0, **listboxconf),
+            add_button=ttk.Button(self, text=add_button_text, command=self._add_entry)
+            if add_button_text is not None
+            else None,
         )
 
         self._sorted = sorted
@@ -88,26 +93,28 @@ class EditableList(tk.Frame):
         self._widgets.label.grid(column=0, row=0, columnspan=2, sticky="W")
         self._widgets.entry.grid(column=0, row=1, sticky="EW", padx=3)
         self._widgets.list.grid(column=0, row=2, columnspan=2, sticky="NSEW", padx=2, pady=2)
+        if self._widgets.add_button is not None:
+            self._widgets.add_button.grid(column=0, row=3, columnspan=2, sticky="EW", padx=3, pady=(0, 3))
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
 
         if init_items is not None:
             self.add_items(init_items)
 
-        def _add_entry(*args) -> None:
-            entry = self._widgets.entry.get()
-            entry = self._entry_filter(entry)
-            if entry:
-                self.add_items((entry,))
-                self._widgets.entry.delete(0, tk.END)
-
-        self._widgets.entry.bind("<Return>", _add_entry)
+        self._widgets.entry.bind("<Return>", self._add_entry)
 
         def _remove_entry(*args) -> None:
             for idx in reversed(self._widgets.list.curselection()):
                 self._widgets.list.delete(idx)
 
         self._widgets.list.bind("<Delete>", _remove_entry)
+
+    def _add_entry(self, *args) -> None:
+        entry = self._widgets.entry.get()
+        entry = self._entry_filter(entry)
+        if entry:
+            self.add_items((entry,))
+            self._widgets.entry.delete(0, tk.END)
 
     def list_height(self, height: int) -> None:
         self._widgets.list.config(height=height)
