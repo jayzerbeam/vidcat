@@ -114,3 +114,19 @@ uv run pytest tests/browser/test_session.py tests/browser/test_metadata.py tests
 uv tool run ruff check browser/ui/state.py browser/session.py browser/ui/actions.py browser/app.py tests/browser/test_session.py tests/browser/ui/test_file_meta_treeview.py
 uv tool run pyright browser/ui/state.py browser/session.py browser/ui/actions.py browser/app.py tests/browser/test_session.py tests/browser/ui/test_file_meta_treeview.py
 ```
+
+## Review record
+
+Reviewed commit `a00d3c39c8910e91040e957a9de162b1c8b43e24` (code-reviewer, 2026-10-16).
+
+**Verdict: approved.** All 9 acceptance criteria pass. Verification re-run by the reviewer:
+56 targeted tests, 144 full-suite tests, ruff and pyright clean over the six changed files.
+The reviewer accepted the implementer's judgment calls: mutator placement after `save()`,
+the extra/merged guard tests, the `state.py` → `browser.metadata` import chain (no cycle, no
+import-time side effects; `av`/`PIL` arrive via `util.video` module-level imports only), and
+the save-test `meta_actors`/`meta_tags` setup that mirrors the pre-existing save test.
+
+Follow-ups:
+- MINOR (accepted, no action): the session-test `split_list` fake accepts only comma
+  strings, narrower than production's `root.tk.splitlist`; pre-existing harness quirk. A
+  fake accepting `str | list` would remove the workaround if that file is touched again.

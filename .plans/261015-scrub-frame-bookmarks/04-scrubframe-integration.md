@@ -134,3 +134,26 @@ close the window when done):
    back → the staged bookmark is gone (accepted behavior).
 6. Drag the pane sash between video and sidebar; resize the window: video stretches,
    sidebar stays ~200 px.
+
+## Review record
+
+Reviewed commit `7bf718b` (code-reviewer, 2026-10-16).
+
+**Verdict: approved.** All 8 acceptance criteria pass. Verification re-run by the reviewer:
+160 full-suite tests, ruff and pyright clean on `scrub_frame.py`; the reviewer additionally
+re-created a throwaway Tk harness (run via stdin, nothing committed) which reproduced all of
+the implementer's runtime claims: pane order/weights, ~200 px sidebar stability across
+resizes, enable lifecycle, cache semantics (signal-before-selection rendering, foreign-path
+isolation, clear), seek fraction/label/clamping, redundant-click suppression, and
+add/remove/Open delegation.
+
+The reviewer accepted the implementer's judgment calls: the constructor `set_enabled(False)`,
+the `_bookmarks_path is not None` guard, and the `frame_no` math.
+
+Follow-ups:
+- NIT (applied in `579d02f`): the pane grid had dropped the canvas's former `pady=(4, 0)`
+  top gap — restored for visual parity.
+- Awaiting the interactive smoke test (user): real-video frame rendering of a clicked
+  bookmark, the `frame N` label with a known frame rate, **Open** launching the external
+  player, sash dragging/window-sizing feel, Ctrl+S persistence round-trip on disk, and
+  unsaved-bookmark loss on file switch.

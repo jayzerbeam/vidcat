@@ -141,3 +141,21 @@ uv run pytest tests/browser/ui/test_bookmark_frame.py tests/browser/ui/test_file
 uv tool run ruff check browser/ui/bookmark_frame.py tests/browser/ui/test_bookmark_frame.py
 uv tool run pyright browser/ui/bookmark_frame.py tests/browser/ui/test_bookmark_frame.py
 ```
+
+## Review record
+
+Reviewed commit `2c3e446226daf60d08c666cde95191aa84753096` (code-reviewer, 2026-10-16).
+
+**Verdict: approved.** All 9 acceptance criteria pass. Verification re-run by the reviewer:
+21 targeted tests, 160 full-suite tests, ruff and pyright clean over both new files. The
+reviewer accepted the implementer's judgment calls: named column identifiers
+(`"time"`/`"name"`), the extra tests, `focus_force()` in the test harness, the
+direct-invocation re-click test (the widget holds no dedupe state — redundant-click
+suppression is explicitly the ScrubFrame's concern per spec decision 8), and the
+empty-re-render test selecting a row first.
+
+Follow-ups:
+- NIT (accepted, no action): the re-click assertion tolerates duplicate seeks of the same
+  bookmark by design ("same target time, harmless").
+- NIT (accepted, no action): the blank-entry test asserts an already-empty entry stays
+  empty; the meaningful assertion (that `""` reached the handler) is present.

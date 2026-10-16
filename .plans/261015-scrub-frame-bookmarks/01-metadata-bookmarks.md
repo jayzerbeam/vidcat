@@ -77,3 +77,21 @@ uv tool run pyright browser/metadata.py tests/browser/test_metadata.py
 ```
 
 Per repo AGENTS.md only lint/type issues in these modified files are relevant.
+
+## Review record
+
+Reviewed commit `88b4f5981fd86e8b06e11c0e695b5659a4d783be` (code-reviewer, 2026-10-16).
+
+**Verdict: approved.** All 7 acceptance criteria pass; verification commands re-run by the
+reviewer and by the tech lead: `uv run pytest tests/browser/test_metadata.py` 29 passed;
+ruff and pyright clean on both changed files. The reviewer accepted the implementer's
+judgment calls: `Bookmark` placement after `empty_metadata()`, strict-type neutralization of
+malformed fields (no `int()`/`str()` conversion), the bool guard applied to `frame_no` as
+well as `time_ms`, and normalization of the stored list on successful mutations.
+
+Follow-ups:
+- NIT (applied in `2be58c8996c653a4d85fa5543810320bb9ebf44d`): the test suite now pins the
+  strict acceptance boundary for `frame_no` (`3.0`/`"3"` → `None`).
+- NIT (accepted, no action): a successful insert/delete re-encodes surviving entries and
+  drops unknown extra keys; acceptable while the stored entry schema is pinned to the three
+  fields.
