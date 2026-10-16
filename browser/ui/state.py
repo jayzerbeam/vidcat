@@ -6,6 +6,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from browser.metadata import Bookmark
 from util.file.tree import PathTree
 
 
@@ -66,6 +67,19 @@ class ThumbnailsChanged(NamedTuple):
     thumbnails: tuple[Thumbnail, ...]
 
 
+class BookmarksChanged(NamedTuple):
+    """path is Path() when no video is selected.
+
+    The payload is an immutable snapshot: consumers may retain it and cache it as
+    (path, bookmarks). A selection change emits this before selection_changed, and a
+    staged add/remove emits it without refreshing the rest of the view, so consumers
+    must match path against their own selection rather than assume it is current.
+    """
+
+    path: Path
+    bookmarks: tuple[Bookmark, ...]
+
+
 class ActorCounts(NamedTuple):
     counts: Mapping[str, int]
 
@@ -121,6 +135,7 @@ class UiState:
         self.file_tree_changed = Signal[FileTreeUpdate]()
         self.paths_removed = Signal[PathsRemoved]()
         self.thumbnails_changed = Signal[ThumbnailsChanged]()
+        self.bookmarks_changed = Signal[BookmarksChanged]()
         self.actor_counts_changed = Signal[ActorCounts]()
         self.tag_counts_changed = Signal[TagCounts]()
         self.highlights_changed = Signal[HighlightsChanged]()

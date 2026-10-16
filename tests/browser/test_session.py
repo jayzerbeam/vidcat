@@ -3,9 +3,9 @@ from typing import Any, cast
 
 import pytest
 
-from browser.metadata import StoredMetadata, empty_metadata
+from browser.metadata import Bookmark, StoredMetadata, empty_metadata
 from browser.session import VideoSession
-from browser.ui.state import SelectionChanged, Thumbnail, ThumbnailsChanged
+from browser.ui.state import BookmarksChanged, SelectionChanged, Thumbnail, ThumbnailsChanged
 from util.format import nice_bytesize, nice_duration
 
 
@@ -50,6 +50,7 @@ class FakeState:
         self.selection_changed = FakeSignal(log, "selection_changed")
         self.file_metadata_changed = FakeSignal(log, "file_metadata_changed")
         self.thumbnails_changed = FakeSignal(log, "thumbnails_changed")
+        self.bookmarks_changed = FakeSignal(log, "bookmarks_changed")
 
 
 class FakeStore:
@@ -128,7 +129,7 @@ def test_select_triggered_file_loads_and_emits_selection_last(
     assert state.video_res.value == "resolution: 640x480"
     assert state.selection_changed.emissions == [SelectionChanged((f,))]
     # the view refreshes before the selection signal
-    assert log == ["file_metadata_changed", "thumbnails_changed", "selection_changed"]
+    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_select_triggered_directory_clears(
@@ -144,7 +145,7 @@ def test_select_triggered_directory_clears(
     assert state.file_size.value == "size: none"
     assert state.meta_size.value == "metadata size: none"
     assert state.selection_changed.emissions == [SelectionChanged(())]
-    assert log == ["file_metadata_changed", "thumbnails_changed", "selection_changed"]
+    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_select_without_trigger_picks_first_file(session: VideoSession, tmp_path: Path) -> None:
@@ -227,7 +228,7 @@ def test_save_writes_title_actors_tags_and_size_label(
     assert metadata["thumbnails"] == [(b"jpg", 1, 1)]
     assert state.meta_size.value == f"metadata size: {round(store.write_size / 1000)}KB"
     # the view refreshes before the sidecar is written
-    assert log == ["file_metadata_changed", "thumbnails_changed", "write"]
+    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed", "write"]
 
 
 def test_apply_for_none_matching_path_only_refreshes(
@@ -245,7 +246,7 @@ def test_apply_for_none_matching_path_only_refreshes(
 
     session.apply_for(f, None)
 
-    assert log == ["file_metadata_changed", "thumbnails_changed"]
+    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
     assert state.meta_title.value == "loaded"
 
 
@@ -327,7 +328,7 @@ def test_clear_resets_state_and_emits(
     assert state.meta_size.value == "metadata size: none"
     assert state.meta_title.value == ""
     assert state.selection_changed.emissions == [SelectionChanged((f,)), SelectionChanged(())]
-    assert log == ["file_metadata_changed", "thumbnails_changed", "selection_changed"]
+    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_load_keeps_none_size_label_when_store_has_no_metadata(
@@ -339,3 +340,157 @@ def test_load_keeps_none_size_label_when_store_has_no_metadata(
 
     assert session.selected_path == f
     assert state.meta_size.value == "metadata size: none"
+
+
+def test_load_emits_bookmarks_parsed_from_sidecar(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    """The stored plain dicts are converted to typed bookmarks, in time order, at the UI boundary."""
+    f = _write_file(tmp_path / "video.mp4")
+    loaded_metadata["bookmarks"] = [
+        {"time_ms": 7000, "frame_no": 175, "name": "outro"},
+        {"time_ms": 5000, "frame_no": 125, "name": "intro"},
+    ]
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+
+    session.select((f,), triggered=f)
+
+    assert state.bookmarks_changed.emissions == [
+        BookmarksChanged(f, (Bookmark(5000, 125, "intro"), Bookmark(7000, 175, "outro")))
+    ]
+
+
+def test_load_emits_empty_bookmarks_for_legacy_metadata(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    del loaded_metadata["bookmarks"]
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+
+    session.select((f,), triggered=f)
+
+    assert state.bookmarks_changed.emissions == [BookmarksChanged(f, ())]
+
+
+def test_clear_emits_empty_bookmarks_for_no_path(session: VideoSession, state: FakeState, tmp_path: Path) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    session.select((f,), triggered=f)
+    state.bookmarks_changed.emissions.clear()
+
+    session.clear()
+
+    assert state.bookmarks_changed.emissions == [BookmarksChanged(Path(), ())]
+
+
+def test_add_bookmark_stages_and_emits_without_writing(
+    session: VideoSession, state: FakeState, store: FakeStore, log: list[str], tmp_path: Path
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    session.select((f,), triggered=f)
+    log.clear()
+    state.bookmarks_changed.emissions.clear()
+
+    added = session.add_bookmark(5000, 125, "intro")
+
+    assert added is True
+    assert state.bookmarks_changed.emissions == [BookmarksChanged(f, (Bookmark(5000, 125, "intro"),))]
+    assert log == ["bookmarks_changed"]
+    # staged only: the sidecar is untouched until save()
+    assert store.writes == []
+
+
+def test_add_bookmark_duplicate_time_returns_false_without_emission(
+    session: VideoSession, state: FakeState, tmp_path: Path
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    session.select((f,), triggered=f)
+    session.add_bookmark(5000, 125, "intro")
+    state.bookmarks_changed.emissions.clear()
+
+    added = session.add_bookmark(5000, 150, "other")
+
+    assert added is False
+    assert state.bookmarks_changed.emissions == []
+
+
+def test_add_bookmark_keeps_unsaved_entry_edits(
+    session: VideoSession, state: FakeState, log: list[str], tmp_path: Path
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    session.select((f,), triggered=f)
+    state.meta_title.value = "edited but unsaved"
+    log.clear()
+
+    session.add_bookmark(5000, 125, "intro")
+
+    # pins the no-_show() decision: a refresh would re-seed the entry widgets from _metadata
+    assert state.meta_title.value == "edited but unsaved"
+    assert log == ["bookmarks_changed"]
+
+
+def test_remove_bookmark_stages_and_emits_reduced_list(
+    session: VideoSession, state: FakeState, store: FakeStore, log: list[str], tmp_path: Path
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    session.select((f,), triggered=f)
+    session.add_bookmark(5000, 125, "intro")
+    session.add_bookmark(7000, 175, "outro")
+    state.meta_title.value = "edited but unsaved"
+    log.clear()
+    state.bookmarks_changed.emissions.clear()
+
+    session.remove_bookmark(5000)
+
+    assert state.bookmarks_changed.emissions == [BookmarksChanged(f, (Bookmark(7000, 175, "outro"),))]
+    assert state.meta_title.value == "edited but unsaved"
+    assert log == ["bookmarks_changed"]
+    assert store.writes == []
+
+
+def test_remove_bookmark_missing_time_emits_nothing(session: VideoSession, state: FakeState, tmp_path: Path) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    session.select((f,), triggered=f)
+    session.add_bookmark(5000, 125, "intro")
+    state.bookmarks_changed.emissions.clear()
+
+    session.remove_bookmark(7000)
+
+    assert state.bookmarks_changed.emissions == []
+
+
+def test_mutators_without_selection_do_nothing(session: VideoSession, state: FakeState, log: list[str]) -> None:
+    assert session.add_bookmark(5000, 125, "intro") is False
+
+    session.remove_bookmark(5000)
+
+    assert state.bookmarks_changed.emissions == []
+    assert log == []
+
+
+def test_save_writes_staged_bookmarks_as_plain_dicts(
+    session: VideoSession, state: FakeState, store: FakeStore, tmp_path: Path
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    session.select((f,), triggered=f)
+    session.add_bookmark(7000, 175, "outro")
+    session.add_bookmark(5000, 125, "intro")
+    # save() re-reads the entry widgets as comma-separated text through split_list
+    state.meta_actors.value = ""
+    state.meta_tags.value = ""
+
+    session.save()
+
+    assert len(store.writes) == 1
+    _, metadata = store.writes[0]
+    assert metadata["bookmarks"] == [
+        {"time_ms": 5000, "frame_no": 125, "name": "intro"},
+        {"time_ms": 7000, "frame_no": 175, "name": "outro"},
+    ]

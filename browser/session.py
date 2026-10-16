@@ -5,8 +5,15 @@ from typing import Any, cast
 
 from util.format import nice_bytesize, nice_duration
 
-from .metadata import MetadataStore, empty_metadata
-from .ui.state import FileMetadataChanged, SelectionChanged, Thumbnail, ThumbnailsChanged, UiState
+from .metadata import Bookmark, MetadataStore, delete_bookmark, empty_metadata, insert_bookmark, parse_bookmarks
+from .ui.state import (
+    BookmarksChanged,
+    FileMetadataChanged,
+    SelectionChanged,
+    Thumbnail,
+    ThumbnailsChanged,
+    UiState,
+)
 
 
 class VideoSession:
@@ -73,6 +80,31 @@ class VideoSession:
         except Exception as ex:
             print(f"failed to save metadata for {path}: {ex}")
 
+    def add_bookmark(self, time_ms: int, frame_no: int | None, name: str) -> bool:
+        """Stage a bookmark on the loaded file and emit the new list; returns whether it was added.
+
+        Deliberately does not refresh through _show(): re-seeding the title/actors/tags entries
+        from _metadata would discard unsaved edits. save() persists the staged list.
+        """
+        path = self._selected_path
+        if path is None:
+            return False
+        if not insert_bookmark(self._metadata, Bookmark(time_ms, frame_no, name)):
+            return False
+
+        self._state.bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
+        return True
+
+    def remove_bookmark(self, time_ms: int) -> None:
+        """Stage the removal of the bookmark at time_ms and emit the reduced list; no sidecar write."""
+        path = self._selected_path
+        if path is None:
+            return
+        if not delete_bookmark(self._metadata, time_ms):
+            return
+
+        self._state.bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
+
     def apply_for(self, path: Path, metadata: dict[str, Any] | None) -> None:
         """Merge generated metadata (when present) into the loaded metadata and refresh the view.
 
@@ -113,4 +145,7 @@ class VideoSession:
         # the stored thumbnails are raw (jpeg, frame_no, time_ms) tuples; convert to the UI payload type
         self._state.thumbnails_changed.emit(
             ThumbnailsChanged(tuple(Thumbnail(*t) for t in self._metadata["thumbnails"]))
+        )
+        self._state.bookmarks_changed.emit(
+            BookmarksChanged(self._selected_path or Path(), parse_bookmarks(self._metadata))
         )
