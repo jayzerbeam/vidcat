@@ -27,11 +27,13 @@ freshly loaded video.**
 - The root cause predates this feature, but the feature upgraded the consequence from
   "Open starts in a weird place" to "wrong bookmark silently recorded".
 
-**Remediation:** fixed in commit `99b2ac5` (`fix(ui): reset scrub seek bar when loading or
-clearing a video`) — `self._widgets.seek.set(0.0)` in both `load()` and `clear()`. Safe
-because the `_handle_seek` position guards (`_duration_ms == 0` in `load()`, `_path is None`
-in `clear()`) make the command the `set()` triggers a no-op at that point. A regression test
-pin awaits a ScrubFrame test harness (see MINOR 2).
+**Remediation:** the first attempt `99b2ac5` (`set(0.0)`) was **ineffective** — `ttk.Scale.set()`
+is silently ignored while the widget is disabled, which is exactly the state at both call
+sites; the stale fraction survived and was reported by the user as a live bug. Corrected in
+`ded42f9`: `configure(value=0.0)` in both `load()` and `clear()` (the `-value` option applies
+regardless of state and fires no command). Three regression tests in
+`tests/browser/ui/test_scrub_frame.py` pin the fix and demonstrably fail against the pre-fix
+code (`0.6 == 0.0`, `36000 == 0`).
 
 ### MINOR (deferred — revisit after the manual smoke test)
 
@@ -44,6 +46,9 @@ pin awaits a ScrubFrame test harness (see MINOR 2).
    cache/render gating (including a foreign path arriving mid-load), `_seek_to_ms` clamping
    into [0, 1], and the `_handle_bookmark_seek` same-position no-op. A real-`tk.Tk` harness
    mirroring `test_bookmark_frame.py` can drive `_path`/`_duration_ms`/the Scale directly.
+   (Partially addressed: `tests/browser/ui/test_scrub_frame.py` now pins the seek-reset
+   regression and the `_current_ms()` consequence; cache gating and `_seek_to_ms` clamping
+   remain uncovered.)
 3. **`tests/browser/test_session.py:478-496` — remove → `save()` has no session-level pin.**
    The add path is pinned; nothing asserts the written sidecar after a staged remove (the
    pure `delete_bookmark` helper is covered, so risk is low). ~10 lines mirroring the

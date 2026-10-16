@@ -12,4 +12,5 @@ Spec: see `00-spec.md`. Status values: `pending` / `in-progress` / `done` / `blo
 Execution order: 01 → 02 and 03 (parallelizable) → 04.
 
 Audit report: `05-audit.md` — MAJOR finding (stale seek-bar fraction across video loads)
-remediated in `99b2ac5`; MINORs deferred for revisit after the manual smoke test.
+remediated in `ded42f9` after the first attempt (`99b2ac5`) proved ineffective; MINORs
+deferred for revisit after the manual smoke test.
