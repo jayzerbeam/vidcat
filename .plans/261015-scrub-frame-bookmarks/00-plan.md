@@ -10,3 +10,6 @@ Spec: see `00-spec.md`. Status values: `pending` / `in-progress` / `done` / `blo
 | 4 | `04-scrubframe-integration.md` | `ScrubFrame` PanedWindow layout rework, `BookmarkFrame` wiring (seek/add/remove), `.plan` TODO removal | 02, 03 | done |
 
 Execution order: 01 → 02 and 03 (parallelizable) → 04.
+
+Audit report: `05-audit.md` — MAJOR finding (stale seek-bar fraction across video loads)
+remediated in `99b2ac5`; MINORs deferred for revisit after the manual smoke test.
