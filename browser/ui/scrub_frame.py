@@ -122,6 +122,9 @@ class ScrubFrame(ttk.Frame):
         self._current_frame = None
         self._widgets.video.delete("frame")
         self._widgets.seek.state(["disabled"])
+        # reset any stale fraction; the command set() triggers is a no-op here
+        # because the position guards in _handle_seek hold while _duration_ms is 0
+        self._widgets.seek.set(0.0)
         self._widgets.open.state(["disabled"])
         self._widgets.bookmarks.set_enabled(False)
         self._render_bookmarks()
@@ -137,6 +140,9 @@ class ScrubFrame(ttk.Frame):
         self._current_frame = None
         self._widgets.video.delete("frame")
         self._widgets.seek.state(["disabled"])
+        # reset any stale fraction; the command set() triggers is a no-op here
+        # because the position guards in _handle_seek hold while _path is None
+        self._widgets.seek.set(0.0)
         self._widgets.open.state(["disabled"])
         self._widgets.bookmarks.set_enabled(False)
         self._render_bookmarks()
