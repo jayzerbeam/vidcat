@@ -220,6 +220,12 @@ class App:
     def save_metadata(self) -> None:
         self._session.save()
 
+    def add_bookmark(self, time_ms: int, frame_no: int | None, name: str) -> bool:
+        return self._session.add_bookmark(time_ms, frame_no, name)
+
+    def remove_bookmark(self, time_ms: int) -> None:
+        self._session.remove_bookmark(time_ms)
+
     def scan_metadata(self) -> None:
         self._state.filters_changed.emit(FiltersChanged((), (), FilterOperator.OR))
 

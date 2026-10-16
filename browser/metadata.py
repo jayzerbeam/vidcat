@@ -1,7 +1,7 @@
 import pickle
 import time
 import traceback
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from copy import deepcopy
 from enum import StrEnum
 from pathlib import Path
@@ -16,12 +16,24 @@ EMPTY_METADATA: Final[dict[str, Any]] = {
     "actors": [],
     "tags": [],
     "thumbnails": [],
+    "bookmarks": [],
 }
 
 
 def empty_metadata() -> dict[str, Any]:
     """Return a deep copy of the empty metadata schema, safe for mutation."""
     return deepcopy(EMPTY_METADATA)
+
+
+class Bookmark(NamedTuple):
+    """time_ms is the identity: a video holds at most one bookmark per time.
+
+    frame_no is None when the frame rate was unknown at add time; name is "" when unnamed.
+    """
+
+    time_ms: int
+    frame_no: int | None
+    name: str
 
 
 class BulkAction(StrEnum):
@@ -164,6 +176,65 @@ def apply_bulk_edit(metadata: dict[str, Any], action: BulkAction, value: str) ->
             tags.remove(tag)
             metadata["tags"] = tags
 
+    return True
+
+
+def _as_plain_int(value: Any) -> int | None:
+    """Return value as an int, or None for anything else: bool subclasses int but is never a time or frame number."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _bookmark_to_dict(bookmark: Bookmark) -> dict[str, Any]:
+    """Store a bookmark as a plain dict: sidecars are pickled, so external tools must not need app classes."""
+    return {"time_ms": bookmark.time_ms, "frame_no": bookmark.frame_no, "name": bookmark.name}
+
+
+def parse_bookmarks(metadata: Mapping[str, Any]) -> tuple[Bookmark, ...]:
+    """Read the bookmarks key tolerantly: skip malformed entries, neutralize malformed fields, sort by time_ms."""
+    entries = metadata.get("bookmarks", [])
+    if not isinstance(entries, list):
+        return ()
+
+    bookmarks: list[Bookmark] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+
+        time_ms = _as_plain_int(entry.get("time_ms"))
+        if time_ms is None:
+            continue
+
+        name = entry.get("name")
+        bookmarks.append(
+            Bookmark(
+                time_ms=time_ms,
+                frame_no=_as_plain_int(entry.get("frame_no")),
+                name=name if isinstance(name, str) else "",
+            )
+        )
+
+    return tuple(sorted(bookmarks, key=lambda bookmark: bookmark.time_ms))
+
+
+def insert_bookmark(metadata: dict[str, Any], bookmark: Bookmark) -> bool:
+    """Insert a bookmark in time order, rejecting an existing time_ms; returns whether it was added."""
+    stored = parse_bookmarks(metadata)
+    if any(b.time_ms == bookmark.time_ms for b in stored):
+        return False
+
+    bookmarks = sorted([*stored, bookmark], key=lambda b: b.time_ms)
+    metadata["bookmarks"] = [_bookmark_to_dict(b) for b in bookmarks]
+    return True
+
+
+def delete_bookmark(metadata: dict[str, Any], time_ms: int) -> bool:
+    """Remove the bookmark at time_ms, keeping time order; returns whether one was removed."""
+    stored = parse_bookmarks(metadata)
+    remaining = [b for b in stored if b.time_ms != time_ms]
+    if len(remaining) == len(stored):
+        return False
+
+    metadata["bookmarks"] = [_bookmark_to_dict(b) for b in remaining]
     return True
 
 

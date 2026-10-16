@@ -8,12 +8,14 @@ from typing import Any, NamedTuple
 
 from PIL import Image, ImageTk
 
+from browser.metadata import Bookmark
 from ui.tk_decorator import tk_debounce
 from util.format import clock_format
 from util.video import VideoReader
 
 from .actions import UiContext
-from .state import SelectionChanged
+from .bookmark_frame import BookmarkFrame
+from .state import BookmarksChanged, SelectionChanged
 
 
 class _ScrubRequest(StrEnum):
@@ -30,10 +32,13 @@ class ScrubFrame(ttk.Frame):
         controls: ttk.Frame
         open: ttk.Button
         position: ttk.Label
+        bookmarks: BookmarkFrame
 
     _ctx: UiContext
     _widgets: __Widgets
     _path: Path | None
+    _bookmarks_path: Path | None
+    _bookmarks: tuple[Bookmark, ...]
     _duration_ms: float
     _frame_rate: float | None
     _current_frame: Image.Image | None
@@ -49,6 +54,8 @@ class ScrubFrame(ttk.Frame):
         super().__init__(parent, *args, **kwargs)
         self._ctx = ctx
         self._path = None
+        self._bookmarks_path = None
+        self._bookmarks = ()
         self._duration_ms = 0.0
         self._frame_rate = None
         self._current_frame = None
@@ -59,6 +66,7 @@ class ScrubFrame(ttk.Frame):
         self._results = queue.Queue()
         self._poll_after = None
 
+        pane = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         ctrlfrm = ttk.Frame(self)
         self._widgets = __class__.__Widgets(
             video=tk.Canvas(self),
@@ -66,26 +74,34 @@ class ScrubFrame(ttk.Frame):
             controls=ctrlfrm,
             open=ttk.Button(ctrlfrm, text="Open", command=self._handle_open),
             position=ttk.Label(ctrlfrm, anchor=tk.E, width=24),
+            bookmarks=BookmarkFrame(pane),
         )
         self._widgets.seek.state(["disabled"])
         self._widgets.open.state(["disabled"])
+        self._widgets.bookmarks.set_enabled(False)
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        self._widgets.video.grid(column=0, row=0, columnspan=2, padx=4, pady=(4, 0), sticky="NSEW")
+        pane.add(self._widgets.video, weight=1)
+        pane.add(self._widgets.bookmarks, weight=0)
+        pane.grid(column=0, row=0, columnspan=2, padx=(4, 4), pady=(4, 0), sticky="NSEW")
         self._widgets.seek.grid(column=0, row=1, padx=(4, 4), sticky="EW")
         self._widgets.controls.grid(column=0, row=2, padx=(4, 4), pady=(0, 4), sticky="EW")
         self._widgets.controls.columnconfigure(0, weight=1)
         self._widgets.open.grid(column=0, row=0, sticky="W")
         self._widgets.position.grid(column=1, row=0, sticky="E")
         self._widgets.video.bind("<Configure>", self._handle_video_configure, add=True)
+        self._widgets.bookmarks.set_add_handler(self._handle_bookmark_add)
+        self._widgets.bookmarks.set_seek_handler(self._handle_bookmark_seek)
+        self._widgets.bookmarks.set_remove_handler(self._handle_bookmark_remove)
 
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()
         self._poll_results()
 
         ctx.state.selection_changed.connect(self._handle_selection)
+        ctx.state.bookmarks_changed.connect(self._handle_bookmarks_changed)
 
     def _handle_selection(self, change: SelectionChanged) -> None:
         paths = change.paths
@@ -106,7 +122,12 @@ class ScrubFrame(ttk.Frame):
         self._current_frame = None
         self._widgets.video.delete("frame")
         self._widgets.seek.state(["disabled"])
+        # reset any stale fraction: set() is ignored while the scale is disabled,
+        # whereas the value option applies (and fires no command) regardless
+        self._widgets.seek.configure(value=0.0)
         self._widgets.open.state(["disabled"])
+        self._widgets.bookmarks.set_enabled(False)
+        self._render_bookmarks()
         self._update_time_label(None)
 
         self._load_seq += 1
@@ -119,7 +140,12 @@ class ScrubFrame(ttk.Frame):
         self._current_frame = None
         self._widgets.video.delete("frame")
         self._widgets.seek.state(["disabled"])
+        # reset any stale fraction: set() is ignored while the scale is disabled,
+        # whereas the value option applies (and fires no command) regardless
+        self._widgets.seek.configure(value=0.0)
         self._widgets.open.state(["disabled"])
+        self._widgets.bookmarks.set_enabled(False)
+        self._render_bookmarks()
         self._update_time_label(None)
 
         # invalidate any pending load result and release the file handle
@@ -129,6 +155,19 @@ class ScrubFrame(ttk.Frame):
         if done is not None:
             return done.wait(timeout)
         return True
+
+    def _handle_bookmarks_changed(self, change: BookmarksChanged) -> None:
+        self._bookmarks_path = change.path
+        self._bookmarks = change.bookmarks
+        if change.path == self._path:
+            self._render_bookmarks()
+
+    def _render_bookmarks(self) -> None:
+        """Render the cached bookmarks, or an empty list when they belong to another file."""
+        if self._bookmarks_path is not None and self._bookmarks_path == self._path:
+            self._widgets.bookmarks.set_bookmarks(self._bookmarks)
+        else:
+            self._widgets.bookmarks.set_bookmarks(())
 
     def _worker_loop(self) -> None:
         reader: VideoReader | None = None
@@ -205,6 +244,7 @@ class ScrubFrame(ttk.Frame):
         if self._duration_ms > 0:
             self._widgets.seek.state(["!disabled"])
             self._widgets.open.state(["!disabled"])
+            self._widgets.bookmarks.set_enabled(True)
         self._update_time_label(0.0)
         self._draw_frame(frame)
 
@@ -226,11 +266,41 @@ class ScrubFrame(ttk.Frame):
             text += f"  frame {round(time_s * self._frame_rate)}"
         self._widgets.position.config(text=text)
 
+    def _current_ms(self) -> int | None:
+        """Milliseconds at the seek bar's current position, or None when nothing is loaded."""
+        if self._path is None or self._duration_ms <= 0:
+            return None
+        return round(float(self._widgets.seek.get()) * self._duration_ms)
+
     def _handle_open(self) -> None:
+        ms = self._current_ms()
+        if ms is None:
+            return
+        self._ctx.actions.play_from_ms(ms)
+
+    def _seek_to_ms(self, ms: int) -> None:
+        """Move the seek bar to ms; the Scale command then updates the label and renders the frame."""
         if self._path is None or self._duration_ms <= 0:
             return
-        ms = round(float(self._widgets.seek.get()) * self._duration_ms)
-        self._ctx.actions.play_from_ms(ms)
+        fraction = min(1.0, max(0.0, ms / self._duration_ms))
+        self._widgets.seek.set(fraction)
+
+    def _handle_bookmark_seek(self, bookmark: Bookmark) -> None:
+        current_ms = self._current_ms()
+        if current_ms is not None and current_ms == bookmark.time_ms:
+            # already at this bookmark: re-seeking would only re-render the same frame
+            return
+        self._seek_to_ms(bookmark.time_ms)
+
+    def _handle_bookmark_remove(self, bookmark: Bookmark) -> None:
+        self._ctx.actions.remove_bookmark(bookmark.time_ms)
+
+    def _handle_bookmark_add(self, name: str) -> bool:
+        ms = self._current_ms()
+        if ms is None:
+            return False
+        frame_no = round(ms / 1000 * self._frame_rate) if self._frame_rate is not None else None
+        return self._ctx.actions.add_bookmark(ms, frame_no, name)
 
     @tk_debounce(50, leading=True)
     def _handle_seek(self, pos: str) -> None:

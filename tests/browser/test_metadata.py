@@ -6,13 +6,17 @@ import pytest
 from browser import metadata as metadata_module
 from browser.metadata import (
     EMPTY_METADATA,
+    Bookmark,
     BulkAction,
     MetadataStore,
     aggregate_files,
     apply_bulk_edit,
+    delete_bookmark,
     empty_metadata,
     generate_files,
     generate_video_metadata,
+    insert_bookmark,
+    parse_bookmarks,
     refresh_files,
 )
 
@@ -66,10 +70,12 @@ def test_empty_metadata_returns_independent_copies() -> None:
 
     one["actors"].append("actor")
     one["video_properties"]["dimensions"] = (1, 1)
+    one["bookmarks"].append({"time_ms": 0, "frame_no": None, "name": ""})
 
     assert two == EMPTY_METADATA
     assert EMPTY_METADATA["actors"] == []
     assert EMPTY_METADATA["video_properties"]["dimensions"] == (0, 0)
+    assert EMPTY_METADATA["bookmarks"] == []
 
 
 def test_apply_bulk_edit_add_actor_sorts_and_reports_change() -> None:
@@ -112,6 +118,105 @@ def test_apply_bulk_edit_coerces_tuples_and_tolerates_missing_keys() -> None:
     assert apply_bulk_edit({}, BulkAction.DEL_ACTOR, "missing") is False
     assert apply_bulk_edit({}, BulkAction.ADD_TAG, "New") is True
     assert apply_bulk_edit({}, BulkAction.DEL_TAG, "new") is False
+
+
+def test_parse_bookmarks_tolerates_missing_key_and_non_list() -> None:
+    assert parse_bookmarks({}) == ()
+    assert parse_bookmarks({"bookmarks": None}) == ()
+    assert parse_bookmarks({"bookmarks": "nope"}) == ()
+
+
+def test_parse_bookmarks_skips_non_dict_entries_and_invalid_times() -> None:
+    metadata = {
+        "bookmarks": [
+            "not a dict",
+            None,
+            {"frame_no": 1, "name": "no time"},
+            {"time_ms": True, "frame_no": 2, "name": "bool time"},
+            {"time_ms": 1.5, "frame_no": 3, "name": "float time"},
+            {"time_ms": "4", "frame_no": 4, "name": "string time"},
+            {"time_ms": 5, "frame_no": 5, "name": "ok"},
+        ]
+    }
+
+    assert parse_bookmarks(metadata) == (Bookmark(5, 5, "ok"),)
+
+
+def test_parse_bookmarks_sorts_by_time_and_neutralizes_malformed_fields() -> None:
+    metadata = {
+        "bookmarks": [
+            {"time_ms": 3000, "frame_no": 30, "name": "c"},
+            {"time_ms": 10, "frame_no": None, "name": "a"},
+            {"time_ms": 2000, "frame_no": "30f", "name": 7},
+            {"time_ms": 1000, "frame_no": 3.0, "name": "float frame"},
+            {"time_ms": 1500, "frame_no": "3", "name": "string frame"},
+        ]
+    }
+
+    # frame_no takes only a plain int: 3.0 and "3" would convert by value, but must still neutralize
+    assert parse_bookmarks(metadata) == (
+        Bookmark(10, None, "a"),
+        Bookmark(1000, None, "float frame"),
+        Bookmark(1500, None, "string frame"),
+        Bookmark(2000, None, ""),
+        Bookmark(3000, 30, "c"),
+    )
+
+
+def test_insert_bookmark_keeps_time_order_and_stores_plain_dicts() -> None:
+    metadata = empty_metadata()
+    metadata["bookmarks"] = [{"time_ms": 3000, "frame_no": 30, "name": "c"}]
+
+    assert insert_bookmark(metadata, Bookmark(1000, 10, "a")) is True
+    assert insert_bookmark(metadata, Bookmark(2000, None, "")) is True
+
+    assert metadata["bookmarks"] == [
+        {"time_ms": 1000, "frame_no": 10, "name": "a"},
+        {"time_ms": 2000, "frame_no": None, "name": ""},
+        {"time_ms": 3000, "frame_no": 30, "name": "c"},
+    ]
+    assert all(type(entry) is dict for entry in metadata["bookmarks"])
+
+
+def test_insert_bookmark_rejects_duplicate_time_and_leaves_list_unchanged() -> None:
+    metadata = empty_metadata()
+    metadata["bookmarks"] = [{"time_ms": 1000, "frame_no": 10, "name": "a"}]
+    existing = metadata["bookmarks"]
+
+    assert insert_bookmark(metadata, Bookmark(1000, 99, "other")) is False
+    assert metadata["bookmarks"] is existing
+
+
+def test_insert_bookmark_creates_missing_key_and_round_trips_through_parse() -> None:
+    metadata: dict[str, Any] = {}
+
+    assert insert_bookmark(metadata, Bookmark(1500, None, "named")) is True
+    assert metadata["bookmarks"] == [{"time_ms": 1500, "frame_no": None, "name": "named"}]
+    assert parse_bookmarks(metadata) == (Bookmark(1500, None, "named"),)
+
+
+def test_delete_bookmark_removes_exactly_the_matching_time() -> None:
+    metadata = empty_metadata()
+    metadata["bookmarks"] = [
+        {"time_ms": 1000, "frame_no": 10, "name": "a"},
+        {"time_ms": 2000, "frame_no": 20, "name": "b"},
+    ]
+
+    assert delete_bookmark(metadata, 1000) is True
+    assert metadata["bookmarks"] == [{"time_ms": 2000, "frame_no": 20, "name": "b"}]
+
+
+def test_delete_bookmark_missing_time_or_key_returns_false_unmodified() -> None:
+    metadata = empty_metadata()
+    metadata["bookmarks"] = [{"time_ms": 1000, "frame_no": 10, "name": "a"}]
+    existing = metadata["bookmarks"]
+
+    assert delete_bookmark(metadata, 999) is False
+    assert metadata["bookmarks"] is existing
+
+    absent: dict[str, Any] = {}
+    assert delete_bookmark(absent, 1000) is False
+    assert absent == {}
 
 
 def test_store_read_round_trip(store: MetadataStore, tmp_path: Path) -> None:
