@@ -85,7 +85,7 @@ class ScrubFrame(ttk.Frame):
 
         pane.add(self._widgets.video, weight=1)
         pane.add(self._widgets.bookmarks, weight=0)
-        pane.grid(column=0, row=0, columnspan=2, padx=(4, 4), sticky="NSEW")
+        pane.grid(column=0, row=0, columnspan=2, padx=(4, 4), pady=(4, 0), sticky="NSEW")
         self._widgets.seek.grid(column=0, row=1, padx=(4, 4), sticky="EW")
         self._widgets.controls.grid(column=0, row=2, padx=(4, 4), pady=(0, 4), sticky="EW")
         self._widgets.controls.columnconfigure(0, weight=1)
