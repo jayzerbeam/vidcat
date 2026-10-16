@@ -148,11 +148,16 @@ def test_parse_bookmarks_sorts_by_time_and_neutralizes_malformed_fields() -> Non
             {"time_ms": 3000, "frame_no": 30, "name": "c"},
             {"time_ms": 10, "frame_no": None, "name": "a"},
             {"time_ms": 2000, "frame_no": "30f", "name": 7},
+            {"time_ms": 1000, "frame_no": 3.0, "name": "float frame"},
+            {"time_ms": 1500, "frame_no": "3", "name": "string frame"},
         ]
     }
 
+    # frame_no takes only a plain int: 3.0 and "3" would convert by value, but must still neutralize
     assert parse_bookmarks(metadata) == (
         Bookmark(10, None, "a"),
+        Bookmark(1000, None, "float frame"),
+        Bookmark(1500, None, "string frame"),
         Bookmark(2000, None, ""),
         Bookmark(3000, 30, "c"),
     )
