@@ -6,7 +6,7 @@ import pytest
 
 from browser.metadata import Bookmark, StoredMetadata, empty_metadata
 from browser.session import VideoSession
-from browser.ui.state import BookmarksChanged, SelectionChanged, Thumbnail, ThumbnailsChanged
+from browser.ui.state import BookmarksChanged, FileMetadataChanged, SelectionChanged, Thumbnail, ThumbnailsChanged
 from util.format import nice_bytesize, nice_duration
 
 
@@ -26,7 +26,8 @@ class FakeVar:
 class FakeSignal:
     """Duck-typed UiState signal; records emissions in a shared order log.
 
-    Subscriptions are recorded but not dispatched.
+    Like the real Signal, emit invokes connected handlers synchronously, iterating over a
+    tuple snapshot of the handler list.
     """
 
     def __init__(self, log: list[str], name: str) -> None:
@@ -41,6 +42,8 @@ class FakeSignal:
     def emit(self, value: Any) -> None:
         self.emissions.append(value)
         self._log.append(self._name)
+        for handler in tuple(self.handlers):
+            handler(value)
 
 
 class FakeState:
@@ -85,6 +88,17 @@ def _write_file(path: Path) -> Path:
     return path
 
 
+def _split_list(value: Any) -> tuple[str, ...]:
+    """Split comma-separated text like Tk does, but pass structured values through.
+
+    A restaged pane holds the payload's list values; the widget round-trip they survive in
+    the real app would hand them back as structured values, not comma-separated text.
+    """
+    if isinstance(value, (list, tuple)):
+        return tuple(value)
+    return tuple(value.split(","))
+
+
 @pytest.fixture
 def log() -> list[str]:
     return []
@@ -102,7 +116,7 @@ def store(log: list[str]) -> FakeStore:
 
 @pytest.fixture
 def session(state: FakeState, store: FakeStore) -> VideoSession:
-    return VideoSession(cast(Any, state), cast(Any, store), split_list=lambda value: tuple(value.split(",")))
+    return VideoSession(cast(Any, state), cast(Any, store), split_list=_split_list)
 
 
 @pytest.fixture
@@ -315,6 +329,160 @@ def test_apply_for_cleared_selection_is_a_no_op(
 
     assert state.meta_title.value == ""
     assert log == []
+
+
+def test_stored_metadata_for_selected_file_restages(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    log: list[str],
+    tmp_path: Path,
+) -> None:
+    """A store-side event for the selected file fully replaces the staged view."""
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+    session.select((f,), triggered=f)
+    log.clear()
+    payload = empty_metadata()
+    payload["title"] = "restaged"
+    payload["actors"] = ["alice", "bob"]
+    payload["tags"] = ["tag"]
+    payload["thumbnails"] = [(b"newjpg", 2, 20)]
+
+    state.file_metadata_changed.emit(FileMetadataChanged(f, payload))
+
+    assert state.meta_title.value == "restaged"
+    assert state.meta_actors.value == ["alice", "bob"]
+    assert state.meta_tags.value == ["tag"]
+    assert state.thumbnails_changed.emissions[-1] == ThumbnailsChanged((Thumbnail(b"newjpg", 2, 20),))
+    # the payload is copied, not retained: later staged edits replace top-level keys on the
+    # copy, never on the emitter's snapshot
+    assert session._metadata == payload
+    assert session._metadata is not payload
+    assert log == ["file_metadata_changed", "selected_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
+
+
+def test_stored_metadata_for_other_file_is_ignored(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    log: list[str],
+    tmp_path: Path,
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+    session.select((f,), triggered=f)
+    log.clear()
+    state.selected_metadata_changed.emissions.clear()
+    state.thumbnails_changed.emissions.clear()
+    state.bookmarks_changed.emissions.clear()
+    payload = empty_metadata()
+    payload["title"] = "other"
+    other = tmp_path / "other.mp4"
+
+    state.file_metadata_changed.emit(FileMetadataChanged(other, payload))
+
+    assert log == ["file_metadata_changed"]
+    assert state.selected_metadata_changed.emissions == []
+    assert state.thumbnails_changed.emissions == []
+    assert state.bookmarks_changed.emissions == []
+    assert state.meta_title.value == "loaded"
+    assert session._metadata == loaded_metadata
+
+
+def test_bulk_edit_restage_is_persisted_by_save(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    """The reported bug: Ctrl+S must not revert a bulk edit with the stale staged values."""
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+    session.select((f,), triggered=f)
+    payload = empty_metadata()
+    payload["title"] = "loaded"
+    payload["actors"] = ["alice", "bob"]
+    payload["tags"] = ["tag"]
+
+    state.file_metadata_changed.emit(FileMetadataChanged(f, payload))
+    session.save()
+
+    assert len(store.writes) == 1
+    path, metadata = store.writes[0]
+    assert path == f
+    assert metadata["actors"] == ("alice", "bob")
+    assert metadata["tags"] == ("tag",)
+
+
+def test_thumbnail_generation_restage_is_persisted_by_save(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    """Bulk thumbnail generation writes the store; a later save must keep the new thumbnails."""
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+    session.select((f,), triggered=f)
+    payload = empty_metadata()
+    payload["title"] = "loaded"
+    payload["thumbnails"] = [(b"newjpg", 2, 20)]
+
+    state.file_metadata_changed.emit(FileMetadataChanged(f, payload))
+    session.save()
+
+    assert state.thumbnails_changed.emissions[-1] == ThumbnailsChanged((Thumbnail(b"newjpg", 2, 20),))
+    _, metadata = store.writes[0]
+    assert metadata["thumbnails"] == [(b"newjpg", 2, 20)]
+
+
+def test_clean_restage_does_not_resurrect_deleted_metadata(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    """Clean emits empty metadata; a later save must not write the old values back."""
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+    session.select((f,), triggered=f)
+
+    state.file_metadata_changed.emit(FileMetadataChanged(f, empty_metadata()))
+    session.save()
+
+    _, metadata = store.writes[0]
+    assert metadata["title"] == ""
+    assert metadata["actors"] == ()
+    assert metadata["tags"] == ()
+    assert metadata["thumbnails"] == []
+
+
+def test_restage_does_not_reemit_the_store_signal(
+    session: VideoSession,
+    state: FakeState,
+    store: FakeStore,
+    loaded_metadata: dict[str, Any],
+    log: list[str],
+    tmp_path: Path,
+) -> None:
+    f = _write_file(tmp_path / "video.mp4")
+    store.results[f] = StoredMetadata(loaded_metadata, 1234)
+    session.select((f,), triggered=f)
+    log.clear()
+    payload = empty_metadata()
+    payload["title"] = "restaged"
+
+    state.file_metadata_changed.emit(FileMetadataChanged(f, payload))
+
+    # exactly one render: the handler must never re-emit the store-side signal it consumes
+    assert log == ["file_metadata_changed", "selected_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
+    assert log.count("file_metadata_changed") == 1
 
 
 def test_clear_resets_state_and_emits(
