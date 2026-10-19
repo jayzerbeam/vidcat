@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -23,12 +24,19 @@ class FakeVar:
 
 
 class FakeSignal:
-    """Duck-typed UiState signal; records emissions in a shared order log."""
+    """Duck-typed UiState signal; records emissions in a shared order log.
+
+    Subscriptions are recorded but not dispatched.
+    """
 
     def __init__(self, log: list[str], name: str) -> None:
         self.emissions: list[Any] = []
+        self.handlers: list[Callable[[Any], None]] = []
         self._log = log
         self._name = name
+
+    def connect(self, callback: Callable[[Any], None]) -> None:
+        self.handlers.append(callback)
 
     def emit(self, value: Any) -> None:
         self.emissions.append(value)
@@ -49,6 +57,7 @@ class FakeState:
         self.video_res = FakeVar()
         self.selection_changed = FakeSignal(log, "selection_changed")
         self.file_metadata_changed = FakeSignal(log, "file_metadata_changed")
+        self.selected_metadata_changed = FakeSignal(log, "selected_metadata_changed")
         self.thumbnails_changed = FakeSignal(log, "thumbnails_changed")
         self.bookmarks_changed = FakeSignal(log, "bookmarks_changed")
 
@@ -129,7 +138,7 @@ def test_select_triggered_file_loads_and_emits_selection_last(
     assert state.video_res.value == "resolution: 640x480"
     assert state.selection_changed.emissions == [SelectionChanged((f,))]
     # the view refreshes before the selection signal
-    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
+    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_select_triggered_directory_clears(
@@ -145,7 +154,7 @@ def test_select_triggered_directory_clears(
     assert state.file_size.value == "size: none"
     assert state.meta_size.value == "metadata size: none"
     assert state.selection_changed.emissions == [SelectionChanged(())]
-    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
+    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_select_without_trigger_picks_first_file(session: VideoSession, tmp_path: Path) -> None:
@@ -228,7 +237,7 @@ def test_save_writes_title_actors_tags_and_size_label(
     assert metadata["thumbnails"] == [(b"jpg", 1, 1)]
     assert state.meta_size.value == f"metadata size: {round(store.write_size / 1000)}KB"
     # the view refreshes before the sidecar is written
-    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed", "write"]
+    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed", "write"]
 
 
 def test_apply_for_none_matching_path_only_refreshes(
@@ -246,7 +255,7 @@ def test_apply_for_none_matching_path_only_refreshes(
 
     session.apply_for(f, None)
 
-    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
+    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
     assert state.meta_title.value == "loaded"
 
 
@@ -328,7 +337,7 @@ def test_clear_resets_state_and_emits(
     assert state.meta_size.value == "metadata size: none"
     assert state.meta_title.value == ""
     assert state.selection_changed.emissions == [SelectionChanged((f,)), SelectionChanged(())]
-    assert log == ["file_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
+    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_load_keeps_none_size_label_when_store_has_no_metadata(
