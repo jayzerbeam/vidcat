@@ -126,8 +126,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
         # a store-side event for the selected path renders the row from the snapshot, then once
         # more from the session restage; the duplicate render is idempotent and intentional
-        ctx.state.file_metadata_changed.connect(self._on_file_metadata)
-        ctx.state.selected_metadata_changed.connect(self._on_file_metadata)
+        ctx.state.stored_metadata_changed.connect(self._on_file_metadata)
+        ctx.state.staged_metadata_changed.connect(self._on_file_metadata)
         ctx.state.file_tree_changed.connect(self._on_file_tree)
         ctx.state.paths_removed.connect(self._on_paths_removed)
         ctx.state.highlights_changed.connect(self._on_highlights)

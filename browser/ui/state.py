@@ -48,7 +48,7 @@ class FileMetadataChanged(NamedTuple):
     """path is Path() when no video is selected.
 
     The metadata liveness contract depends on the producing signal: a live staged
-    dict for selected_metadata_changed, a fresh snapshot for file_metadata_changed.
+    dict for staged_metadata_changed, a fresh snapshot for stored_metadata_changed.
     See the contract comments on those UiState attributes.
     """
 
@@ -137,11 +137,11 @@ class UiState:
         # emitted only by store-side flows (metadata edit/clean/scan and thumbnail generation in App);
         # metadata is a snapshot: every current emitter passes a fresh dict it never retains or mutates
         # afterwards, so consumers may read it synchronously
-        self.file_metadata_changed = Signal[FileMetadataChanged]()
+        self.stored_metadata_changed = Signal[FileMetadataChanged]()
         # emitted only by VideoSession._show() for the selected file's staged view; metadata is the live
         # _metadata dict, mutated in place by save()/apply_for() after emission, so consume synchronously
         # and never retain it
-        self.selected_metadata_changed = Signal[FileMetadataChanged]()
+        self.staged_metadata_changed = Signal[FileMetadataChanged]()
         self.file_tree_changed = Signal[FileTreeUpdate]()
         self.paths_removed = Signal[PathsRemoved]()
         self.thumbnails_changed = Signal[ThumbnailsChanged]()

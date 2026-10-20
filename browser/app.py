@@ -135,7 +135,7 @@ class App:
             refresh_files(
                 files,
                 self._store,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
+                on_file=lambda f, m: ui.post(self._state.stored_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
             )
 
@@ -143,7 +143,7 @@ class App:
 
     def delete_metadata(self, paths: Sequence[Path]) -> None:
         for f in self._store.delete_files(paths):
-            self._state.file_metadata_changed.emit(FileMetadataChanged(f, empty_metadata()))
+            self._state.stored_metadata_changed.emit(FileMetadataChanged(f, empty_metadata()))
 
     def generate_thumbnails_bulk(self, paths: Sequence[Path]) -> None:
         """generate thumbnails for a list of files with the blocking status window"""
@@ -159,7 +159,7 @@ class App:
                 self._store,
                 interval=interval,
                 height=height,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
+                on_file=lambda f, m: ui.post(self._state.stored_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
                 on_fraction=ui.fraction,
             )
@@ -186,7 +186,7 @@ class App:
             return
 
         for f, file_metadata in self._store.edit_files(paths, action, val):
-            self._state.file_metadata_changed.emit(FileMetadataChanged(f, file_metadata))
+            self._state.stored_metadata_changed.emit(FileMetadataChanged(f, file_metadata))
 
     def generate_thumbnails(self) -> None:
         selected = self._session.selected_path
@@ -236,7 +236,7 @@ class App:
             actors, tags = aggregate_files(
                 items,
                 self._store,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
+                on_file=lambda f, m: ui.post(self._state.stored_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
             )
             ui.progress("populating widgets", 1.0)

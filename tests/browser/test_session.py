@@ -59,8 +59,8 @@ class FakeState:
         self.video_len = FakeVar()
         self.video_res = FakeVar()
         self.selection_changed = FakeSignal(log, "selection_changed")
-        self.file_metadata_changed = FakeSignal(log, "file_metadata_changed")
-        self.selected_metadata_changed = FakeSignal(log, "selected_metadata_changed")
+        self.stored_metadata_changed = FakeSignal(log, "stored_metadata_changed")
+        self.staged_metadata_changed = FakeSignal(log, "staged_metadata_changed")
         self.thumbnails_changed = FakeSignal(log, "thumbnails_changed")
         self.bookmarks_changed = FakeSignal(log, "bookmarks_changed")
 
@@ -152,7 +152,7 @@ def test_select_triggered_file_loads_and_emits_selection_last(
     assert state.video_res.value == "resolution: 640x480"
     assert state.selection_changed.emissions == [SelectionChanged((f,))]
     # the view refreshes before the selection signal
-    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
+    assert log == ["staged_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_select_triggered_directory_clears(
@@ -168,7 +168,7 @@ def test_select_triggered_directory_clears(
     assert state.file_size.value == "size: none"
     assert state.meta_size.value == "metadata size: none"
     assert state.selection_changed.emissions == [SelectionChanged(())]
-    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
+    assert log == ["staged_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_select_without_trigger_picks_first_file(session: VideoSession, tmp_path: Path) -> None:
@@ -251,7 +251,7 @@ def test_save_writes_title_actors_tags_and_size_label(
     assert metadata["thumbnails"] == [(b"jpg", 1, 1)]
     assert state.meta_size.value == f"metadata size: {round(store.write_size / 1000)}KB"
     # the view refreshes before the sidecar is written
-    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed", "write"]
+    assert log == ["staged_metadata_changed", "thumbnails_changed", "bookmarks_changed", "write"]
 
 
 def test_apply_for_none_matching_path_only_refreshes(
@@ -269,7 +269,7 @@ def test_apply_for_none_matching_path_only_refreshes(
 
     session.apply_for(f, None)
 
-    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
+    assert log == ["staged_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
     assert state.meta_title.value == "loaded"
 
 
@@ -350,7 +350,7 @@ def test_stored_metadata_for_selected_file_restages(
     payload["tags"] = ["tag"]
     payload["thumbnails"] = [(b"newjpg", 2, 20)]
 
-    state.file_metadata_changed.emit(FileMetadataChanged(f, payload))
+    state.stored_metadata_changed.emit(FileMetadataChanged(f, payload))
 
     assert state.meta_title.value == "restaged"
     assert state.meta_actors.value == ["alice", "bob"]
@@ -360,7 +360,7 @@ def test_stored_metadata_for_selected_file_restages(
     # copy, never on the emitter's snapshot
     assert session._metadata == payload
     assert session._metadata is not payload
-    assert log == ["file_metadata_changed", "selected_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
+    assert log == ["stored_metadata_changed", "staged_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
 
 
 def test_stored_metadata_for_other_file_is_ignored(
@@ -375,17 +375,17 @@ def test_stored_metadata_for_other_file_is_ignored(
     store.results[f] = StoredMetadata(loaded_metadata, 1234)
     session.select((f,), triggered=f)
     log.clear()
-    state.selected_metadata_changed.emissions.clear()
+    state.staged_metadata_changed.emissions.clear()
     state.thumbnails_changed.emissions.clear()
     state.bookmarks_changed.emissions.clear()
     payload = empty_metadata()
     payload["title"] = "other"
     other = tmp_path / "other.mp4"
 
-    state.file_metadata_changed.emit(FileMetadataChanged(other, payload))
+    state.stored_metadata_changed.emit(FileMetadataChanged(other, payload))
 
-    assert log == ["file_metadata_changed"]
-    assert state.selected_metadata_changed.emissions == []
+    assert log == ["stored_metadata_changed"]
+    assert state.staged_metadata_changed.emissions == []
     assert state.thumbnails_changed.emissions == []
     assert state.bookmarks_changed.emissions == []
     assert state.meta_title.value == "loaded"
@@ -408,7 +408,7 @@ def test_bulk_edit_restage_is_persisted_by_save(
     payload["actors"] = ["alice", "bob"]
     payload["tags"] = ["tag"]
 
-    state.file_metadata_changed.emit(FileMetadataChanged(f, payload))
+    state.stored_metadata_changed.emit(FileMetadataChanged(f, payload))
     session.save()
 
     assert len(store.writes) == 1
@@ -433,7 +433,7 @@ def test_thumbnail_generation_restage_is_persisted_by_save(
     payload["title"] = "loaded"
     payload["thumbnails"] = [(b"newjpg", 2, 20)]
 
-    state.file_metadata_changed.emit(FileMetadataChanged(f, payload))
+    state.stored_metadata_changed.emit(FileMetadataChanged(f, payload))
     session.save()
 
     assert state.thumbnails_changed.emissions[-1] == ThumbnailsChanged((Thumbnail(b"newjpg", 2, 20),))
@@ -453,7 +453,7 @@ def test_clean_restage_does_not_resurrect_deleted_metadata(
     store.results[f] = StoredMetadata(loaded_metadata, 1234)
     session.select((f,), triggered=f)
 
-    state.file_metadata_changed.emit(FileMetadataChanged(f, empty_metadata()))
+    state.stored_metadata_changed.emit(FileMetadataChanged(f, empty_metadata()))
     session.save()
 
     _, metadata = store.writes[0]
@@ -478,11 +478,11 @@ def test_restage_does_not_reemit_the_store_signal(
     payload = empty_metadata()
     payload["title"] = "restaged"
 
-    state.file_metadata_changed.emit(FileMetadataChanged(f, payload))
+    state.stored_metadata_changed.emit(FileMetadataChanged(f, payload))
 
     # exactly one render: the handler must never re-emit the store-side signal it consumes
-    assert log == ["file_metadata_changed", "selected_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
-    assert log.count("file_metadata_changed") == 1
+    assert log == ["stored_metadata_changed", "staged_metadata_changed", "thumbnails_changed", "bookmarks_changed"]
+    assert log.count("stored_metadata_changed") == 1
 
 
 def test_clear_resets_state_and_emits(
@@ -505,7 +505,7 @@ def test_clear_resets_state_and_emits(
     assert state.meta_size.value == "metadata size: none"
     assert state.meta_title.value == ""
     assert state.selection_changed.emissions == [SelectionChanged((f,)), SelectionChanged(())]
-    assert log == ["selected_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
+    assert log == ["staged_metadata_changed", "thumbnails_changed", "bookmarks_changed", "selection_changed"]
 
 
 def test_load_keeps_none_size_label_when_store_has_no_metadata(

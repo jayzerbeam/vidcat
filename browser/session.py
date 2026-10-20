@@ -31,7 +31,7 @@ class VideoSession:
         self._split_list = split_list
         self._selected_path = None
         self._metadata = empty_metadata()
-        self._state.file_metadata_changed.connect(self._on_stored_metadata)
+        self._state.stored_metadata_changed.connect(self._on_stored_metadata)
 
     @property
     def selected_path(self) -> Path | None:
@@ -128,7 +128,7 @@ class VideoSession:
         The shallow copy is safe by invariant: store-side emitters pass fresh dicts they never
         retain or mutate after emission, and session-side writers only replace top-level keys,
         so nested values are never mutated in place. The session subscribes only to the
-        store-side signal, never to the selected_metadata_changed it emits via _show(), and the
+        store-side signal, never to the staged_metadata_changed it emits via _show(), and the
         treeview handler does not emit, so this cannot loop.
         """
         if change.path != self._selected_path:
@@ -152,14 +152,14 @@ class VideoSession:
         self._state.selection_changed.emit(SelectionChanged((path,)))
 
     def _show(self) -> None:
-        """Push the live staged view to the UI: Tk variables and selected_metadata_changed.
+        """Push the live staged view to the UI: Tk variables and staged_metadata_changed.
 
         The payload is the live _metadata dict, so consumers read it synchronously and never
         retain it. Loop-safety: the session listens only to the store-side
-        file_metadata_changed, never to the selected_metadata_changed emitted here, and the
+        stored_metadata_changed, never to the staged_metadata_changed emitted here, and the
         treeview handler does not emit, so one render happens per event.
         """
-        self._state.selected_metadata_changed.emit(FileMetadataChanged(self._selected_path or Path(), self._metadata))
+        self._state.staged_metadata_changed.emit(FileMetadataChanged(self._selected_path or Path(), self._metadata))
 
         vres = self._metadata["video_properties"]["dimensions"]
         vlen = nice_duration(self._metadata["video_properties"]["duration"])
