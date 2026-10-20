@@ -25,6 +25,7 @@ from .ui.state import (
     FileTreeUpdate,
     FilterOperator,
     FiltersChanged,
+    HighlightsChanged,
     PathsRemoved,
     TagCounts,
     UiState,
@@ -252,6 +253,9 @@ class App:
 
     def clear_filters(self) -> None:
         self._state.filters_changed.emit(FiltersChanged((), (), FilterOperator.OR))
+
+    def set_highlights(self, actors: Sequence[str], tags: Sequence[str]) -> None:
+        self._state.highlights_changed.emit(HighlightsChanged(tuple(actors), tuple(tags)))
 
     def set_columns_hidden(self, names: Sequence[str]) -> None:
         self._state.hidden_columns_changed.emit(ColumnsChanged(tuple(names)))
