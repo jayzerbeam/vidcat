@@ -132,7 +132,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         ctx.state.paths_removed.connect(self._on_paths_removed)
         ctx.state.highlights_changed.connect(self._on_highlights)
         ctx.state.filters_changed.connect(self._on_filters)
-        ctx.state.columns_changed.connect(self._on_columns_changed)
+        ctx.state.hidden_columns_changed.connect(self._on_columns_changed)
 
     def _on_file_metadata(self, change: FileMetadataChanged) -> None:
         props = change.metadata.get("video_properties", {})
@@ -218,7 +218,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
     def _handle_toggle_column(self, name: str) -> None:
         # the menu checkbutton state is owned by the checked/hidden state, which App echoes back
-        # through columns_changed, so the toggle itself only requests the change
+        # through hidden_columns_changed, so the toggle itself only requests the change
         shown = self._shown_columns()
         shown ^= {name}
         self._ctx.actions.set_columns_hidden(tuple(n for n, _ in _DATA_COLUMNS if n not in shown))

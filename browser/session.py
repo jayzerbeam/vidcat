@@ -93,7 +93,7 @@ class VideoSession:
         if not insert_bookmark(self._metadata, Bookmark(time_ms, frame_no, name)):
             return False
 
-        self._state.bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
+        self._state.staged_bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
         return True
 
     def remove_bookmark(self, time_ms: int) -> None:
@@ -104,7 +104,7 @@ class VideoSession:
         if not delete_bookmark(self._metadata, time_ms):
             return
 
-        self._state.bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
+        self._state.staged_bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
 
     def apply_for(self, path: Path, metadata: dict[str, Any] | None) -> None:
         """Merge generated metadata (when present) into the loaded metadata and refresh the view.
@@ -169,9 +169,9 @@ class VideoSession:
         self._state.video_len.set(f"length: {vlen}")
         self._state.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
         # the stored thumbnails are raw (jpeg, frame_no, time_ms) tuples; convert to the UI payload type
-        self._state.thumbnails_changed.emit(
+        self._state.staged_thumbnails_changed.emit(
             ThumbnailsChanged(tuple(Thumbnail(*t) for t in self._metadata["thumbnails"]))
         )
-        self._state.bookmarks_changed.emit(
+        self._state.staged_bookmarks_changed.emit(
             BookmarksChanged(self._selected_path or Path(), parse_bookmarks(self._metadata))
         )

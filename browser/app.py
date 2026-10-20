@@ -71,8 +71,8 @@ class App:
 
         # push the persisted column visibility to the filetree before connecting persistence, so the
         # initial state is not round-tripped to the config file
-        self._state.columns_changed.emit(ColumnsChanged(tuple(self._config.hidden_columns)))
-        self._state.columns_changed.connect(self._persist_columns)
+        self._state.hidden_columns_changed.emit(ColumnsChanged(tuple(self._config.hidden_columns)))
+        self._state.hidden_columns_changed.connect(self._persist_columns)
 
         # worker threads post callbacks through the dispatcher; the Tk thread drains them in FIFO order
         self._dispatcher = UiDispatcher(root)
@@ -254,7 +254,7 @@ class App:
         self._state.filters_changed.emit(FiltersChanged((), (), FilterOperator.OR))
 
     def set_columns_hidden(self, names: Sequence[str]) -> None:
-        self._state.columns_changed.emit(ColumnsChanged(tuple(names)))
+        self._state.hidden_columns_changed.emit(ColumnsChanged(tuple(names)))
 
     def _persist_columns(self, change: ColumnsChanged) -> None:
         self._config.set_hidden_columns(change.hidden)
