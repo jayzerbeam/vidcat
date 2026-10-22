@@ -11,7 +11,10 @@ from util.file.tree import PathTree
 
 
 class Signal[T]:
-    """Minimal typed observer. Callbacks run synchronously on the emitting thread."""
+    """Minimal typed observer. Callbacks run synchronously on the emitting thread.
+
+    Handlers must not synchronously emit a signal that one of their own handlers consumes.
+    """
 
     def __init__(self) -> None:
         self._callbacks: list[Callable[[T], None]] = []
@@ -44,9 +47,9 @@ class SelectionChanged(NamedTuple):
 class FileMetadataChanged(NamedTuple):
     """path is Path() when no video is selected.
 
-    metadata is a live view owned by the emitting session: save()/apply_for()
-    mutate the same dict in place after emission, so consume synchronously and
-    never retain it.
+    The metadata liveness contract depends on the producing signal: a live staged
+    dict for staged_metadata_changed, a fresh snapshot for stored_metadata_changed.
+    See the contract comments on those UiState attributes.
     """
 
     path: Path
@@ -131,14 +134,21 @@ class UiState:
         self.thumb_height = tk.StringVar(root, value=str(thumb_height))
 
         self.selection_changed = Signal[SelectionChanged]()
-        self.file_metadata_changed = Signal[FileMetadataChanged]()
+        # emitted only by store-side flows (metadata edit/clean/scan and thumbnail generation in App);
+        # metadata is a snapshot: every current emitter passes a fresh dict it never retains or mutates
+        # afterwards, so consumers may read it synchronously
+        self.stored_metadata_changed = Signal[FileMetadataChanged]()
+        # emitted only by VideoSession._show() for the selected file's staged view; metadata is the live
+        # _metadata dict, mutated in place by save()/apply_for() after emission, so consume synchronously
+        # and never retain it
+        self.staged_metadata_changed = Signal[FileMetadataChanged]()
         self.file_tree_changed = Signal[FileTreeUpdate]()
         self.paths_removed = Signal[PathsRemoved]()
-        self.thumbnails_changed = Signal[ThumbnailsChanged]()
-        self.bookmarks_changed = Signal[BookmarksChanged]()
+        self.staged_thumbnails_changed = Signal[ThumbnailsChanged]()
+        self.staged_bookmarks_changed = Signal[BookmarksChanged]()
         self.actor_counts_changed = Signal[ActorCounts]()
         self.tag_counts_changed = Signal[TagCounts]()
         self.highlights_changed = Signal[HighlightsChanged]()
         self.filters_changed = Signal[FiltersChanged]()
-        self.columns_changed = Signal[ColumnsChanged]()
+        self.hidden_columns_changed = Signal[ColumnsChanged]()
         self.busy_changed = Signal[bool]()

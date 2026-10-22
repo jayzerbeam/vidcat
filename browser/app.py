@@ -25,6 +25,7 @@ from .ui.state import (
     FileTreeUpdate,
     FilterOperator,
     FiltersChanged,
+    HighlightsChanged,
     PathsRemoved,
     TagCounts,
     UiState,
@@ -71,8 +72,8 @@ class App:
 
         # push the persisted column visibility to the filetree before connecting persistence, so the
         # initial state is not round-tripped to the config file
-        self._state.columns_changed.emit(ColumnsChanged(tuple(self._config.hidden_columns)))
-        self._state.columns_changed.connect(self._persist_columns)
+        self._state.hidden_columns_changed.emit(ColumnsChanged(tuple(self._config.hidden_columns)))
+        self._state.hidden_columns_changed.connect(self._persist_columns)
 
         # worker threads post callbacks through the dispatcher; the Tk thread drains them in FIFO order
         self._dispatcher = UiDispatcher(root)
@@ -135,7 +136,7 @@ class App:
             refresh_files(
                 files,
                 self._store,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
+                on_file=lambda f, m: ui.post(self._state.stored_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
             )
 
@@ -143,7 +144,7 @@ class App:
 
     def delete_metadata(self, paths: Sequence[Path]) -> None:
         for f in self._store.delete_files(paths):
-            self._state.file_metadata_changed.emit(FileMetadataChanged(f, empty_metadata()))
+            self._state.stored_metadata_changed.emit(FileMetadataChanged(f, empty_metadata()))
 
     def generate_thumbnails_bulk(self, paths: Sequence[Path]) -> None:
         """generate thumbnails for a list of files with the blocking status window"""
@@ -159,7 +160,7 @@ class App:
                 self._store,
                 interval=interval,
                 height=height,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
+                on_file=lambda f, m: ui.post(self._state.stored_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
                 on_fraction=ui.fraction,
             )
@@ -186,7 +187,7 @@ class App:
             return
 
         for f, file_metadata in self._store.edit_files(paths, action, val):
-            self._state.file_metadata_changed.emit(FileMetadataChanged(f, file_metadata))
+            self._state.stored_metadata_changed.emit(FileMetadataChanged(f, file_metadata))
 
     def generate_thumbnails(self) -> None:
         selected = self._session.selected_path
@@ -236,7 +237,7 @@ class App:
             actors, tags = aggregate_files(
                 items,
                 self._store,
-                on_file=lambda f, m: ui.post(self._state.file_metadata_changed.emit, FileMetadataChanged(f, m)),
+                on_file=lambda f, m: ui.post(self._state.stored_metadata_changed.emit, FileMetadataChanged(f, m)),
                 on_progress=ui.progress,
             )
             ui.progress("populating widgets", 1.0)
@@ -253,8 +254,11 @@ class App:
     def clear_filters(self) -> None:
         self._state.filters_changed.emit(FiltersChanged((), (), FilterOperator.OR))
 
+    def set_highlights(self, actors: Sequence[str], tags: Sequence[str]) -> None:
+        self._state.highlights_changed.emit(HighlightsChanged(tuple(actors), tuple(tags)))
+
     def set_columns_hidden(self, names: Sequence[str]) -> None:
-        self._state.columns_changed.emit(ColumnsChanged(tuple(names)))
+        self._state.hidden_columns_changed.emit(ColumnsChanged(tuple(names)))
 
     def _persist_columns(self, change: ColumnsChanged) -> None:
         self._config.set_hidden_columns(change.hidden)

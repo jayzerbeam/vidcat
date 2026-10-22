@@ -70,7 +70,7 @@ class VideoInfoFrame(ttk.Frame):
                     break
 
         self._widgets.thumbnails.set_image_click_handler(_play_from_image)
-        ctx.state.thumbnails_changed.connect(self.update_thumbs)
+        ctx.state.staged_thumbnails_changed.connect(self.update_thumbs)
 
     def update_thumbs(self, change: ThumbnailsChanged) -> None:
         self._thumbs = tuple(

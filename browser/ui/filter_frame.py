@@ -5,7 +5,7 @@ from typing import NamedTuple
 from ui.better_treeview import ScrollableTreeviewFrame
 
 from .actions import UiContext
-from .state import ActorCounts, FilterOperator, HighlightsChanged, TagCounts
+from .state import ActorCounts, FilterOperator, TagCounts
 
 
 class FilterFrame(ttk.Frame):
@@ -89,8 +89,8 @@ class FilterFrame(ttk.Frame):
 
     def _handle_actors_select(self, ev: tk.Event) -> None:
         actors, tags = self._selection()
-        self._ctx.state.highlights_changed.emit(HighlightsChanged(actors, tags))
+        self._ctx.actions.set_highlights(actors, tags)
 
     def _handle_tags_select(self, ev: tk.Event) -> None:
         actors, tags = self._selection()
-        self._ctx.state.highlights_changed.emit(HighlightsChanged(actors, tags))
+        self._ctx.actions.set_highlights(actors, tags)

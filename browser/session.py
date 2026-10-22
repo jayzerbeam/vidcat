@@ -31,6 +31,7 @@ class VideoSession:
         self._split_list = split_list
         self._selected_path = None
         self._metadata = empty_metadata()
+        self._state.stored_metadata_changed.connect(self._on_stored_metadata)
 
     @property
     def selected_path(self) -> Path | None:
@@ -92,7 +93,7 @@ class VideoSession:
         if not insert_bookmark(self._metadata, Bookmark(time_ms, frame_no, name)):
             return False
 
-        self._state.bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
+        self._state.staged_bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
         return True
 
     def remove_bookmark(self, time_ms: int) -> None:
@@ -103,7 +104,7 @@ class VideoSession:
         if not delete_bookmark(self._metadata, time_ms):
             return
 
-        self._state.bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
+        self._state.staged_bookmarks_changed.emit(BookmarksChanged(path, parse_bookmarks(self._metadata)))
 
     def apply_for(self, path: Path, metadata: dict[str, Any] | None) -> None:
         """Merge generated metadata (when present) into the loaded metadata and refresh the view.
@@ -115,6 +116,24 @@ class VideoSession:
             return
         if metadata is not None:
             self._metadata |= metadata
+        self._show()
+
+    def _on_stored_metadata(self, change: FileMetadataChanged) -> None:
+        """Fully restage the selected file from an authoritative store-side change.
+
+        A store-side event for the selected file replaces the staged metadata wholesale, so
+        unsaved buffer edits are discarded: reload from disk wins. This is deliberate - it is
+        what makes bulk edits, bulk thumbnail generation and "Clean" fully effective.
+
+        The shallow copy is safe by invariant: store-side emitters pass fresh dicts they never
+        retain or mutate after emission, and session-side writers only replace top-level keys,
+        so nested values are never mutated in place. The session subscribes only to the
+        store-side signal, never to the staged_metadata_changed it emits via _show(), and the
+        treeview handler does not emit, so this cannot loop.
+        """
+        if change.path != self._selected_path:
+            return
+        self._metadata = dict(change.metadata)
         self._show()
 
     def _load(self, path: Path) -> None:
@@ -133,7 +152,14 @@ class VideoSession:
         self._state.selection_changed.emit(SelectionChanged((path,)))
 
     def _show(self) -> None:
-        self._state.file_metadata_changed.emit(FileMetadataChanged(self._selected_path or Path(), self._metadata))
+        """Push the live staged view to the UI: Tk variables and staged_metadata_changed.
+
+        The payload is the live _metadata dict, so consumers read it synchronously and never
+        retain it. Loop-safety: the session listens only to the store-side
+        stored_metadata_changed, never to the staged_metadata_changed emitted here, and the
+        treeview handler does not emit, so one render happens per event.
+        """
+        self._state.staged_metadata_changed.emit(FileMetadataChanged(self._selected_path or Path(), self._metadata))
 
         vres = self._metadata["video_properties"]["dimensions"]
         vlen = nice_duration(self._metadata["video_properties"]["duration"])
@@ -143,9 +169,9 @@ class VideoSession:
         self._state.video_len.set(f"length: {vlen}")
         self._state.video_res.set(f"resolution: {vres[0]}x{vres[1]}")
         # the stored thumbnails are raw (jpeg, frame_no, time_ms) tuples; convert to the UI payload type
-        self._state.thumbnails_changed.emit(
+        self._state.staged_thumbnails_changed.emit(
             ThumbnailsChanged(tuple(Thumbnail(*t) for t in self._metadata["thumbnails"]))
         )
-        self._state.bookmarks_changed.emit(
+        self._state.staged_bookmarks_changed.emit(
             BookmarksChanged(self._selected_path or Path(), parse_bookmarks(self._metadata))
         )

@@ -101,7 +101,7 @@ class ScrubFrame(ttk.Frame):
         self._poll_results()
 
         ctx.state.selection_changed.connect(self._handle_selection)
-        ctx.state.bookmarks_changed.connect(self._handle_bookmarks_changed)
+        ctx.state.staged_bookmarks_changed.connect(self._handle_staged_bookmarks_changed)
 
     def _handle_selection(self, change: SelectionChanged) -> None:
         paths = change.paths
@@ -156,7 +156,7 @@ class ScrubFrame(ttk.Frame):
             return done.wait(timeout)
         return True
 
-    def _handle_bookmarks_changed(self, change: BookmarksChanged) -> None:
+    def _handle_staged_bookmarks_changed(self, change: BookmarksChanged) -> None:
         self._bookmarks_path = change.path
         self._bookmarks = change.bookmarks
         if change.path == self._path:
