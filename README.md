@@ -10,12 +10,14 @@ This started out as a small script to help me manage video clips off my cameras 
 
 ### Features
 
-- file browsing
-- thumbnail generation
-- actor/tag lists
+- video filtered file browsing
+- video metadata:
+	- thumbnails
+	- actor/tag lists
+	- bookmarks
 - filter by actor/tags
-- playback from thumbnail times
 - basic video scrubbing
+- playback from thumbnail or bookmarks
 
 ### Sidecar files
 
@@ -38,3 +40,18 @@ Mac/Linux sidecar via extended attributes is TBD.
 ## Known Issues
 
 The actors/tags in the filter tab only represents a snapshot of the corresponding metadata at the time the scan is performed. Updates to actor/tag metadata on files will not be reflected in the filters list unless another full scan is done.
+
+## Background
+
+This started as a simple app to help catalog video files coming off my camera.
+
+The initial requirements I wanted were:
+
+- lightweight app
+- quickly and easily browse files
+- support arbitrary metadata without having to re-write the entire file (some video containers support this but often require re-writing the entire file)
+- metadata intrinsically lives with the video file
+
+Python Tk and NTFS alternate data streams fit the bill nicely.
+
+Most of the app was written by hand but then I started doing more LLM assisted coding around commit `d0ec13c`
