@@ -54,7 +54,7 @@ class Config:
                 self._thumb_interval = data.get("thumb_interval", DEFAULT_THUMB_INTERVAL)
                 self._trash_dir = Path(data.get("trash_dir", DEFAULT_TRASH_DIR))
 
-                if "vid_player" in data and Path(data["vid_player"]).exists():
+                if data.get("vid_player") and Path(data["vid_player"]).is_file():
                     self._vid_player = Path(data["vid_player"])
 
                 if isinstance(data.get("vid_player_args", None), list):

@@ -45,7 +45,7 @@ class Launcher:
         path = path.resolve()
 
         player = self._vid_player
-        if player is not None and player.exists():
+        if player is not None and player.is_file():
             argv = [player.name, f'"{path}"']
             if len(self._vid_player_args) > 0:
                 argv.extend(

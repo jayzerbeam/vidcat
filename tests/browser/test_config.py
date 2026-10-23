@@ -144,3 +144,16 @@ def test_save_uses_resolved_path_after_chdir(tmp_path: Path, monkeypatch: pytest
 
     assert json.loads(config.read_text())["hidden_columns"] == ["time"]
     assert not (other_dir / "config.json").exists()
+
+
+def test_load_ignores_empty_or_directory_vid_player(tmp_path: Path) -> None:
+    config = tmp_path / "config.json"
+    _write_config(config, {"vid_player": ""})
+
+    cfg = Config()
+    cfg.load(config)
+    assert cfg.vid_player is None
+
+    _write_config(config, {"vid_player": str(tmp_path)})
+    cfg.load(config)
+    assert cfg.vid_player is None

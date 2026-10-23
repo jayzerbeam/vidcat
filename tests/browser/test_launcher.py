@@ -81,11 +81,9 @@ def test_play_missing_path_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert (opened, spawned) == ([], [])
 
 
-@pytest.mark.parametrize("player_name", [None, "missing-player.exe"])
-def test_play_windows_fallback(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, player_name: str | None
-) -> None:
-    """Without a player, or with one that does not exist, the OS default opens the file."""
+@pytest.mark.parametrize("player_name", [None, "missing-player.exe", "."])
+def test_play_windows_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, player_name: str | None) -> None:
+    """Without a player, or with one that is not a file, the OS default opens the file."""
     f = _write_file(tmp_path / "video.mp4")
     player = tmp_path / player_name if player_name is not None else None
     opened: list[Path] = []
