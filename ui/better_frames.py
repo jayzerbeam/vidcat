@@ -12,8 +12,8 @@ class ImagesFrame(ttk.Frame):
     _spacing: int
     _min_canvas_width: int = 1000
     _redraw_timer: str | None
+    _image_click_func: Callable | None
     _images: dict[int, ImageTk.PhotoImage]
-    _offset: dict[str, int]
     _canvas: tk.Canvas
     _vscroll: ttk.Scrollbar
     _hscroll: ttk.Scrollbar
@@ -25,6 +25,7 @@ class ImagesFrame(ttk.Frame):
         self._spacing = spacing
         self._min_canvas_width = min_canvas_width
         self._redraw_timer = None
+        self._image_click_func = None
 
         # create a canvas object and a vertical scrollbar for scrolling it
         self._hscroll = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
@@ -83,38 +84,38 @@ class ImagesFrame(ttk.Frame):
             self._images[imgid] = image
         self.redraw_images()
 
-    # there's a bit of a performance bug where redaw will do a redraw->config->redraw
     def redraw_images(self) -> None:
+        self._redraw_timer = None
         offset = Offset(x=0.0, y=0.0)
-        for id, image in self._images.items():
+        req_width = 0.0
+        req_height = 0.0
+        canvas_limit = max(self._min_canvas_width, self._canvas.winfo_width())
+        for idx, (id, image) in enumerate(self._images.items(), start=1):
             self._canvas.moveto(id, *astuple(offset))
             offset.x += self._spacing + image.width()
-            self._canvas.config(
-                width=max(offset.x, self._canvas.winfo_reqwidth()),
-                height=offset.y + image.height(),
-            )
-            # self.canvas.tag_bind(imgid, '<Double-Button-1>', lambda event, imgid = imgid: _dblclick(imgid)) # NOTE DO NOT pass image = image in the lambda or it leads to a memory leak
+            req_width = max(req_width, offset.x)
+            req_height = max(req_height, offset.y + image.height())
             if self._per_row == 0:
-                if offset.x + image.width() > max(self._min_canvas_width, self._canvas.winfo_width()):
-                    offset.x = 0
-                    offset.y = self._canvas.winfo_reqheight() + self._spacing
-            elif self._per_row > 0 and len(self._images) % self._per_row == 0:
-                offset.x = 0
-                offset.y = self._canvas.winfo_reqheight() + self._spacing
-        self.update_scrollbars()
+                if offset.x + image.width() > canvas_limit:
+                    offset.x = 0.0
+                    offset.y = req_height + self._spacing
+            elif self._per_row > 0 and idx % self._per_row == 0:
+                offset.x = 0.0
+                offset.y = req_height + self._spacing
+        self.update_scrollbars(int(req_width), int(req_height))
 
-    def update_scrollbars(self) -> None:
-        self._canvas.config(scrollregion=(0, 0, self._canvas.winfo_reqwidth(), self._canvas.winfo_reqheight()))
+    def update_scrollbars(self, req_width: int = 0, req_height: int = 0) -> None:
+        self._canvas.config(scrollregion=(0, 0, req_width, req_height))
         # hide scroll bars if there's not enough content to scroll
         # NOTE use grid() as pack_forget() doesn't work as expected when calling pack() again
-        if self._canvas.winfo_height() >= self._canvas.winfo_reqheight() and self._vscroll.winfo_ismapped():
-            self._vscroll.grid_forget()
-        elif self._canvas.winfo_height() < self._canvas.winfo_reqheight() and not self._vscroll.winfo_ismapped():
+        if self._canvas.winfo_height() >= req_height and self._vscroll.winfo_ismapped():
+            self._vscroll.grid_remove()
+        elif self._canvas.winfo_height() < req_height and not self._vscroll.winfo_ismapped():
             self._vscroll.grid(column=1, row=0, sticky="NS")
 
-        if self._canvas.winfo_width() >= self._canvas.winfo_reqwidth() and self._hscroll.winfo_ismapped():
+        if self._canvas.winfo_width() >= req_width and self._hscroll.winfo_ismapped():
             self._hscroll.grid_remove()
-        elif self._canvas.winfo_width() < self._canvas.winfo_reqwidth() and not self._hscroll.winfo_ismapped():
+        elif self._canvas.winfo_width() < req_width and not self._hscroll.winfo_ismapped():
             self._hscroll.grid(column=0, row=1, sticky="EW")
 
     def clear_images(self):
