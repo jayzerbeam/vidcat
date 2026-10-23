@@ -259,7 +259,7 @@ def test_save_writes_title_actors_tags_and_size_label(
     # the loaded metadata is mutated in place, not rebuilt
     assert metadata["video_properties"] == {"dimensions": (640, 480), "duration": 90.0}
     assert metadata["thumbnails"] == [(b"jpg", 1, 1)]
-    assert state.meta_size.value == f"metadata size: {round(store.write_size / 1000)}KB"
+    assert state.meta_size.value == f"metadata size: {nice_bytesize(store.write_size)}"
     # the view refreshes before the sidecar is written
     assert log == ["staged_metadata_changed", "staged_thumbnails_changed", "staged_bookmarks_changed", "write"]
 
@@ -668,12 +668,16 @@ def test_remove_bookmark_missing_time_emits_nothing(session: VideoSession, state
     assert state.staged_bookmarks_changed.emissions == []
 
 
-def test_mutators_without_selection_do_nothing(session: VideoSession, state: FakeState, log: list[str]) -> None:
+def test_mutators_without_selection_do_nothing(
+    session: VideoSession, state: FakeState, store: FakeStore, log: list[str]
+) -> None:
     assert session.add_bookmark(5000, 125, "intro") is False
 
     session.remove_bookmark(5000)
+    session.save()
 
     assert state.staged_bookmarks_changed.emissions == []
+    assert store.writes == []
     assert log == []
 
 

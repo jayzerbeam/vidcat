@@ -1,7 +1,7 @@
 import pickle
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from util.format import nice_bytesize, nice_duration
 
@@ -64,8 +64,9 @@ class VideoSession:
 
     def save(self) -> None:
         """Write the edited title/actors/tags into the selected file's sidecar."""
-        # cast: selected_path is None only before any selection; the write below then fails as before
-        path = cast(Path, self._selected_path)
+        path = self._selected_path
+        if path is None:
+            return
         print(f"saving metadata for {path}")
 
         # thumbnails are updated on generation
@@ -75,7 +76,7 @@ class VideoSession:
         self._show()
         try:
             size = self._store.write(path, self._metadata)
-            self._state.meta_size.set(f"metadata size: {round(size / 1000)}KB")
+            self._state.meta_size.set(f"metadata size: {nice_bytesize(size)}")
         except pickle.PickleError:
             print(f"failed to pickle metadata for {path}")
         except Exception as ex:
