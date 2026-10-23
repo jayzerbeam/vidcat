@@ -109,7 +109,8 @@ class App:
         if not self._trash.available:
             return
 
-        if self._session.selected_path in paths:
+        selected = self._session.selected_path
+        if selected is not None and any(selected.is_relative_to(p) for p in paths):
             self._session.clear()
 
         removed = self._trash.send(paths)
