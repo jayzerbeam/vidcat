@@ -146,7 +146,7 @@ class MetadataStore:
                 yield p
 
     def edit(self, path: Path, action: BulkAction, value: str) -> dict[str, Any] | None:
-        """Apply a bulk edit and write the sidecar unconditionally; None when the file is skipped."""
+        """Apply a bulk edit and write the sidecar when changed; None when unchanged or skipped."""
         metadata = empty_metadata()
         try:
             metadata = _loads_metadata(self._open(path).read())
@@ -157,7 +157,8 @@ class MetadataStore:
             traceback.print_exc()
             return None
 
-        apply_bulk_edit(metadata, action, value)
+        if not apply_bulk_edit(metadata, action, value):
+            return None
 
         try:
             print(f"updating metadata for {path}")

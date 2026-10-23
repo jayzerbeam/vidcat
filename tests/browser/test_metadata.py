@@ -303,10 +303,11 @@ def test_store_delete_files_skips_non_files_and_continues_on_error(
     assert f"error: failed to delete metadata for {bad}: boom" in capsys.readouterr().out
 
 
-def test_store_edit_writes_even_when_nothing_changed(
+def test_store_edit_skips_write_when_nothing_changed(
     store: MetadataStore, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     f = _write_file(tmp_path / "video.mp4")
+    bare = _write_file(tmp_path / "bare.mp4")
     store.write(f, {"actors": ["a"]})
     writes: list[Path] = []
     real_write = store.write
@@ -317,11 +318,10 @@ def test_store_edit_writes_even_when_nothing_changed(
 
     monkeypatch.setattr(store, "write", _write)
 
-    result = store.edit(f, BulkAction.ADD_ACTOR, "a")
-
-    assert result is not None
-    assert result["actors"] == ["a"]
-    assert writes == [f]
+    assert store.edit(f, BulkAction.ADD_ACTOR, "a") is None
+    assert store.edit(bare, BulkAction.DEL_ACTOR, "a") is None
+    assert writes == []
+    assert store.exists(bare) is False
 
 
 def test_store_edit_returns_none_when_load_fails(
