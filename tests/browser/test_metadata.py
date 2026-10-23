@@ -232,6 +232,29 @@ def test_store_read_round_trip(store: MetadataStore, tmp_path: Path) -> None:
     assert stored.metadata == metadata
 
 
+def test_store_read_allows_legacy_numpy_thumbnails_and_rejects_unsafe_globals(
+    store: MetadataStore, tmp_path: Path
+) -> None:
+    import numpy as np
+
+    f = _write_file(tmp_path / "video.mp4")
+    metadata = empty_metadata()
+    metadata["thumbnails"] = [(np.frombuffer(b"\xff\xd8\xff\xd9", dtype=np.uint8), 1, 100)]
+    store.write(f, metadata)
+
+    loaded = store.read(f).metadata
+    assert bytes(loaded["thumbnails"][0][0]) == b"\xff\xd8\xff\xd9"
+
+    class _Exploit:
+        def __reduce__(self) -> tuple[Any, tuple[str]]:
+            return (eval, ("1 + 1",))
+
+    bad = _write_file(tmp_path / "bad.mp4")
+    store.write(bad, {"title": _Exploit()})
+    with pytest.raises(metadata_module.pickle.UnpicklingError, match="forbidden"):
+        store.read(bad)
+
+
 def test_store_read_absent_raises(store: MetadataStore, tmp_path: Path) -> None:
     f = _write_file(tmp_path / "video.mp4")
 

@@ -59,10 +59,27 @@ class Sidecar(Protocol):
     def delete(self) -> None: ...
 
 
+_SAFE_PICKLE_GLOBALS: Final[frozenset[tuple[str, str]]] = frozenset(
+    {
+        ("numpy", "ndarray"),
+        ("numpy", "dtype"),
+        ("numpy.core.multiarray", "_reconstruct"),
+        ("numpy._core.multiarray", "_reconstruct"),
+        ("numpy.core.multiarray", "scalar"),
+        ("numpy._core.multiarray", "scalar"),
+        ("numpy.core.numeric", "_frombuffer"),
+        ("numpy._core.numeric", "_frombuffer"),
+        ("_codecs", "encode"),
+    }
+)
+
+
 class _RestrictedUnpickler(pickle.Unpickler):
-    """Permits only built-in primitive/container opcodes; forbids all class and callable imports."""
+    """Permits built-in primitive/container opcodes and legacy numpy array/scalar constructors."""
 
     def find_class(self, module: str, name: str) -> Any:
+        if (module, name) in _SAFE_PICKLE_GLOBALS:
+            return super().find_class(module, name)
         raise pickle.UnpicklingError(f"global '{module}.{name}' is forbidden in metadata sidecars")
 
 
@@ -99,8 +116,8 @@ class MetadataStore:
             return self.read(path)
         except FileNotFoundError:
             print(f"{path} does not have a magic sidecar")
-        except pickle.UnpicklingError:
-            print(f"{path} does not have valid pickle data, using default")
+        except pickle.UnpicklingError as ex:
+            print(f"{path} does not have valid pickle data, using default: {ex}")
         except Exception as ex:
             print(f"{path} failed to load metadata: {ex}")
         return StoredMetadata(empty_metadata(), 0)
@@ -152,7 +169,9 @@ class MetadataStore:
         else:
             return metadata
 
-    def edit_files(self, paths: Sequence[Path], action: BulkAction, value: str) -> Iterator[tuple[Path, dict[str, Any]]]:
+    def edit_files(
+        self, paths: Sequence[Path], action: BulkAction, value: str
+    ) -> Iterator[tuple[Path, dict[str, Any]]]:
         for p in paths:
             if not p.is_file():
                 continue
@@ -332,8 +351,8 @@ def aggregate_files(
 
         try:
             stored = store.read(path)
-        except pickle.UnpicklingError:
-            print(f"failed to unpickle metadata for {path}")
+        except pickle.UnpicklingError as ex:
+            print(f"failed to unpickle metadata for {path}: {ex}")
         except Exception:
             print(f"failed to read metadata for {path}")
         else:
