@@ -16,11 +16,12 @@ class SortDir(StrEnum):
 
 
 class SortableTreeview(ttk.Treeview):
-    _sort_dir = SortDir
+    _sort_dir: SortDir
     _sortable: bool
 
     def __init__(self, parent, sortable: bool = True, *args, **kwargs):
         self._sortable = sortable
+        self._sort_dir = SortDir.DESC
         super().__init__(parent, *args, **kwargs)
 
         def _click(ev: tk.Event) -> None:
@@ -34,20 +35,31 @@ class SortableTreeview(ttk.Treeview):
     def clear(self, from_iid: str = ""):
         self.delete(*self.get_children(from_iid))
 
-    # TODO check out of bounds
     def sort_on_column(self, column: str) -> None:
-        if not self._sortable:
+        if not self._sortable or not column:
+            return
+
+        cols = self["columns"]
+        col_names = tuple(cols) if isinstance(cols, (tuple, list)) else ()
+        stripped = column.strip("#")
+        try:
+            col_idx = int(stripped)
+        except ValueError:
+            if column in col_names:
+                col_idx = col_names.index(column) + 1
+            else:
+                return
+
+        if col_idx < 0 or col_idx > len(col_names):
             return
 
         items = []
-        column = column.strip("#")
         self._sort_dir = SortDir.DESC if self._sort_dir == SortDir.ASC else SortDir.ASC
         for item in self.get_children(""):
             itemconfig = self.item(item)
             items.append((item, itemconfig["text"], *itemconfig["values"]))
-            self.detach(item)
         items.sort(
-            key=lambda item: item[int(column) + 1],
+            key=lambda item: item[col_idx + 1] if col_idx + 1 < len(item) else "",
             reverse=self._sort_dir == SortDir.DESC,
         )
         for item in items:
