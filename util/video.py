@@ -165,14 +165,14 @@ class VideoThumbnailer:
         s = 0  # success
         for img, fno, time in self._frames:
             if img.mode != "RGB":
-                img.convert("RGB")
+                img = img.convert("RGB")
 
             try:
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG", quality=jpgq, optimize=True)
-                bytes = buf.getvalue()
+                data = buf.getvalue()
                 buf.close()
-                jpgs.append((bytes, fno, time))
+                jpgs.append((data, fno, time))
                 s += 1
                 print(".", end="", flush=True)
             except Exception:
