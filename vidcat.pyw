@@ -8,7 +8,7 @@ from browser.config import Config
 from ui.message_system import MessageWindow
 
 CONFIG_NAME: Final[str] = "vidcat.cfg.json"
-SCRIPT_DIR: Final[Path] = Path(__file__).parent
+SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -22,22 +22,24 @@ if __name__ == "__main__":
     parser.add_argument(
         "path",
         type=Path,
-        help="note: all paths (trash, vid_player, etc.) are relative to here",
+        help="base path to search for files. trash, vid_player, etc. are relative to here",
     )
     args = parser.parse_args()
-
-    cfg = Config()
-    if args.config.is_file():
-        cfg.load(args.config)
-    else:
-        cfg.write_default(args.config)
-        print(f"no config found, created new default config at '{args.config}'")
 
     if not args.path.is_dir():
         print(f"{args.path} is not a directory")
         raise SystemExit
 
+    config_path = args.config.resolve()
+
     with chdir(args.path):
+        cfg = Config()
+        if config_path.is_file():
+            cfg.load(config_path)
+        else:
+            cfg.write_default(config_path)
+            print(f"no config found, created new default config at '{config_path}'")
+
         path = Path(".")
         window = MessageWindow()
         window.title(f"VidCat ({path.resolve()})")

@@ -44,7 +44,7 @@ class Config:
         self._path: Path | None = None
 
     def load(self, path: Path) -> None:
-        self._path = path
+        self._path = path.resolve()
 
         try:
             with path.open("r") as f:
@@ -70,7 +70,7 @@ class Config:
 
     def write_default(self, path: Path) -> None:
         """write the default settings to path. for first runs where no config file exists yet."""
-        self._path = path
+        self._path = path.resolve()
         self.save()
 
     def save(self) -> None:

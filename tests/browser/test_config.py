@@ -124,3 +124,23 @@ def test_save_round_trip(tmp_path: Path) -> None:
     reloaded = Config()
     reloaded.load(config)
     assert reloaded.hidden_columns == ("time", "res")
+
+
+def test_save_uses_resolved_path_after_chdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg_dir = tmp_path / "cfg"
+    other_dir = tmp_path / "other"
+    cfg_dir.mkdir()
+    other_dir.mkdir()
+    config = cfg_dir / "config.json"
+    _write_config(config, {"hidden_columns": []})
+
+    monkeypatch.chdir(cfg_dir)
+    cfg = Config()
+    cfg.load(Path("config.json"))
+
+    monkeypatch.chdir(other_dir)
+    cfg.set_hidden_columns(("time",))
+    cfg.save()
+
+    assert json.loads(config.read_text())["hidden_columns"] == ["time"]
+    assert not (other_dir / "config.json").exists()
