@@ -87,12 +87,28 @@ def test_iter_files_scoped_to_subtree(library: VideoLibrary, tmp_path: Path) -> 
 
 
 def test_trash_creates_missing_directory(tmp_path: Path) -> None:
-    path = tmp_path / "trash"
+    path = tmp_path / "nested" / "trash"
 
     trash = Trash(path)
 
     assert path.is_dir()
     assert trash.available is True
+
+
+def test_trash_unavailable_when_mkdir_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "trash"
+
+    def _fail(*_args: object, **_kwargs: object) -> None:
+        raise OSError("drive unavailable")
+
+    monkeypatch.setattr(Path, "mkdir", _fail)
+
+    trash = Trash(path)
+
+    assert trash.available is False
+    assert f"error: failed to create trash directory {path}: drive unavailable" in capsys.readouterr().out
 
 
 def test_trash_send_moves_files_and_skips_missing(tmp_path: Path) -> None:

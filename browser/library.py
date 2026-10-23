@@ -65,8 +65,13 @@ class Trash:
     _path: Path | None
 
     def __init__(self, path: Path) -> None:
-        if not path.exists():
-            path.mkdir()
+        try:
+            if not path.exists():
+                path.mkdir(parents=True, exist_ok=True)
+        except OSError as ex:
+            print(f"error: failed to create trash directory {path}: {ex}")
+            self._path = None
+            return
 
         if path.is_dir():
             self._path = path
