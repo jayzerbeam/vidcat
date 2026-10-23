@@ -121,7 +121,7 @@ class EditableList(tk.Frame):
 
     @property
     def items(self) -> Sequence[str]:
-        return self._widgets.list.curselection()
+        return self._widgets.list.get(0, tk.END)
 
     def add_items(self, items: Sequence[str]) -> None:
         for item in items:
