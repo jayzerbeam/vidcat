@@ -1,3 +1,4 @@
+import io
 import pickle
 import time
 import traceback
@@ -58,6 +59,20 @@ class Sidecar(Protocol):
     def delete(self) -> None: ...
 
 
+class _RestrictedUnpickler(pickle.Unpickler):
+    """Permits only built-in primitive/container opcodes; forbids all class and callable imports."""
+
+    def find_class(self, module: str, name: str) -> Any:
+        raise pickle.UnpicklingError(f"global '{module}.{name}' is forbidden in metadata sidecars")
+
+
+def _loads_metadata(raw: bytes) -> dict[str, Any]:
+    data = _RestrictedUnpickler(io.BytesIO(raw)).load()
+    if not isinstance(data, dict):
+        raise pickle.UnpicklingError(f"expected metadata dict, got {type(data).__name__}")
+    return data
+
+
 class MetadataStore:
     """Persists pickled metadata in per-file sidecars under a single namespace."""
 
@@ -76,7 +91,7 @@ class MetadataStore:
 
     def read(self, path: Path) -> StoredMetadata:
         raw = self._open(path).read()
-        return StoredMetadata(pickle.loads(raw), len(raw))
+        return StoredMetadata(_loads_metadata(raw), len(raw))
 
     def read_or_empty(self, path: Path) -> StoredMetadata:
         """Read metadata, falling back to an empty schema with byte_size 0 and logging the reason."""
@@ -117,7 +132,7 @@ class MetadataStore:
         """Apply a bulk edit and write the sidecar unconditionally; None when the file is skipped."""
         metadata = empty_metadata()
         try:
-            metadata = pickle.loads(self._open(path).read())
+            metadata = _loads_metadata(self._open(path).read())
         except FileNotFoundError:
             pass
         except Exception as ex:
