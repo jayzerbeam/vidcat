@@ -39,7 +39,11 @@ Mac/Linux sidecar via extended attributes is TBD.
 
 ## Known Issues
 
-The actors/tags in the filter tab only represents a snapshot of the corresponding metadata at the time the scan is performed. Updates to actor/tag metadata on files will not be reflected in the filters list unless another full scan is done.
+The actor/tags filtering is wonky as it was only ever thrown in as a prospective feature.
+
+- The actors/tags in the filter tab only represents a snapshot of the corresponding metadata at the time the scan is performed. Updates to actor/tag metadata on files will not be reflected in the filters list unless another full scan is done
+- Filtering using multiple `AND`/`OR` is buggy
+
 
 ## Background
 
