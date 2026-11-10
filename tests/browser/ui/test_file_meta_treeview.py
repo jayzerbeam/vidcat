@@ -6,7 +6,7 @@ import pytest
 
 from browser.metadata import BulkAction
 from browser.ui.actions import UiContext
-from browser.ui.file_meta_treeview import _DATA_COLUMNS, FileMetaTreeviewFrame
+from browser.ui.file_meta_treeview import _DATA_COLUMNS, FileMetaTreeviewFrame, _split_cell
 from browser.ui.state import ColumnsChanged, FilterOperator, UiState
 
 
@@ -56,6 +56,12 @@ def test_before_any_change_all_data_columns_counts_as_shown(root: tk.Tk) -> None
     assert frame._shown_columns() == {name for name, _ in _DATA_COLUMNS}
 
 
+def test_split_cell_drops_empty_values() -> None:
+    assert _split_cell("") == set()
+    assert _split_cell("Alice, Bob") == {"Alice", "Bob"}
+    assert _split_cell("Alice, , Bob") == {"Alice", "Bob"}
+
+
 def test_columns_option_matches_data_columns(root: tk.Tk) -> None:
     frame, _ = make_frame(root)
 
@@ -89,3 +95,21 @@ def test_toggle_on_shown_column_hides_it(root: tk.Tk) -> None:
     frame._handle_toggle_column("time")
 
     assert actions.hidden_columns == ("time",)
+
+
+def test_blank_actor_filter_does_not_match_a_file_without_actors(root: tk.Tk) -> None:
+    frame, _ = make_frame(root)
+    frame.treeview.insert("", tk.END, iid="file", tags=("file",), values=("00:10", "1920x1080", "", ""))
+
+    frame.apply_filters(("",), (), FilterOperator.AND)
+
+    assert "file" not in frame.treeview.get_children("")
+
+
+def test_blank_actor_highlight_skips_a_file_without_actors(root: tk.Tk) -> None:
+    frame, _ = make_frame(root)
+    frame.treeview.insert("", tk.END, iid="file", tags=("file",), values=("00:10", "1920x1080", "", ""))
+
+    frame.highlight_by_metadata(("",), ())
+
+    assert "highlight" not in frame.treeview.item("file")["tags"]

@@ -26,6 +26,11 @@ _DATA_COLUMNS: Final[tuple[tuple[str, str], ...]] = (
 )
 
 
+def _split_cell(value: str) -> set[str]:
+    """parse a ', '-joined actors/tags cell, dropping empty values so a blank cell means 'none'"""
+    return {s for s in value.split(", ") if s}
+
+
 def any_in_list(s1: set, s2: set, case_sensitive: bool = False) -> bool:
     if not case_sensitive:
         s1 = set(map(str.lower, s1))
@@ -260,11 +265,11 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
                 itemconfig = self.treeview.item(item)
                 (item_actors, item_tags) = (
                     (
-                        itemconfig["values"][2].split(", "),
-                        itemconfig["values"][3].split(", "),
+                        _split_cell(itemconfig["values"][2]),
+                        _split_cell(itemconfig["values"][3]),
                     )
                     if len(itemconfig["values"])
-                    else ([], [])
+                    else (set(), set())
                 )
                 if operator == FilterOperator.AND:
                     if (actors and len(set(actors) & set(item_actors)) != len(actors)) or (
@@ -304,8 +309,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
                 itemconfig = self.treeview.item(item)
                 (item_actors, item_tags) = (
                     (
-                        set(itemconfig["values"][2].split(", ")),
-                        set(itemconfig["values"][3].split(", ")),
+                        _split_cell(itemconfig["values"][2]),
+                        _split_cell(itemconfig["values"][3]),
                     )
                     if len(itemconfig["values"])
                     else (set(), set())
