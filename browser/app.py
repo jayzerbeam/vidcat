@@ -184,7 +184,10 @@ class App:
                 self._widgets.input.label_text = "Enter tag to remove"
 
         val = self._widgets.input.block_for_input()
-        if val is None or not val.strip():
+        if val is None:
+            return
+        val = val.replace(",", "").strip()
+        if not val:
             return
 
         for f, file_metadata in self._store.edit_files(paths, action, val):

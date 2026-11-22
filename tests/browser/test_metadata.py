@@ -120,6 +120,27 @@ def test_apply_bulk_edit_coerces_tuples_and_tolerates_missing_keys() -> None:
     assert apply_bulk_edit({}, BulkAction.DEL_TAG, "new") is False
 
 
+def test_apply_bulk_edit_strips_commas_and_rejects_empty_after_strip() -> None:
+    metadata = empty_metadata()
+
+    assert apply_bulk_edit(metadata, BulkAction.ADD_ACTOR, "  Smith, John  ") is True
+    assert metadata["actors"] == ["Smith John"]
+
+    assert apply_bulk_edit(metadata, BulkAction.DEL_ACTOR, "Smith, John") is True
+    assert metadata["actors"] == []
+
+    assert apply_bulk_edit(metadata, BulkAction.ADD_TAG, "  Sci, Fi  ") is True
+    assert metadata["tags"] == ["sci fi"]
+
+    assert apply_bulk_edit(metadata, BulkAction.DEL_TAG, "Sci, Fi") is True
+    assert metadata["tags"] == []
+
+    assert apply_bulk_edit(metadata, BulkAction.ADD_ACTOR, " , , ") is False
+    assert apply_bulk_edit(metadata, BulkAction.ADD_TAG, " , ") is False
+    assert metadata["actors"] == []
+    assert metadata["tags"] == []
+
+
 def test_parse_bookmarks_tolerates_missing_key_and_non_list() -> None:
     assert parse_bookmarks({}) == ()
     assert parse_bookmarks({"bookmarks": None}) == ()

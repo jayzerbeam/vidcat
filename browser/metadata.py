@@ -184,6 +184,10 @@ class MetadataStore:
 
 def apply_bulk_edit(metadata: dict[str, Any], action: BulkAction, value: str) -> bool:
     """Apply one bulk actor/tag action to metadata in place; returns whether anything changed."""
+    value = value.replace(",", "").strip()
+    if not value:
+        return False
+
     actors = list(metadata.get("actors", []))
     tags = list(metadata.get("tags", []))
 
