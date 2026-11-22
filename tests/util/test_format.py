@@ -21,13 +21,32 @@ def test_nice_duration_hours() -> None:
     assert nice_duration(3600) == "1h 0m 0s"
 
 
+def test_nice_duration_sixty_plus_hours() -> None:
+    assert nice_duration(216000) == "60h 0m 0s"
+    assert nice_duration(259261) == "72h 1m 1s"
+
+
+def test_nice_duration_float_seconds() -> None:
+    assert nice_duration(0.5) == "0s"
+    assert nice_duration(61.9) == "1m 1s"
+
+
+def test_nice_duration_negative() -> None:
+    assert nice_duration(-0.5) == "0s"
+    assert nice_duration(-1) == "-1s"
+    assert nice_duration(-65) == "-1m 5s"
+    assert nice_duration(-3600) == "-1h 0m 0s"
+    assert nice_duration(-216000) == "-60h 0m 0s"
+
+
 def test_nice_duration_invalid_string() -> None:
     assert nice_duration(cast(int, "x")) == "???"
 
 
-def test_nice_duration_none_raises() -> None:
-    with pytest.raises(TypeError):
-        nice_duration(cast(int, None))
+def test_nice_duration_none_and_non_finite() -> None:
+    assert nice_duration(cast(int, None)) == "???"
+    assert nice_duration(float("inf")) == "???"
+    assert nice_duration(float("nan")) == "???"
 
 
 def test_clock_format_basic() -> None:

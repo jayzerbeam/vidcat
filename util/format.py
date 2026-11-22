@@ -2,21 +2,27 @@ import traceback
 from datetime import timedelta
 
 
-def nice_duration(seconds: int) -> str:
+def nice_duration(seconds: float) -> str:
     units = ["h", "m", "s"]
     formatted = ""
     try:
         t = int(seconds)
-    except ValueError:
+    except ValueError, TypeError, OverflowError:
         return "???"
     else:
         if t == 0:
             return "0s"
 
+        sign = "-" if t < 0 else ""
+        t = abs(t)
         while t >= 1:
-            formatted = f" {t % 60}{units.pop()}" + formatted
-            t = int(t / 60)
-    return formatted.strip()
+            unit = units.pop()
+            if units:
+                t, val = divmod(t, 60)
+            else:
+                t, val = 0, t
+            formatted = f" {val}{unit}" + formatted
+    return f"{sign}{formatted.strip()}"
 
 
 def clock_format(seconds: float, decimals: int = 0) -> str | None:
