@@ -34,6 +34,26 @@ def test_scan_filters_extensions(library: VideoLibrary, tmp_path: Path) -> None:
     assert [f.name for f in deep.files()] == ["deep.mp4"]
 
 
+def test_scan_and_rescan_match_extensions_case_insensitively(tmp_path: Path) -> None:
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "CLIP.MP4").write_text("x")
+    (tmp_path / "Movie.Mp4").write_text("x")
+    lib = VideoLibrary(tmp_path, (".mp4",))
+    lib.scan()
+
+    assert [f.name for f in lib.tree.files()] == ["Movie.Mp4"]
+    sub_pt = lib.tree.dir("sub")
+    assert sub_pt is not None
+    assert [f.name for f in sub_pt.files()] == ["CLIP.MP4"]
+
+    (sub / "CLIP.MP4").unlink()
+    (sub / "NEXT.Mp4").write_text("x")
+    rescanned = lib.rescan(sub)
+    assert rescanned is not None
+    assert [f.name for f in rescanned.files()] == ["NEXT.Mp4"]
+
+
 def test_rescan_picks_up_changes(library: VideoLibrary, tmp_path: Path) -> None:
     sub = tmp_path / "sub"
     (sub / "a.mp4").unlink()

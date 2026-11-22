@@ -55,6 +55,15 @@ def test_scan_extension_filter(tmp_path: Path) -> None:
     assert sub.file_count == 1
 
 
+def test_scan_extension_filter_case_insensitive(tmp_path: Path) -> None:
+    (tmp_path / "upper.MP4").write_text("x")
+    (tmp_path / "mixed.MkV").write_text("y")
+    (tmp_path / "other.TXT").write_text("z")
+    pt = PathTree(tmp_path)
+    pt.scan(filters=[path_extension_filter([".mp4", ".MKV"])])
+    assert sorted(f.name for f in pt.files()) == ["mixed.MkV", "upper.MP4"]
+
+
 def test_dig(tree: PathTree, tmp_path: Path) -> None:
     assert tree.dig(tmp_path / "sub") is tree.dir("sub")
     assert tree.dig(tmp_path.parent / "other") is None

@@ -140,7 +140,8 @@ class PathTree:
 
 
 def path_extension_filter(extensions: Sequence[str]) -> PathTreeFilter:
-    return lambda p: p.is_dir() or p.suffix in extensions
+    exts = {ext.lower() for ext in extensions}
+    return lambda p: p.is_dir() or p.suffix.lower() in exts
 
 
 def build_dir_tree_dict(
