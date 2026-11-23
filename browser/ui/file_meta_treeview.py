@@ -1,5 +1,6 @@
 import tkinter as tk
 from collections.abc import Sequence
+from collections.abc import Set as AbstractSet
 from functools import partial
 from pathlib import Path
 from typing import Final, NamedTuple, cast
@@ -26,12 +27,13 @@ _DATA_COLUMNS: Final[tuple[tuple[str, str], ...]] = (
 )
 
 
-def _split_cell(value: str) -> set[str]:
-    """parse a ', '-joined actors/tags cell, dropping empty values so a blank cell means 'none'"""
-    return {s for s in value.split(", ") if s}
+type _MetaLists = tuple[frozenset[str], frozenset[str]]
+
+# shared empty entry for rows that have not received a metadata signal; frozensets are immutable
+_EMPTY_META: Final[_MetaLists] = (frozenset(), frozenset())
 
 
-def any_in_list(s1: set, s2: set, case_sensitive: bool = False) -> bool:
+def any_in_list(s1: AbstractSet[str], s2: AbstractSet[str], case_sensitive: bool = False) -> bool:
     if not case_sensitive:
         s1 = set(map(str.lower, s1))
         s2 = set(map(str.lower, s2))
@@ -49,6 +51,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
     _menus: _Menus
     _col_vars: dict[str, tk.BooleanVar]
+    # iid -> (actors, tags) from the last metadata signal; the treeview cells are display-only
+    _meta: dict[str, _MetaLists]
 
     def __init__(self, parent, ctx: UiContext, *args, **kw):
         super().__init__(
@@ -63,6 +67,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
         self._ctx = ctx
         self._context_path: str = ""
+        self._meta = {}
 
         # disable propogation to set a treeview total width wider than the frame
         self.grid_propagate(False)
@@ -151,6 +156,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
 
     def _on_file_tree(self, update: FileTreeUpdate) -> None:
         self.fill_from_pathtree(update.tree, update.from_iid)
+        # the fill deletes rows that vanished from disk; drop their metadata with them
+        self._meta = {iid: meta for iid, meta in self._meta.items() if self.treeview.exists(iid)}
 
     def _on_paths_removed(self, change: PathsRemoved) -> None:
         self.remove_items([str(p) for p in change.paths])
@@ -235,6 +242,8 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         self._ctx.actions.delete_paths(self._selected_paths())
 
     def remove_items(self, iids: Sequence[str]) -> None:
+        for iid in iids:
+            self._meta.pop(iid, None)
         existing = [iid for iid in iids if self.treeview.exists(iid)]
         if existing:
             self.treeview.delete(*existing)
@@ -245,6 +254,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         if not self.child.exists(iid):
             return
 
+        self._meta[iid] = (frozenset(actors), frozenset(tags))
         self.child.item(iid, values=(clock_format(duration), f"{res[0]}x{res[1]}", ", ".join(actors), ", ".join(tags)))
 
     def collapse_all(self) -> None:
@@ -262,24 +272,14 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
     ) -> None:
         def _recurse(item):
             if self.treeview.tag_has("file", item):
-                itemconfig = self.treeview.item(item)
-                (item_actors, item_tags) = (
-                    (
-                        _split_cell(itemconfig["values"][2]),
-                        _split_cell(itemconfig["values"][3]),
-                    )
-                    if len(itemconfig["values"])
-                    else (set(), set())
-                )
+                item_actors, item_tags = self._meta.get(item, _EMPTY_META)
                 if operator == FilterOperator.AND:
-                    if (actors and len(set(actors) & set(item_actors)) != len(actors)) or (
-                        tags and len(set(tags) & set(item_tags)) != len(tags)
+                    if (actors and len(set(actors) & item_actors) != len(actors)) or (
+                        tags and len(set(tags) & item_tags) != len(tags)
                     ):
                         self.hide(item)
                 else:
-                    if (actors and len(set(actors) & set(item_actors)) == 0) or (
-                        tags and len(set(tags) & set(item_tags)) == 0
-                    ):
+                    if (actors and len(set(actors) & item_actors) == 0) or (tags and len(set(tags) & item_tags) == 0):
                         self.hide(item)
             for child in self.treeview.get_children(item):
                 _recurse(child)
@@ -306,15 +306,7 @@ class FileMetaTreeviewFrame(FileTreeviewFrame):
         def _recurse(item: str):
             highlighted = False
             if self.treeview.tag_has("file", item):
-                itemconfig = self.treeview.item(item)
-                (item_actors, item_tags) = (
-                    (
-                        _split_cell(itemconfig["values"][2]),
-                        _split_cell(itemconfig["values"][3]),
-                    )
-                    if len(itemconfig["values"])
-                    else (set(), set())
-                )
+                item_actors, item_tags = self._meta.get(item, _EMPTY_META)
                 highlighted = any_in_list(set(actors), item_actors) or any_in_list(set(tags), item_tags)
                 _highlight_item(item, highlighted, see=True)
             for child in self.treeview.get_children(item):
