@@ -48,7 +48,7 @@ class FilterFrame(ttk.Frame):
             command=lambda: ctx.actions.apply_filters(*self._selection(), operator=FilterOperator.OR)
         )
         self._widgets.filter_or.grid(column=2, row=0, sticky="E", padx=2, pady=2)
-        self._widgets.filter_clear.config(command=ctx.actions.clear_filters)
+        self._widgets.filter_clear.config(command=self._handle_clear)
         self._widgets.filter_clear.grid(column=3, row=0, sticky="E", padx=2, pady=2)
 
         self._widgets.actors.child.heading("#0", text="Actors")
@@ -94,3 +94,8 @@ class FilterFrame(ttk.Frame):
     def _handle_tags_select(self, ev: tk.Event) -> None:
         actors, tags = self._selection()
         self._ctx.actions.set_highlights(actors, tags)
+
+    def _handle_clear(self) -> None:
+        self._widgets.actors.child.selection_set()
+        self._widgets.tags.child.selection_set()
+        self._ctx.actions.clear_filters()
