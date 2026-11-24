@@ -185,7 +185,7 @@ class ScrubFrame(ttk.Frame):
                     reader = VideoReader(payload)
                     frame = reader.frame_at(0.0)
                     duration = reader.duration
-                    frame_rate = reader.frame_rate
+                    frame_rate = reader.fps
                 except Exception as ex:
                     # a file that can't be read (or has no frame rate) simply isn't loaded
                     print(f"error: failed to load {payload} for scrubbing: {ex}")

@@ -16,13 +16,11 @@ def _stream_rate(stream: Any) -> Fraction | None:
 
 
 class VideoThumbnailer:
-    _DEFAULT_FPS = 30  # incase it's unknown
     _path: Path
     _frames: list[tuple[Image.Image, int, int]]
     _dimensions: tuple[int, int]
 
     _time_base: Fraction | None
-    _average_rate: Fraction | None
     _last_pts: int | None
 
     def __init__(self, path: Path):
@@ -37,7 +35,6 @@ class VideoThumbnailer:
 
             self._dimensions = (vs.width, vs.height)
             self._time_base = vs.time_base
-            self._average_rate = _stream_rate(vs)
             avcontainer.seek(1 << 48, stream=vs, any_frame=True)
             pkt = next(avcontainer.demux(vs))
             self._last_pts = pkt.pts
@@ -53,18 +50,6 @@ class VideoThumbnailer:
         if self._last_pts is None or self._time_base is None:
             return None
         return float(self._last_pts * self._time_base)
-
-    @property
-    def frame_rate(self) -> float | None:
-        if self._average_rate is None:
-            return None
-        return float(1 / self._average_rate)
-
-    @property
-    def frame_count(self) -> int | None:
-        if self._last_pts is None or self._time_base is None or self._average_rate is None:
-            return None
-        return int(self._last_pts * self._time_base / self._average_rate)
 
     def extract_frames(self, interval: float = 30.0, progress_func: ProgressFunc = lambda p: None) -> None:
         """Extract frames at a given interval
@@ -222,7 +207,7 @@ class VideoReader:
         return float(self._last_pts * self._stream.time_base)
 
     @property
-    def frame_rate(self) -> float | None:
+    def fps(self) -> float | None:
         """Frames per second, or None if the container does not report a rate."""
         rate = _stream_rate(self._stream)
         return float(rate) if rate is not None else None

@@ -180,3 +180,13 @@ def test_video_reader_keeps_container_open_until_close(monkeypatch: pytest.Monke
     assert reader.duration == 1.0
     reader.close()
     assert container.closed is True
+
+
+def test_video_reader_fps_is_frames_per_second(monkeypatch: pytest.MonkeyPatch) -> None:
+    container = FakeContainer()
+    _patch_av(monkeypatch, container)
+
+    reader = VideoReader(Path("clip.mp4"))
+
+    # FakeStream.average_rate is 25/1: the property reports the rate itself, not its period
+    assert reader.fps == 25.0
