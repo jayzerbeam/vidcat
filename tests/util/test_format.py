@@ -50,19 +50,70 @@ def test_nice_duration_none_and_non_finite() -> None:
 
 
 def test_clock_format_basic() -> None:
-    assert clock_format(60) == "01:00"
+    assert clock_format(60) == "1:00"
+
+
+def test_clock_format_sub_minute() -> None:
+    assert clock_format(5) == "0:05"
+    assert clock_format(0.5, decimals=3) == "0:00.500"
 
 
 def test_clock_format_decimals_without_fraction() -> None:
-    assert clock_format(60, decimals=2) == "01:00.00"
+    assert clock_format(60, decimals=2) == "1:00.00"
 
 
 def test_clock_format_fractional_decimals() -> None:
-    assert clock_format(1.2345, decimals=3) == "00:01.234"
+    assert clock_format(1.2345, decimals=3) == "0:01.234"
 
 
-def test_clock_format_overflow_returns_none() -> None:
-    assert clock_format(1e18) is None
+def test_clock_format_inf_returns_none() -> None:
+    assert clock_format(float("inf")) is None
+    assert clock_format(float("-inf")) is None
+
+
+def test_clock_format_nan_returns_none() -> None:
+    assert clock_format(float("nan")) is None
+
+
+def test_clock_format_huge_finite_value_renders() -> None:
+    assert clock_format(10**15) == "277777777777:46:40"
+
+
+def test_clock_format_float_strips_microseconds() -> None:
+    # FMT-03: durations like round(125.43, 2) used to render "02:05.430000"
+    assert clock_format(125.43) == "2:05"
+    assert clock_format(59.5) == "0:59"
+
+
+def test_clock_format_hours_not_padded() -> None:
+    assert clock_format(3600) == "1:00:00"
+    assert clock_format(3599) == "59:59"
+
+
+def test_clock_format_beyond_24_hours_stays_a_clock_string() -> None:
+    # FMT-04: timedelta's "N day(s), ..." form is not a clock string
+    assert clock_format(86_400) == "24:00:00"
+    assert clock_format(90_061) == "25:01:01"
+
+
+def test_clock_format_fraction_truncated_to_decimals() -> None:
+    assert clock_format(125.43, decimals=1) == "2:05.4"
+    assert clock_format(125.43, decimals=3) == "2:05.430"
+
+
+def test_clock_format_hours_with_fraction() -> None:
+    assert clock_format(3661.5, decimals=3) == "1:01:01.500"
+
+
+def test_clock_format_negative() -> None:
+    assert clock_format(-5) == "-0:05"
+
+
+def test_clock_format_omit_zero_false_pads_all_fields() -> None:
+    assert clock_format(5, omit_zero=False) == "00:00:05"
+    assert clock_format(65, omit_zero=False) == "00:01:05"
+    assert clock_format(3600, omit_zero=False) == "01:00:00"
+    assert clock_format(90_061, omit_zero=False) == "25:01:01"
 
 
 def test_nice_bytesize_bytes() -> None:

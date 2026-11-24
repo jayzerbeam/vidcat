@@ -1,7 +1,3 @@
-import traceback
-from datetime import timedelta
-
-
 def nice_duration(seconds: float) -> str:
     units = ["h", "m", "s"]
     formatted = ""
@@ -25,21 +21,30 @@ def nice_duration(seconds: float) -> str:
     return f"{sign}{formatted.strip()}"
 
 
-def clock_format(seconds: float, decimals: int = 0) -> str | None:
+def clock_format(seconds: float, decimals: int = 0, omit_zero: bool = True) -> str | None:
+    """returns seconds as a string in the format HH:MM:SS.DDD
+
+    omit_zero only affects HH and MM
+    length of D is specified by decimals
+    returns None if not finite"""
     try:
-        s = str(timedelta(seconds=seconds)).removeprefix("0:")
-    except OverflowError:
-        traceback.print_exc()
+        micros = round(seconds * 1_000_000)
+    except OverflowError, ValueError:  # inf and nan
         return None
+    sign = "-" if micros < 0 else ""
+    whole, micro = divmod(abs(micros), 1_000_000)
+    hours, rem = divmod(whole, 3600)
+    minutes, secs = divmod(rem, 60)
+    if omit_zero and hours == 0:
+        clock = f"{minutes}:{secs:02d}"
+    elif omit_zero:
+        clock = f"{hours}:{minutes:02d}:{secs:02d}"
     else:
-        if decimals > 0:
-            sp = s.split(".")
-            if len(sp) > 1:
-                return f"{sp[0]}.{sp[1][:decimals]}"
-            else:
-                return f"{s}.{'0' * decimals}"
-        else:
-            return s
+        clock = f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    if decimals > 0:
+        fraction = f"{micro:06d}"[:decimals]
+        clock = f"{clock}.{fraction}"
+    return f"{sign}{clock}"
 
 
 def nice_bytesize(size: int, largest_unit: str = "E", use_base2: bool = False, decimals: int = 0) -> str:

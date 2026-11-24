@@ -270,10 +270,11 @@ def test_duplicate_times_render_one_row(root: tk.Tk) -> None:
     assert tree.item("1000", "values")[1] == "Opening"
 
 
-def test_overflowing_time_renders_blank_cell(root: tk.Tk) -> None:
+def test_huge_time_renders_formatted_clock(root: tk.Tk) -> None:
     frame, _ = make_frame(root)
     bookmark = Bookmark(time_ms=10**18, frame_no=None, name="Ancient")
 
     frame.set_bookmarks((bookmark,))
 
-    assert treeview(frame).item(str(bookmark.time_ms), "values") == ("", "Ancient")
+    row = treeview(frame).item(str(bookmark.time_ms), "values")
+    assert row == (time_cell(10**18), "Ancient")
