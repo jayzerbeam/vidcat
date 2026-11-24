@@ -30,17 +30,19 @@ class VideoThumbnailer:
         self._path = path
 
         avcontainer = av.open(self._path)
-        if len(avcontainer.streams.video) == 0:
-            raise ValueError(f"{self._path} has no video streams")
-        vs = avcontainer.streams.video[0]
+        try:
+            if len(avcontainer.streams.video) == 0:
+                raise ValueError(f"{self._path} has no video streams")
+            vs = avcontainer.streams.video[0]
 
-        self._dimensions = (vs.width, vs.height)
-        self._time_base = vs.time_base
-        self._average_rate = _stream_rate(vs)
-        avcontainer.seek(1 << 48, stream=vs, any_frame=True)
-        pkt = next(avcontainer.demux(vs))
-        self._last_pts = pkt.pts
-        avcontainer.close()
+            self._dimensions = (vs.width, vs.height)
+            self._time_base = vs.time_base
+            self._average_rate = _stream_rate(vs)
+            avcontainer.seek(1 << 48, stream=vs, any_frame=True)
+            pkt = next(avcontainer.demux(vs))
+            self._last_pts = pkt.pts
+        finally:
+            avcontainer.close()
 
     @property
     def dimensions(self) -> tuple[int, int]:
@@ -75,51 +77,51 @@ class VideoThumbnailer:
             raise ValueError(f"invalid interval ({interval})")
 
         avcontainer = av.open(self._path)
-        if len(avcontainer.streams.video) == 0:
-            raise ValueError(f"{self._path} has no video streams")
-        vs = avcontainer.streams.video[0]
-        rate = _stream_rate(vs)
+        try:
+            if len(avcontainer.streams.video) == 0:
+                raise ValueError(f"{self._path} has no video streams")
+            vs = avcontainer.streams.video[0]
+            rate = _stream_rate(vs)
 
-        avcontainer.seek(1 << 48, stream=vs, backward=True, any_frame=False)
-        pkt = next(avcontainer.demux(vs))
-        last_pts = pkt.pts
-        if last_pts is None:
-            last_pts = vs.duration
-        time_base = vs.time_base
-        if last_pts is None or time_base is None:
+            avcontainer.seek(1 << 48, stream=vs, backward=True, any_frame=False)
+            pkt = next(avcontainer.demux(vs))
+            last_pts = pkt.pts
+            if last_pts is None:
+                last_pts = vs.duration
+            time_base = vs.time_base
+            if last_pts is None or time_base is None:
+                raise ValueError(f"{self._path} has no usable timestamps")
+            duration = last_pts * time_base
+
+            if interval < 0:
+                interval = last_pts / -interval
+            else:
+                interval = interval / time_base
+
+            if rate is not None:
+                print(
+                    f"{int(last_pts * time_base / rate)} frames, {round(duration * time_base)}s, {float(rate):.2f}fps, interval {interval:.0f} "
+                )
+            else:
+                print(f"unknown fps, interval {interval:.0f} ")
+
+            frames = []
+            seek = 1 * time_base
+            progress_func(0.0)
+            while seek <= last_pts:
+                avcontainer.seek(int(seek), stream=vs, backward=True, any_frame=False)
+                frame = next(avcontainer.decode(vs))
+                frameno = framems = 0
+                if frame.pts is not None:
+                    if rate is not None:
+                        frameno = round(frame.pts / interval * rate)
+                    framems = round(frame.pts * time_base * 1000)
+                frames.append((frame.to_image(), frameno, framems))
+                progress_func(float(seek / last_pts))
+                print(".", end="")
+                seek += interval
+        finally:
             avcontainer.close()
-            raise ValueError(f"{self._path} has no usable timestamps")
-        duration = last_pts * time_base
-
-        if interval < 0:
-            interval = last_pts / -interval
-        else:
-            interval = interval / time_base
-
-        if rate is not None:
-            print(
-                f"{int(last_pts * time_base / rate)} frames, {round(duration * time_base)}s, {float(rate):.2f}fps, interval {interval:.0f} "
-            )
-        else:
-            print(f"unknown fps, interval {interval:.0f} ")
-
-        frames = []
-        seek = 1 * time_base
-        progress_func(0.0)
-        while seek <= last_pts:
-            avcontainer.seek(int(seek), stream=vs, backward=True, any_frame=False)
-            frame = next(avcontainer.decode(vs))
-            frameno = framems = 0
-            if frame.pts is not None:
-                if rate is not None:
-                    frameno = round(frame.pts / interval * rate)
-                framems = round(frame.pts * time_base * 1000)
-            frames.append((frame.to_image(), frameno, framems))
-            progress_func(float(seek / last_pts))
-            print(".", end="")
-            seek += interval
-
-        avcontainer.close()
         print(f" {len(frames)}")
         progress_func(1.0)
         self._frames = frames
@@ -197,13 +199,19 @@ class VideoReader:
     def __init__(self, path: Path):
         self._path = path
         self._container = av.open(path)
-        if len(self._container.streams.video) == 0:
-            raise ValueError(f"{self._path} has no video streams")
-        self._stream = self._container.streams.video[0]
+        try:
+            if len(self._container.streams.video) == 0:
+                raise ValueError(f"{self._path} has no video streams")
+            self._stream = self._container.streams.video[0]
 
-        self._container.seek(1 << 48, stream=self._stream)
-        pkt = next(self._container.demux(self._stream))
-        self._last_pts = pkt.pts
+            self._container.seek(1 << 48, stream=self._stream)
+            pkt = next(self._container.demux(self._stream))
+            self._last_pts = pkt.pts
+        except BaseException:
+            # the reader normally keeps the container open for scrubbing, so only
+            # a failed setup hands it back here
+            self._container.close()
+            raise
 
     @property
     def dimensions(self) -> tuple[int, int]:
