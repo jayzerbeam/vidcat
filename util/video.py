@@ -36,8 +36,9 @@ class VideoThumbnailer:
             self._dimensions = (vs.width, vs.height)
             self._time_base = vs.time_base
             avcontainer.seek(1 << 48, stream=vs, any_frame=True)
-            pkt = next(avcontainer.demux(vs))
-            self._last_pts = pkt.pts
+            pkt = next(avcontainer.demux(vs), None)
+            last_pts = pkt.pts if pkt is not None else None
+            self._last_pts = last_pts if last_pts is not None else vs.duration
         finally:
             avcontainer.close()
 
@@ -179,7 +180,7 @@ class VideoReader:
     _path: Path
     _container: Any
     _stream: Any
-    _last_pts: int
+    _last_pts: int | None
 
     def __init__(self, path: Path):
         self._path = path
@@ -190,8 +191,9 @@ class VideoReader:
             self._stream = self._container.streams.video[0]
 
             self._container.seek(1 << 48, stream=self._stream)
-            pkt = next(self._container.demux(self._stream))
-            self._last_pts = pkt.pts
+            pkt = next(self._container.demux(self._stream), None)
+            last_pts = pkt.pts if pkt is not None else None
+            self._last_pts = last_pts if last_pts is not None else self._stream.duration
         except BaseException:
             # the reader normally keeps the container open for scrubbing, so only
             # a failed setup hands it back here

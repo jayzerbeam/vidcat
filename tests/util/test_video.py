@@ -22,6 +22,10 @@ class FakePacket:
     pts = 100
 
 
+class NoPtsPacket(FakePacket):
+    pts = None
+
+
 class FakeFrame:
     pts = 50
 
@@ -103,6 +107,28 @@ def test_thumbnailer_init_closes_container_when_probe_fails(monkeypatch: pytest.
     with pytest.raises(OSError, match="corrupt index"):
         VideoThumbnailer(Path("clip.mp4"))
 
+    assert container.closed is True
+
+
+def test_thumbnailer_probe_falls_back_to_stream_duration(monkeypatch: pytest.MonkeyPatch) -> None:
+    container = FakeContainer(demux_packets=[NoPtsPacket()])
+    _patch_av(monkeypatch, container)
+
+    vt = VideoThumbnailer(Path("clip.mp4"))
+
+    # the last packet carries no PTS: FakeStream.duration (100 ticks) stands in
+    assert vt._last_pts == 100
+    assert vt.duration == 1.0
+
+
+def test_thumbnailer_probe_survives_packetless_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    container = FakeContainer(demux_packets=[])
+    _patch_av(monkeypatch, container)
+
+    # an empty demux used to raise StopIteration out of __init__
+    vt = VideoThumbnailer(Path("clip.mp4"))
+
+    assert vt._last_pts == 100
     assert container.closed is True
 
 
@@ -224,6 +250,27 @@ def test_video_reader_closes_container_when_probe_fails(monkeypatch: pytest.Monk
         VideoReader(Path("clip.mp4"))
 
     assert container.closed is True
+
+
+def test_video_reader_probe_falls_back_to_stream_duration(monkeypatch: pytest.MonkeyPatch) -> None:
+    container = FakeContainer(demux_packets=[NoPtsPacket()])
+    _patch_av(monkeypatch, container)
+
+    reader = VideoReader(Path("clip.mp4"))
+
+    assert reader._last_pts == 100
+    assert reader.duration == 1.0
+
+
+def test_video_reader_probe_survives_packetless_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    container = FakeContainer(demux_packets=[])
+    _patch_av(monkeypatch, container)
+
+    # an empty demux used to raise StopIteration out of __init__
+    reader = VideoReader(Path("clip.mp4"))
+
+    assert reader._last_pts == 100
+    assert container.closed is False
 
 
 def test_video_reader_keeps_container_open_until_close(monkeypatch: pytest.MonkeyPatch) -> None:
