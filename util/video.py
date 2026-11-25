@@ -99,7 +99,7 @@ class VideoThumbnailer:
                 frameno = framems = 0
                 if frame.pts is not None:
                     if rate is not None:
-                        frameno = round(frame.pts / interval * rate)
+                        frameno = round(frame.pts * time_base * rate)
                     framems = round(frame.pts * time_base * 1000)
                 frames.append((frame.to_image(), frameno, framems))
                 progress_func(float(seek / last_pts))

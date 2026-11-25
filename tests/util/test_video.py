@@ -29,6 +29,10 @@ class FakeFrame:
         return object()
 
 
+class FrameAt04s(FakeFrame):
+    pts = 40  # the 0.4 s mark at FakeStream.time_base (1/100)
+
+
 class FakeContainer:
     """Minimal av container double: hands out packets/frames, records close()."""
 
@@ -147,6 +151,33 @@ def test_extract_frames_closes_container_when_decode_fails(monkeypatch: pytest.M
         vt.extract_frames(interval=-1)
 
     assert extract.closed is True
+
+
+def test_extract_frames_frame_number_at_interval_seconds(monkeypatch: pytest.MonkeyPatch) -> None:
+    init = FakeContainer()
+    extract = FakeContainer(decode_frames=[FrameAt04s()])
+    _patch_av(monkeypatch, init, extract)
+
+    vt = VideoThumbnailer(Path("clip.mp4"))
+    vt.extract_frames(interval=30.0)
+
+    # 0.4 s into a 25 fps video is frame 10; the old code returned thumbnail index * fps (0)
+    _, frameno, framems = vt._frames[0]
+    assert frameno == 10
+    assert framems == 400
+
+
+def test_extract_frames_frame_number_at_fixed_sample_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    init = FakeContainer()
+    extract = FakeContainer(decode_frames=[FrameAt04s()])
+    _patch_av(monkeypatch, init, extract)
+
+    vt = VideoThumbnailer(Path("clip.mp4"))
+    vt.extract_frames(interval=-4)
+
+    # 4 samples over 1 s: the old code returned thumbnail index * fps (40) here
+    _, frameno, _ = vt._frames[0]
+    assert frameno == 10
 
 
 def test_video_reader_closes_container_when_no_video_streams(monkeypatch: pytest.MonkeyPatch) -> None:
