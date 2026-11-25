@@ -85,13 +85,13 @@ class VideoThumbnailer:
 
             if rate is not None:
                 print(
-                    f"{int(last_pts * time_base / rate)} frames, {round(duration * time_base)}s, {float(rate):.2f}fps, interval {interval:.0f} "
+                    f"{int(duration * rate)} frames, {round(duration)}s, {float(rate):.2f}fps, interval {interval:.0f} "
                 )
             else:
                 print(f"unknown fps, interval {interval:.0f} ")
 
             frames = []
-            seek = 1 * time_base
+            seek = 1  # demux tick units, matching frame.pts
             progress_func(0.0)
             while seek <= last_pts:
                 avcontainer.seek(int(seek), stream=vs, backward=True, any_frame=False)

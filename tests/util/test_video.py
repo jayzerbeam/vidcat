@@ -49,8 +49,10 @@ class FakeContainer:
         self._demux_packets = demux_packets if demux_packets is not None else [FakePacket()]
         self._decode_frames = decode_frames if decode_frames is not None else [FakeFrame()]
         self.closed = False
+        self.seek_targets: list[int] = []
 
     def seek(self, *args, **kwargs) -> None:
+        self.seek_targets.append(int(args[0]))
         if self.seek_error is not None:
             raise self.seek_error
 
@@ -178,6 +180,30 @@ def test_extract_frames_frame_number_at_fixed_sample_count(monkeypatch: pytest.M
     # 4 samples over 1 s: the old code returned thumbnail index * fps (40) here
     _, frameno, _ = vt._frames[0]
     assert frameno == 10
+
+
+def test_extract_frames_logs_real_frame_count_and_duration(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    init, extract = FakeContainer(), FakeContainer()
+    _patch_av(monkeypatch, init, extract)
+
+    vt = VideoThumbnailer(Path("clip.mp4"))
+    vt.extract_frames(interval=-1)
+
+    # 1 s at 25 fps; the old code double-applied time_base and divided by the rate ("0 frames, 0s")
+    assert "25 frames, 1s" in capsys.readouterr().out
+
+
+def test_extract_frames_seeks_in_demux_tick_units(monkeypatch: pytest.MonkeyPatch) -> None:
+    init, extract = FakeContainer(), FakeContainer()
+    _patch_av(monkeypatch, init, extract)
+
+    vt = VideoThumbnailer(Path("clip.mp4"))
+    vt.extract_frames(interval=-1)
+
+    # the probe seeks to the far end first; extraction starts at tick 1 instead of 1 * time_base (which truncated to 0)
+    assert extract.seek_targets == [1 << 48, 1]
 
 
 def test_video_reader_closes_container_when_no_video_streams(monkeypatch: pytest.MonkeyPatch) -> None:
