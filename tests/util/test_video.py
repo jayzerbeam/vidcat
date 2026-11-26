@@ -18,6 +18,14 @@ class FakeStream:
     duration = 100
 
 
+class DurationlessStream(FakeStream):
+    duration = None
+
+
+class NoTimeBaseStream(FakeStream):
+    time_base = None
+
+
 class FakePacket:
     pts = 100
 
@@ -294,3 +302,39 @@ def test_video_reader_fps_is_frames_per_second(monkeypatch: pytest.MonkeyPatch) 
 
     # FakeStream.average_rate is 25/1: the property reports the rate itself, not its period
     assert reader.fps == 25.0
+
+
+def test_reader_duration_is_none_when_container_reports_no_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
+    # VID-06: no packet PTS and no stream duration; duration must report None, not raise
+    container = FakeContainer(video_streams=[DurationlessStream()], demux_packets=[NoPtsPacket()])
+    _patch_av(monkeypatch, container)
+
+    reader = VideoReader(Path("clip.mp4"))
+
+    assert reader._last_pts is None
+    assert reader.duration is None
+
+
+def test_reader_frame_at_decodes_without_duration(monkeypatch: pytest.MonkeyPatch) -> None:
+    container = FakeContainer(
+        video_streams=[DurationlessStream()],
+        demux_packets=[NoPtsPacket()],
+        decode_frames=[FrameAt04s()],
+    )
+    _patch_av(monkeypatch, container)
+
+    reader = VideoReader(Path("clip.mp4"))
+    frame = reader.frame_at(50.0)
+
+    # frames stay decodable with no duration: frame_at skips clamping and seeks the raw time
+    assert frame is not None
+    assert container.seek_targets == [1 << 48, 5000]
+
+
+def test_reader_duration_is_none_when_stream_has_no_time_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    container = FakeContainer(video_streams=[NoTimeBaseStream()])
+    _patch_av(monkeypatch, container)
+
+    reader = VideoReader(Path("clip.mp4"))
+
+    assert reader.duration is None

@@ -206,6 +206,8 @@ class VideoReader:
 
     @property
     def duration(self) -> float | None:
+        if self._last_pts is None or self._stream.time_base is None:
+            return None
         return float(self._last_pts * self._stream.time_base)
 
     @property
