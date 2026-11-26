@@ -146,7 +146,7 @@ def test_save_uses_resolved_path_after_chdir(tmp_path: Path, monkeypatch: pytest
     assert not (other_dir / "config.json").exists()
 
 
-def test_load_ignores_empty_or_directory_vid_player(tmp_path: Path) -> None:
+def test_load_keeps_unusable_vid_player_for_use_time_validation(tmp_path: Path) -> None:
     config = tmp_path / "config.json"
     _write_config(config, {"vid_player": ""})
 
@@ -154,6 +154,32 @@ def test_load_ignores_empty_or_directory_vid_player(tmp_path: Path) -> None:
     cfg.load(config)
     assert cfg.vid_player is None
 
+    # a directory path is kept as well: Launcher validates at play time, load does not touch the disk
     _write_config(config, {"vid_player": str(tmp_path)})
     cfg.load(config)
+    assert cfg.vid_player == tmp_path
+
+
+def test_save_round_trips_unavailable_vid_player(tmp_path: Path) -> None:
+    # CFG-02: a player on an unmounted drive must survive load and save
+    player = tmp_path / "unmounted" / "player.exe"
+    config = tmp_path / "config.json"
+    _write_config(config, {"vid_player": str(player)})
+
+    cfg = Config()
+    cfg.load(config)
+    cfg.save()
+
+    assert cfg.vid_player == player
+    assert json.loads(config.read_text())["vid_player"] == str(player)
+
+
+def test_load_skips_malformed_vid_player_without_dropping_later_keys(tmp_path: Path) -> None:
+    config = tmp_path / "config.json"
+    _write_config(config, {"vid_player": 5, "vid_player_args": ["a"]})
+
+    cfg = Config()
+    cfg.load(config)
+
     assert cfg.vid_player is None
+    assert cfg.vid_player_args == ("a",)
