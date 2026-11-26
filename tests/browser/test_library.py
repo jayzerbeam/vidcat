@@ -34,6 +34,31 @@ def test_scan_filters_extensions(library: VideoLibrary, tmp_path: Path) -> None:
     assert [f.name for f in deep.files()] == ["deep.mp4"]
 
 
+def test_scan_is_idempotent(library: VideoLibrary, tmp_path: Path) -> None:
+    # CFG-05: a second full scan must not duplicate the root-level files
+    library.scan()
+
+    assert list(library.iter_files()) == [
+        tmp_path / "sub" / "deep" / "deep.mp4",
+        tmp_path / "sub" / "a.mp4",
+        tmp_path / "b.mp4",
+    ]
+
+
+def test_scan_refreshes_root_level_files(library: VideoLibrary, tmp_path: Path) -> None:
+    (tmp_path / "b.mp4").unlink()
+    (tmp_path / "d.mp4").write_text("x")
+
+    library.scan()
+
+    # the deleted file is gone and the new one appears; scan() is a true (re)scan
+    assert list(library.iter_files()) == [
+        tmp_path / "sub" / "deep" / "deep.mp4",
+        tmp_path / "sub" / "a.mp4",
+        tmp_path / "d.mp4",
+    ]
+
+
 def test_scan_and_rescan_match_extensions_case_insensitively(tmp_path: Path) -> None:
     sub = tmp_path / "sub"
     sub.mkdir()

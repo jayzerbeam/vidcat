@@ -20,6 +20,7 @@ class VideoLibrary:
 
     def scan(self) -> None:
         """(Re)scan the whole tree, keeping only the configured video extensions."""
+        self._tree.clear()
         self._tree.scan(filters=[path_extension_filter(self._vid_exts)])
 
     def rescan(self, path: Path) -> PathTree | None:
