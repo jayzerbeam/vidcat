@@ -1,3 +1,4 @@
+import tkinter as tk
 from argparse import ArgumentParser
 from contextlib import chdir
 from pathlib import Path
@@ -5,7 +6,6 @@ from typing import Final
 
 from browser.app import App
 from browser.config import Config
-from ui.message_system import MessageWindow
 
 CONFIG_NAME: Final[str] = "vidcat.cfg.json"
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
@@ -41,7 +41,7 @@ if __name__ == "__main__":
             print(f"no config found, created new default config at '{config_path}'")
 
         path = Path(".")
-        window = MessageWindow()
+        window = tk.Tk()
         window.title(f"VidCat ({path.resolve()})")
         window.geometry("1200x1000")
         app = App(window, basepath=path, config=cfg)
