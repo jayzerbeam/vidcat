@@ -93,8 +93,8 @@ class App:
         if path.is_file():
             self._launcher.play(path)
 
-    def show_in_explorer(self, path: Path) -> None:
-        self._launcher.reveal(path)
+    def open_path(self, path: Path) -> None:
+        self._launcher.open_path(path)
 
     def play_from_ms(self, ms: int) -> None:
         p = self._session.selected_path

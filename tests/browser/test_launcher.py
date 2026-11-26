@@ -13,19 +13,19 @@ def _write_file(path: Path) -> Path:
     return path
 
 
-def test_reveal_missing_path_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_open_path_missing_path_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     opened: list[Path] = []
     popen_calls: list[Any] = []
     monkeypatch.setattr(launcher_module.platform, "system", lambda: "Windows")
     monkeypatch.setattr(launcher_module.os, "startfile", opened.append, raising=False)
     monkeypatch.setattr(launcher_module.subprocess, "Popen", lambda *args: popen_calls.append(args))
 
-    Launcher(None, ()).reveal(tmp_path / "missing.mp4")
+    Launcher(None, ()).open_path(tmp_path / "missing.mp4")
 
     assert (opened, popen_calls) == ([], [])
 
 
-def test_reveal_windows_resolves_relative_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_open_path_windows_resolves_relative_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A relative path is resolved before being handed to the OS."""
     f = _write_file(tmp_path / "video.mp4")
     opened: list[Path] = []
@@ -33,26 +33,24 @@ def test_reveal_windows_resolves_relative_path(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setattr(launcher_module.platform, "system", lambda: "Windows")
     monkeypatch.setattr(launcher_module.os, "startfile", opened.append, raising=False)
 
-    Launcher(None, ()).reveal(Path(f.name))
+    Launcher(None, ()).open_path(Path(f.name))
 
     assert opened == [f]
 
 
 @pytest.mark.parametrize(("system", "command"), [("Darwin", "open"), ("Linux", "xdg-open")])
-def test_reveal_non_windows(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, system: str, command: str
-) -> None:
+def test_open_path_non_windows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, system: str, command: str) -> None:
     f = _write_file(tmp_path / "video.mp4")
     popen_calls: list[list[str | Path]] = []
     monkeypatch.setattr(launcher_module.platform, "system", lambda: system)
     monkeypatch.setattr(launcher_module.subprocess, "Popen", popen_calls.append)
 
-    Launcher(None, ()).reveal(f)
+    Launcher(None, ()).open_path(f)
 
     assert popen_calls == [[command, f.resolve()]]
 
 
-def test_reveal_linux_missing_opener(
+def test_open_path_linux_missing_opener(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     f = _write_file(tmp_path / "video.mp4")
@@ -64,9 +62,22 @@ def test_reveal_linux_missing_opener(
     monkeypatch.setattr(launcher_module.platform, "system", lambda: "Linux")
     monkeypatch.setattr(launcher_module.subprocess, "Popen", _raise)
 
-    Launcher(None, ()).reveal(f)
+    Launcher(None, ()).open_path(f)
 
     assert f"error: failed to open {resolved}: xdg-open not found" in capsys.readouterr().out
+
+
+def test_open_path_directory_goes_to_default_association(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A directory rides the same default-association path; the OS opens it in the file manager."""
+    d = tmp_path / "sub"
+    d.mkdir()
+    opened: list[Path] = []
+    monkeypatch.setattr(launcher_module.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(launcher_module.os, "startfile", opened.append, raising=False)
+
+    Launcher(None, ()).open_path(d)
+
+    assert opened == [d.resolve()]
 
 
 def test_play_missing_path_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

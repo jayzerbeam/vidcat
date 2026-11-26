@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 class Launcher:
-    """Opens paths with OS programs: the file explorer for reveal, the configured or default player for play."""
+    """Opens paths with OS programs: the default OS association for open_path, the configured or default player for play."""
 
     _vid_player: Path | None
     _vid_player_args: tuple[str, ...]
@@ -15,8 +15,8 @@ class Launcher:
         self._vid_player = vid_player
         self._vid_player_args = tuple(vid_player_args)
 
-    def reveal(self, path: Path) -> None:
-        """Open path in the system file explorer."""
+    def open_path(self, path: Path) -> None:
+        """Open path with its default OS association: the associated program for a file, the file manager for a directory."""
         if not path.exists():
             return
         path = path.resolve()
